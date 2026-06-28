@@ -21,8 +21,9 @@ history**.
 1. **GitHub PAT (`ghp_…`):** GitHub → Settings → Developer settings → Personal
    access tokens → revoke the leaked token; issue a new one with least-privilege
    scopes; store it in a secret manager (never in the repo).
-2. **The other token (`UD9ky0m6…`):** identify the service it belongs to and
-   rotate it there; update wherever it is consumed (env vars / CI secrets).
+2. **The other token (the 35-char high-entropy string in `README.md`):** identify
+   the service it belongs to and rotate it there; update wherever it is consumed
+   (env vars / CI secrets).
 3. Confirm the old values now fail to authenticate.
 
 ## Step 2 — Remove from the working tree
@@ -37,10 +38,12 @@ Coordinate with everyone who has a clone (history rewrite invalidates their copi
 **Option A — git-filter-repo (recommended):**
 ```bash
 # Install: pip install git-filter-repo
-# Create a replacements file mapping each secret to a placeholder:
+# Create a replacements file mapping each secret to a placeholder.
+# Paste the ACTUAL leaked values (from README.md history) on the left — do NOT
+# commit this file; keep it in /tmp and delete it afterwards.
 cat > /tmp/secrets.txt <<'EOF'
-UD9ky0m6Q4Zk0z5oiGBxXMdglatCqa2mfC==>***REMOVED***
-ghp_i8==>***REMOVED***
+<PASTE_THE_LEAKED_35CHAR_TOKEN_HERE>==>***REMOVED***
+<PASTE_THE_LEAKED_GITHUB_PAT_HERE>==>***REMOVED***
 EOF
 
 git filter-repo --replace-text /tmp/secrets.txt

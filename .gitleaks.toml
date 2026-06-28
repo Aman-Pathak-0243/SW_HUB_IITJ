@@ -12,11 +12,21 @@ useDefault = true
 # known non-secret false positives.
 # ─────────────────────────────────────────────────────────────────────────────
 [allowlist]
-description = "Global allowlist for non-secret false positives"
+description = "Global allowlist for non-secret false positives + known historical leaks"
 paths = [
   '''package-lock.json''',   # integrity hashes look like secrets but are not
-  '''env\.example''',        # template with empty values only
+  '''env\.example''',        # template with placeholders only
 ]
-# Example commit allowlist (add SHAs only after a value is confirmed non-secret
-# or has been rotated AND purged from history):
-# commits = []
+
+# ── TEMPORARY: known V1 leaked credentials, pending rotation + history purge ──
+# These two commits contain the V1 README leak (and the doc copies that briefly
+# propagated it). They are allowlisted BY COMMIT SHA so the scan stays green for
+# all NEW work while the owner rotates the keys and purges history
+# (see docs/runbooks/git-history-purge.md, KNOWN_ISSUES #1). No secret VALUE is
+# stored here. New/different secrets in any other commit are still detected.
+#
+# >>> REMOVE these two SHAs once the secrets are rotated AND history is purged. <<<
+commits = [
+  "1c883125b164ad26db96be1eec63f93766daf3f9",  # initial commit — README.md leak
+  "6459654670f91b3dd187edb310778afdb72e3e18",  # Session 1 docs that quoted the value (now redacted)
+]

@@ -6,7 +6,7 @@ milestone. Details for security items are in [docs/SECURITY.md](docs/SECURITY.md
 
 | # | Sev | Issue | Location | Status |
 |---|-----|-------|----------|--------|
-| 1 | 🔴 | **Secrets committed in repo.** A 35-char token and a GitHub PAT (`ghp_…`) are in plaintext. Rotate/remove + purge history. | `README.md` | In progress — gitleaks CI + purge runbook added (M0.5); **rotation/removal owned by owner** |
+| 1 | 🔴 | **Secrets committed in repo.** A 35-char token and a GitHub PAT (`ghp_…`) are in plaintext in `README.md` (commit `1c88312`). Rotate/remove + purge history. CI gitleaks **temporarily allowlists commits `1c88312` + `6459654` by SHA** so it stays green for new work; **remove that allowlist after rotation + purge**. The literal value was briefly copied into Session-1 docs and has been **redacted**. | `README.md` | In progress — owner owns rotation/removal/purge |
 | 2 | 🟠 | **`POST /api/events` has no auth check.** Anyone reachable can create events; UI gate doesn't protect the API. | `app/api/events/route.js` | Open |
 | 3 | 🟠 | **`/past-events` is broken.** Reads `data.success`/`data.events`, but the API returns a bare array → page always empty. | `app/past-events/page.js` | Open |
 | 4 | 🟠 | **`pdfjs-dist` version mismatch.** Code comments require 3.11.174 (3.x worker path `pdf.worker.min.js`); `package.json` declares `^6.0.227` and imports the `.mjs` worker. Risk: blank PDF previews. | `app/components/PdfSlideshow.jsx`, `package.json` | Open |
