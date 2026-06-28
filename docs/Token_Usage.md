@@ -22,7 +22,7 @@ checklist in [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md)).
 | Session | Date | Focus | Workflow subagent tokens (measured) | Session total | Notes |
 |---|---|---|---|---|---|
 | 1 | 2026-06-28 | Analysis + Documentation + Architecture | **338,732** (schema-design workflow: 9 agents, 36 tool calls, ~1,017s) | ~0.6M–0.9M *(est.)* — run `/cost` for exact | Also ran 3 Explore subagents in the analysis phase (not separately instrumented). Heavy file reading + ~35 doc writes. No app code. |
-| 2 | — | Database + Prisma + RBAC + Auth | — | — | |
+| 2 | 2026-06-28 | Database + Prisma + RBAC + Auth | **912,182** (1 adversarial review workflow: 16 agents — 6 reviewers + 10 verifiers, 263 tool calls, ~580s) | _run `/cost` for exact_ | Most work was sequential implementation (schema/migration/seed/auth/RBAC) in the main loop; only the review was a workflow. |
 | 3 | — | CMS Foundation | — | — | |
 | 4 | — | Academic Year Engine | — | — | |
 | 5 | — | Organization Model | — | — | |
@@ -34,8 +34,8 @@ checklist in [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md)).
 
 ## Running total
 
-- **Measured workflow subagent tokens to date:** 338,732
-- **Estimated cumulative session total:** ~0.6M–0.9M *(Session 1 only; update as sessions complete)*
+- **Measured workflow subagent tokens to date:** 1,250,914 (Session 1: 338,732 + Session 2: 912,182)
+- **Estimated cumulative session total:** Session 1 ~0.6M–0.9M *(est.)* + Session 2 *(run `/cost`)*
 
 ## Session 1 breakdown (detail)
 

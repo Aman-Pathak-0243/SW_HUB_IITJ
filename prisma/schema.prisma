@@ -1,0 +1,910 @@
+// IIT Jammu Student Affairs Portal V2 — Prisma schema
+// AUTHORITATIVE SOURCE: docs/SCHEMA_DESIGN.md (33 tables, 14 Prisma enums).
+// Models map 1:1 to snake_case tables via @@map; fields map via @map.
+// Raw-SQL objects Prisma cannot express (partial/expression/NULLS-NOT-DISTINCT
+// uniques, triggers, GIN/BRIN, bigint identity, CHECKs, citext extension) live
+// in the init migration's hand-written tail — see prisma/migrations and
+// docs/SCHEMA_DESIGN.md "Prisma/Postgres/Neon notes". NEVER `prisma db pull`
+// (it would drop those objects from the schema's view).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (PgBouncer) — used by the app at runtime
+  directUrl = env("DIRECT_URL") // unpooled — used by prisma migrate / introspection
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ENUMS (14) — small, fixed, code-coupled vocabularies. Extensible / FK-
+// referenced sets (org_unit_type, role, permission, position, content_type)
+// are LOOKUP TABLES, not enums (see DECISION_LOG DL-014).
+// ──────────────────────────────────────────────────────────────────────────
+
+enum AcademicYearStatus {
+  planning
+  active
+  locked
+
+  @@map("academic_year_status")
+}
+
+enum UserStatus {
+  active
+  suspended
+  invited
+  disabled
+
+  @@map("user_status")
+}
+
+enum EntityStatus {
+  active
+  archived
+
+  @@map("entity_status")
+}
+
+enum ContentStatus {
+  draft
+  review
+  published
+  archived
+
+  @@map("content_status")
+}
+
+enum RevisionStatus {
+  draft
+  review
+  published
+  superseded
+
+  @@map("revision_status")
+}
+
+enum PersonType {
+  faculty
+  student
+  staff
+  external
+
+  @@map("person_type")
+}
+
+enum MealType {
+  breakfast
+  lunch
+  snacks
+  dinner
+
+  @@map("meal_type")
+}
+
+enum AudienceType {
+  public
+  students
+  faculty
+  staff
+  internal
+
+  @@map("audience_type")
+}
+
+enum ResourceKind {
+  pdf
+  link
+  drive
+  file
+
+  @@map("resource_kind")
+}
+
+enum StorageProvider {
+  cloudinary
+  local
+  external
+
+  @@map("storage_provider")
+}
+
+enum MediaKind {
+  image
+  pdf
+  svg
+  gif
+
+  @@map("media_kind")
+}
+
+enum MediaRole {
+  gallery
+  hero
+  hero_primary
+  attachment
+
+  @@map("media_role")
+}
+
+enum AuditAction {
+  create
+  update
+  delete
+  publish
+  unpublish
+  archive
+  restore
+  login
+  transition
+  grant_role
+  revoke_role
+
+  @@map("audit_action")
+}
+
+enum TransitionStatus {
+  pending
+  running
+  completed
+  failed
+
+  @@map("transition_status")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// IDENTITY & AUTH (NextAuth v4 PrismaAdapter canonical shape; JWT sessions —
+// no Session model). Prisma models are named User/Account/VerificationToken so
+// the default PrismaAdapter resolves prisma.user / prisma.account /
+// prisma.verificationToken; the TABLES stay app_user/auth_account/
+// verification_token via @@map (see DECISION_LOG DL-017).
+// ──────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String     @unique @db.Citext
+  emailVerified DateTime?  @map("email_verified_at") @db.Timestamptz
+  passwordHash  String?    @map("password_hash") // argon2id; NULL when OAuth-only
+  name          String     @map("display_name") // adapter User.name
+  image         String? // adapter User.image (OAuth avatar URL); curated avatar is `avatar`
+  avatarMediaId String?    @map("avatar_media_id") @db.Uuid
+  isDeveloper   Boolean    @default(false) @map("is_developer")
+  status        UserStatus @default(active)
+  lastLoginAt   DateTime?  @map("last_login_at") @db.Timestamptz
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+
+  avatar   MediaAsset? @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+  accounts Account[]
+
+  // Back-relations — every inbound FK to app_user (enumerated so prisma validate passes)
+  academicYearsCreated   AcademicYear[]    @relation("AcademicYearCreatedBy")
+  academicYearsUpdated   AcademicYear[]    @relation("AcademicYearUpdatedBy")
+  rolesCreated           Role[]            @relation("RoleCreatedBy")
+  rolesUpdated           Role[]            @relation("RoleUpdatedBy")
+  orgUnitLineagesCreated OrgUnitLineage[]  @relation("OrgUnitLineageCreatedBy")
+  roleAssignments        RoleAssignment[]  @relation("RoleAssignmentUser")
+  roleAssignmentsGranted RoleAssignment[]  @relation("RoleAssignmentGrantedBy")
+  roleAssignmentsRevoked RoleAssignment[]  @relation("RoleAssignmentRevokedBy")
+  orgUnitsCreated        OrgUnit[]         @relation("OrgUnitCreatedBy")
+  orgUnitsUpdated        OrgUnit[]         @relation("OrgUnitUpdatedBy")
+  personsCreated         Person[]          @relation("PersonCreatedBy")
+  personsUpdated         Person[]          @relation("PersonUpdatedBy")
+  personLinks            Person[]          @relation("PersonAppUser")
+  appointmentsCreated    Appointment[]     @relation("AppointmentCreatedBy")
+  appointmentsUpdated    Appointment[]     @relation("AppointmentUpdatedBy")
+  contentItemsCreated    ContentItem[]     @relation("ContentItemCreatedBy")
+  contentItemsUpdated    ContentItem[]     @relation("ContentItemUpdatedBy")
+  contentItemsPublished  ContentItem[]     @relation("ContentItemPublishedBy")
+  contentRevisions       ContentRevision[] @relation("ContentRevisionCreatedBy")
+  mediaUploaded          MediaAsset[]      @relation("MediaUploadedBy")
+  auditLogs              AuditLog[]        @relation("AuditLogActor")
+  transitionRunsRun      TransitionRun[]   @relation("TransitionRunRunBy")
+  backupRecordsCreated   BackupRecord[]    @relation("BackupRecordCreatedBy")
+
+  @@index([status])
+  @@map("app_user")
+}
+
+model Account {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("auth_account")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamptz
+
+  @@unique([identifier, token])
+  @@map("verification_token")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// TEMPORAL SPINE
+// ──────────────────────────────────────────────────────────────────────────
+
+model AcademicYear {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  label                  String             @unique // 'YYYY-YY' (CHECK in raw SQL)
+  startDate              DateTime           @map("start_date") @db.Date
+  endDate                DateTime           @map("end_date") @db.Date
+  status                 AcademicYearStatus @default(planning)
+  isCurrent              Boolean            @default(false) @map("is_current")
+  transitionedFromYearId String?            @map("transitioned_from_year_id") @db.Uuid
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz
+  createdById            String?            @map("created_by") @db.Uuid
+  updatedById            String?            @map("updated_by") @db.Uuid
+
+  transitionedFrom AcademicYear?  @relation("YearTransition", fields: [transitionedFromYearId], references: [id], onDelete: SetNull)
+  transitionedTo   AcademicYear[] @relation("YearTransition")
+  createdBy        User?          @relation("AcademicYearCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy        User?          @relation("AcademicYearUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  orgUnits             OrgUnit[]
+  appointments         Appointment[]    @relation("AppointmentYear")
+  contentItems         ContentItem[]
+  roleAssignments      RoleAssignment[]
+  auditLogs            AuditLog[]
+  lineagesFirstSeen    OrgUnitLineage[] @relation("LineageFirstSeenYear")
+  transitionRunsSource TransitionRun[]  @relation("TransitionSourceYear")
+  transitionRunsTarget TransitionRun[]  @relation("TransitionTargetYear")
+
+  @@index([status])
+  @@index([transitionedFromYearId])
+  @@map("academic_year")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// RBAC
+// ──────────────────────────────────────────────────────────────────────────
+
+model Role {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String       @unique
+  name        String
+  description String?
+  isSystem    Boolean      @default(false) @map("is_system")
+  grantsAll   Boolean      @default(false) @map("grants_all")
+  status      EntityStatus @default(active)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?      @map("created_by") @db.Uuid
+  updatedById String?      @map("updated_by") @db.Uuid
+
+  createdBy       User?            @relation("RoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?            @relation("RoleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  rolePermissions RolePermission[]
+  roleAssignments RoleAssignment[]
+
+  @@index([status])
+  @@map("role")
+}
+
+model Permission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  label       String
+  description String?
+  module      String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permission")
+}
+
+model OrgUnitLineage {
+  lineageKey      String   @id @default(dbgenerated("gen_random_uuid()")) @map("lineage_key") @db.Uuid
+  canonicalName   String?  @map("canonical_name")
+  firstSeenYearId String?  @map("first_seen_year_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdById     String?  @map("created_by") @db.Uuid
+
+  firstSeenYear AcademicYear? @relation("LineageFirstSeenYear", fields: [firstSeenYearId], references: [id], onDelete: SetNull)
+  createdBy     User?         @relation("OrgUnitLineageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  orgUnits        OrgUnit[]
+  roleAssignments RoleAssignment[]
+
+  @@index([firstSeenYearId])
+  @@map("org_unit_lineage")
+}
+
+model RoleAssignment {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  roleId            String    @map("role_id") @db.Uuid
+  orgUnitLineageKey String?   @map("org_unit_lineage_key") @db.Uuid
+  academicYearId    String?   @map("academic_year_id") @db.Uuid
+  grantedAt         DateTime  @default(now()) @map("granted_at") @db.Timestamptz
+  grantedById       String?   @map("granted_by") @db.Uuid
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz
+  revokedById       String?   @map("revoked_by") @db.Uuid
+
+  user           User            @relation("RoleAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  role           Role            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  academicYear   AcademicYear?   @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  grantedBy      User?           @relation("RoleAssignmentGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  revokedBy      User?           @relation("RoleAssignmentRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([orgUnitLineageKey])
+  @@index([academicYearId])
+  @@index([roleId])
+  @@map("role_assignment")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ORGANIZATION MODEL
+// ──────────────────────────────────────────────────────────────────────────
+
+model OrgUnitType {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String       @unique
+  name        String
+  description String?
+  iconMediaId String?      @map("icon_media_id") @db.Uuid
+  sortOrder   Int          @default(0) @map("sort_order")
+  isSystem    Boolean      @default(false) @map("is_system")
+  status      EntityStatus @default(active)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  icon MediaAsset? @relation("OrgUnitTypeIcon", fields: [iconMediaId], references: [id], onDelete: SetNull)
+
+  orgUnits        OrgUnit[]
+  positions       Position[]
+  appointments    Appointment[]
+  allowedChildren OrgUnitTypeAllowedChild[] @relation("AllowedChildParent")
+  allowedParents  OrgUnitTypeAllowedChild[] @relation("AllowedChildChild")
+
+  @@index([status])
+  @@map("org_unit_type")
+}
+
+model OrgUnitTypeAllowedChild {
+  parentTypeId String @map("parent_type_id") @db.Uuid
+  childTypeId  String @map("child_type_id") @db.Uuid
+
+  parentType OrgUnitType @relation("AllowedChildParent", fields: [parentTypeId], references: [id], onDelete: Cascade)
+  childType  OrgUnitType @relation("AllowedChildChild", fields: [childTypeId], references: [id], onDelete: Restrict)
+
+  @@id([parentTypeId, childTypeId])
+  @@index([childTypeId])
+  @@map("org_unit_type_allowed_child")
+}
+
+model OrgUnit {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academicYearId String        @map("academic_year_id") @db.Uuid
+  orgUnitTypeId  String        @map("org_unit_type_id") @db.Uuid
+  parentId       String?       @map("parent_id") @db.Uuid
+  lineageKey     String        @map("lineage_key") @db.Uuid
+  slug           String
+  name           String
+  sortOrder      Int           @default(0) @map("sort_order")
+  status         ContentStatus @default(draft)
+  archivedAt     DateTime?     @map("archived_at") @db.Timestamptz
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  createdById    String?       @map("created_by") @db.Uuid
+  updatedById    String?       @map("updated_by") @db.Uuid
+
+  academicYear AcademicYear   @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  orgUnitType  OrgUnitType    @relation(fields: [orgUnitTypeId], references: [id], onDelete: Restrict)
+  parent       OrgUnit?       @relation("OrgUnitParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children     OrgUnit[]      @relation("OrgUnitParent")
+  lineage      OrgUnitLineage @relation(fields: [lineageKey], references: [lineageKey], onDelete: Restrict)
+  createdBy    User?          @relation("OrgUnitCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?          @relation("OrgUnitUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  appointments Appointment[] @relation("AppointmentOrgUnit")
+  contentItems ContentItem[]
+
+  @@unique([id, academicYearId]) // composite target for appointment's year-agreement FK
+  @@unique([academicYearId, slug])
+  @@unique([academicYearId, lineageKey])
+  @@index([academicYearId, orgUnitTypeId])
+  @@index([parentId])
+  @@index([lineageKey])
+  @@map("org_unit")
+}
+
+model Person {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName     String     @map("full_name")
+  personType   PersonType @map("person_type")
+  email        String?    @db.Citext
+  phone        String?
+  profileUrl   String?    @map("profile_url")
+  photoMediaId String?    @map("photo_media_id") @db.Uuid
+  appUserId    String?    @map("app_user_id") @db.Uuid
+  archivedAt   DateTime?  @map("archived_at") @db.Timestamptz
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  createdById  String?    @map("created_by") @db.Uuid
+  updatedById  String?    @map("updated_by") @db.Uuid
+
+  photo     MediaAsset? @relation("PersonPhoto", fields: [photoMediaId], references: [id], onDelete: SetNull)
+  appUser   User?       @relation("PersonAppUser", fields: [appUserId], references: [id], onDelete: SetNull)
+  createdBy User?       @relation("PersonCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User?       @relation("PersonUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  appointments Appointment[]
+
+  @@index([personType])
+  @@index([appUserId])
+  @@map("person")
+}
+
+model Position {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key             String       @unique
+  name            String
+  appliesToTypeId String?      @map("applies_to_type_id") @db.Uuid
+  holderKind      PersonType?  @map("holder_kind")
+  maxHolders      Int?         @map("max_holders")
+  rank            Int          @default(0)
+  isLead          Boolean      @default(false) @map("is_lead")
+  status          EntityStatus @default(active)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  appliesToType OrgUnitType?  @relation(fields: [appliesToTypeId], references: [id], onDelete: Restrict)
+  appointments  Appointment[]
+
+  @@index([appliesToTypeId])
+  @@index([status])
+  @@map("position")
+}
+
+model Appointment {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academicYearId String        @map("academic_year_id") @db.Uuid
+  orgUnitId      String        @map("org_unit_id") @db.Uuid
+  orgUnitTypeId  String?       @map("org_unit_type_id") @db.Uuid
+  positionId     String        @map("position_id") @db.Uuid
+  personId       String        @map("person_id") @db.Uuid
+  titleOverride  String?       @map("title_override")
+  // Denormalized "this appointment's position is a singleton (max_holders=1)".
+  // Maintained by the appointment_type_guard trigger from position.max_holders;
+  // backs the concurrency-safe singleton partial-unique (DL-021).
+  isSingleton    Boolean       @default(false) @map("is_singleton")
+  status         ContentStatus @default(draft)
+  publishedAt    DateTime?     @map("published_at") @db.Timestamptz
+  sortOrder      Int           @default(0) @map("sort_order")
+  startDate      DateTime?     @map("start_date") @db.Date
+  endDate        DateTime?     @map("end_date") @db.Date
+  archivedAt     DateTime?     @map("archived_at") @db.Timestamptz
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  createdById    String?       @map("created_by") @db.Uuid
+  updatedById    String?       @map("updated_by") @db.Uuid
+
+  academicYear AcademicYear @relation("AppointmentYear", fields: [academicYearId], references: [id], onDelete: Restrict)
+  orgUnit      OrgUnit      @relation("AppointmentOrgUnit", fields: [orgUnitId, academicYearId], references: [id, academicYearId], onDelete: Restrict)
+  orgUnitType  OrgUnitType? @relation(fields: [orgUnitTypeId], references: [id], onDelete: Restrict)
+  position     Position     @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  createdBy    User?        @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy    User?        @relation("AppointmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([orgUnitId, academicYearId, status])
+  @@index([personId, academicYearId])
+  @@index([positionId])
+  @@index([academicYearId])
+  @@map("appointment")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CONTENT SPINE (header + immutable revision + per-type payloads)
+// ──────────────────────────────────────────────────────────────────────────
+
+model ContentTypeDef {
+  contentType     String       @id @map("content_type")
+  label           String
+  isYearScoped    Boolean      @default(true) @map("is_year_scoped")
+  supportsPublish Boolean      @default(true) @map("supports_publish")
+  isOrgBound      Boolean      @default(false) @map("is_org_bound")
+  payloadTable    String       @map("payload_table")
+  status          EntityStatus @default(active)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz
+
+  contentItems ContentItem[]
+
+  @@index([status])
+  @@map("content_type_def")
+}
+
+model ContentItem {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contentType         String        @map("content_type")
+  academicYearId      String?       @map("academic_year_id") @db.Uuid
+  orgUnitId           String?       @map("org_unit_id") @db.Uuid
+  lineageKey          String        @map("lineage_key") @db.Uuid // document lineage (plain uuid, not an org_unit_lineage FK)
+  slug                String?
+  status              ContentStatus @default(draft)
+  publishedRevisionId String?       @map("published_revision_id") @db.Uuid // PLAIN cache column, NOT an FK (see DL-005)
+  draftRevisionId     String?       @map("draft_revision_id") @db.Uuid // PLAIN cache column, NOT an FK (see DL-005)
+  publishedAt         DateTime?     @map("published_at") @db.Timestamptz
+  publishedById       String?       @map("published_by") @db.Uuid
+  pinned              Boolean       @default(false)
+  archivedAt          DateTime?     @map("archived_at") @db.Timestamptz
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  createdById         String?       @map("created_by") @db.Uuid
+  updatedById         String?       @map("updated_by") @db.Uuid
+
+  contentTypeDef ContentTypeDef @relation(fields: [contentType], references: [contentType], onDelete: Restrict)
+  academicYear   AcademicYear?  @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  orgUnit        OrgUnit?       @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+  publishedBy    User?          @relation("ContentItemPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  createdBy      User?          @relation("ContentItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy      User?          @relation("ContentItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  revisions ContentRevision[]
+
+  @@unique([contentType, academicYearId, lineageKey]) // one item per logical doc per year
+  // Public-listing hot path is served by the raw-SQL partial index
+  // content_item_listing_idx (WHERE archived_at IS NULL); no full index here.
+  @@index([orgUnitId])
+  @@index([lineageKey])
+  @@index([publishedRevisionId])
+  @@index([draftRevisionId])
+  @@map("content_item")
+}
+
+model ContentRevision {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contentItemId         String         @map("content_item_id") @db.Uuid
+  revisionNo            Int            @map("revision_no")
+  revisionStatus        RevisionStatus @default(draft) @map("revision_status")
+  title                 String
+  summary               String?
+  changeNote            String?        @map("change_note")
+  isRestoreOfRevisionId String?        @map("is_restore_of_revision_id") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  createdById           String?        @map("created_by") @db.Uuid
+
+  contentItem ContentItem       @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  isRestoreOf ContentRevision?  @relation("RevisionRestore", fields: [isRestoreOfRevisionId], references: [id], onDelete: SetNull)
+  restoredBy  ContentRevision[] @relation("RevisionRestore")
+  createdBy   User?             @relation("ContentRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  clubProfile   ClubProfilePayload?
+  hostelProfile HostelProfilePayload?
+  messProfile   MessProfilePayload?
+  event         EventPayload?
+  announcement  AnnouncementPayload?
+  flagship      FlagshipEventPayload?
+  resource      ResourcePayload?
+  pageBlock     PageBlockPayload?
+  missionPoints ClubMissionPoint[]
+  mealTimings   MessMealTiming[]
+  media         ContentMedia[]
+
+  @@unique([contentItemId, revisionNo])
+  @@unique([id, contentItemId]) // composite same-item target for pointer-integrity trigger
+  @@index([contentItemId, createdAt(sort: Desc)])
+  @@index([contentItemId, revisionStatus])
+  @@index([revisionStatus])
+  @@map("content_revision")
+}
+
+// ── Per-type payloads (1:1 with content_revision) ──
+
+model ClubProfilePayload {
+  revisionId     String  @id @map("revision_id") @db.Uuid
+  vision         String?
+  instagramUrl   String? @map("instagram_url")
+  logoMediaId    String? @map("logo_media_id") @db.Uuid
+  heroMediaId    String? @map("hero_media_id") @db.Uuid
+  detailDriveUrl String? @map("detail_drive_url")
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  logo     MediaAsset?     @relation("ClubProfileLogo", fields: [logoMediaId], references: [id], onDelete: SetNull)
+  hero     MediaAsset?     @relation("ClubProfileHero", fields: [heroMediaId], references: [id], onDelete: SetNull)
+
+  @@index([logoMediaId])
+  @@index([heroMediaId])
+  @@map("club_profile_payload")
+}
+
+model ClubMissionPoint {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  revisionId String @map("revision_id") @db.Uuid
+  sortOrder  Int    @default(0) @map("sort_order")
+  text       String
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@index([revisionId, sortOrder])
+  @@map("club_mission_point")
+}
+
+model HostelProfilePayload {
+  revisionId               String  @id @map("revision_id") @db.Uuid
+  buildingMediaId          String? @map("building_media_id") @db.Uuid
+  officeEmail              String? @map("office_email") @db.Citext
+  officePhone              String? @map("office_phone")
+  infrastructurePdfMediaId String? @map("infrastructure_pdf_media_id") @db.Uuid
+  detailDriveUrl           String? @map("detail_drive_url")
+
+  revision          ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  building          MediaAsset?     @relation("HostelBuilding", fields: [buildingMediaId], references: [id], onDelete: SetNull)
+  infrastructurePdf MediaAsset?     @relation("HostelInfraPdf", fields: [infrastructurePdfMediaId], references: [id], onDelete: SetNull)
+
+  @@index([buildingMediaId])
+  @@index([infrastructurePdfMediaId])
+  @@map("hostel_profile_payload")
+}
+
+model MessProfilePayload {
+  revisionId               String  @id @map("revision_id") @db.Uuid
+  location                 String?
+  capacity                 Int?
+  imageMediaId             String? @map("image_media_id") @db.Uuid
+  infrastructurePdfMediaId String? @map("infrastructure_pdf_media_id") @db.Uuid
+  detailDriveUrl           String? @map("detail_drive_url")
+
+  revision          ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  image             MediaAsset?     @relation("MessImage", fields: [imageMediaId], references: [id], onDelete: SetNull)
+  infrastructurePdf MediaAsset?     @relation("MessInfraPdf", fields: [infrastructurePdfMediaId], references: [id], onDelete: SetNull)
+
+  @@index([imageMediaId])
+  @@index([infrastructurePdfMediaId])
+  @@map("mess_profile_payload")
+}
+
+model MessMealTiming {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  revisionId    String   @map("revision_id") @db.Uuid
+  meal          MealType
+  startTime     DateTime @map("start_time") @db.Time
+  endTime       DateTime @map("end_time") @db.Time
+  wrapsMidnight Boolean  @default(false) @map("wraps_midnight")
+  sortOrder     Int      @default(0) @map("sort_order")
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, meal])
+  @@index([revisionId, sortOrder])
+  @@map("mess_meal_timing")
+}
+
+model EventPayload {
+  revisionId   String       @id @map("revision_id") @db.Uuid
+  body         String?
+  eventDate    DateTime?    @map("event_date") @db.Timestamptz
+  location     String?
+  audience     AudienceType @default(public)
+  publishFrom  DateTime?    @map("publish_from") @db.Timestamptz
+  publishUntil DateTime?    @map("publish_until") @db.Timestamptz
+  coverMediaId String?      @map("cover_media_id") @db.Uuid
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  cover    MediaAsset?     @relation("EventCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+
+  @@index([eventDate])
+  @@index([coverMediaId])
+  @@map("event_payload")
+}
+
+model AnnouncementPayload {
+  revisionId   String       @id @map("revision_id") @db.Uuid
+  body         String
+  audience     AudienceType @default(public)
+  publishFrom  DateTime?    @map("publish_from") @db.Timestamptz
+  publishUntil DateTime?    @map("publish_until") @db.Timestamptz
+  coverMediaId String?      @map("cover_media_id") @db.Uuid
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  cover    MediaAsset?     @relation("AnnouncementCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+
+  @@index([coverMediaId])
+  @@map("announcement_payload")
+}
+
+model FlagshipEventPayload {
+  revisionId   String  @id @map("revision_id") @db.Uuid
+  description  String?
+  imageMediaId String? @map("image_media_id") @db.Uuid
+  category     String?
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  image    MediaAsset?     @relation("FlagshipImage", fields: [imageMediaId], references: [id], onDelete: SetNull)
+
+  @@index([imageMediaId])
+  @@map("flagship_event_payload")
+}
+
+model ResourcePayload {
+  revisionId   String       @id @map("revision_id") @db.Uuid
+  resourceKind ResourceKind @map("resource_kind")
+  fileMediaId  String?      @map("file_media_id") @db.Uuid
+  externalUrl  String?      @map("external_url")
+  description  String?
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  file     MediaAsset?     @relation("ResourceFile", fields: [fileMediaId], references: [id], onDelete: SetNull)
+
+  @@index([fileMediaId])
+  @@map("resource_payload")
+}
+
+model PageBlockPayload {
+  revisionId     String  @id @map("revision_id") @db.Uuid
+  blockKind      String  @map("block_kind")
+  body           String?
+  data           Json?   @db.JsonB
+  primaryMediaId String? @map("primary_media_id") @db.Uuid
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  primary  MediaAsset?     @relation("PageBlockPrimary", fields: [primaryMediaId], references: [id], onDelete: SetNull)
+
+  @@index([primaryMediaId])
+  @@map("page_block_payload")
+}
+
+model ContentMedia {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  revisionId      String    @map("revision_id") @db.Uuid
+  mediaId         String    @map("media_id") @db.Uuid
+  role            MediaRole @default(gallery)
+  sortOrder       Int       @default(0) @map("sort_order")
+  altTextOverride String?   @map("alt_text_override")
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  media    MediaAsset      @relation("ContentMediaAsset", fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@unique([revisionId, mediaId, role])
+  @@index([revisionId, role, sortOrder])
+  @@index([mediaId])
+  @@map("content_media")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEDIA, AUDIT, OPS
+// ──────────────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storageProvider    StorageProvider @default(cloudinary) @map("storage_provider")
+  cloudinaryPublicId String?         @map("cloudinary_public_id")
+  url                String
+  originalPath       String?         @map("original_path")
+  mimeType           String?         @map("mime_type")
+  kind               MediaKind       @default(image)
+  width              Int?
+  height             Int?
+  bytes              BigInt?
+  altText            String?         @map("alt_text")
+  checksum           String?
+  uploadedById       String?         @map("uploaded_by") @db.Uuid
+  migratedAt         DateTime?       @map("migrated_at") @db.Timestamptz
+  archivedAt         DateTime?       @map("archived_at") @db.Timestamptz
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  uploadedBy User? @relation("MediaUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  userAvatars        User[]                 @relation("UserAvatar")
+  orgUnitTypeIcons   OrgUnitType[]          @relation("OrgUnitTypeIcon")
+  personPhotos       Person[]               @relation("PersonPhoto")
+  clubProfileLogos   ClubProfilePayload[]   @relation("ClubProfileLogo")
+  clubProfileHeros   ClubProfilePayload[]   @relation("ClubProfileHero")
+  hostelBuildings    HostelProfilePayload[] @relation("HostelBuilding")
+  hostelInfraPdfs    HostelProfilePayload[] @relation("HostelInfraPdf")
+  messImages         MessProfilePayload[]   @relation("MessImage")
+  messInfraPdfs      MessProfilePayload[]   @relation("MessInfraPdf")
+  eventCovers        EventPayload[]         @relation("EventCover")
+  announcementCovers AnnouncementPayload[]  @relation("AnnouncementCover")
+  flagshipImages     FlagshipEventPayload[] @relation("FlagshipImage")
+  resourceFiles      ResourcePayload[]      @relation("ResourceFile")
+  pageBlockPrimaries PageBlockPayload[]     @relation("PageBlockPrimary")
+  contentMedia       ContentMedia[]         @relation("ContentMediaAsset")
+
+  @@index([storageProvider])
+  @@index([uploadedById])
+  @@index([originalPath])
+  @@index([checksum])
+  @@map("media_asset")
+}
+
+model AuditLog {
+  id             BigInt      @id @default(autoincrement()) // BIGSERIAL — Prisma-native monotonic bigint PK (see DL-018)
+  actorUserId    String?     @map("actor_user_id") @db.Uuid
+  action         AuditAction
+  entityType     String      @map("entity_type")
+  entityId       String?     @map("entity_id") @db.Uuid // polymorphic — intentionally NOT an FK
+  academicYearId String?     @map("academic_year_id") @db.Uuid
+  before         Json?       @db.JsonB
+  after          Json?       @db.JsonB
+  summary        String?
+  ipAddress      String?     @map("ip_address") @db.Inet
+  userAgent      String?     @map("user_agent")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  actor        User?         @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  academicYear AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([action])
+  @@map("audit_log")
+}
+
+model TransitionRun {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceYearId        String           @map("source_year_id") @db.Uuid
+  targetYearId        String           @map("target_year_id") @db.Uuid
+  copyStructure       Boolean          @default(true) @map("copy_structure")
+  copyAppointments    Boolean          @default(false) @map("copy_appointments")
+  copyContent         Boolean          @default(false) @map("copy_content")
+  copyRoleAssignments Boolean          @default(false) @map("copy_role_assignments")
+  status              TransitionStatus @default(pending)
+  counts              Json?            @db.JsonB
+  startedAt           DateTime?        @map("started_at") @db.Timestamptz
+  completedAt         DateTime?        @map("completed_at") @db.Timestamptz
+  runById             String?          @map("run_by") @db.Uuid
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  sourceYear AcademicYear @relation("TransitionSourceYear", fields: [sourceYearId], references: [id], onDelete: Restrict)
+  targetYear AcademicYear @relation("TransitionTargetYear", fields: [targetYearId], references: [id], onDelete: Restrict)
+  runBy      User?        @relation("TransitionRunRunBy", fields: [runById], references: [id], onDelete: SetNull)
+
+  @@index([targetYearId])
+  @@map("transition_run")
+}
+
+model BackupRecord {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope       String
+  format      String
+  location    String
+  checksum    String?
+  bytes       BigInt?
+  verified    Boolean   @default(false)
+  verifiedAt  DateTime? @map("verified_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdById String?   @map("created_by") @db.Uuid
+
+  createdBy User? @relation("BackupRecordCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([scope, createdAt(sort: Desc)])
+  @@index([verified])
+  @@map("backup_record")
+}

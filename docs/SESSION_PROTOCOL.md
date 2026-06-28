@@ -17,8 +17,8 @@ context and no repeated work.
 | # | Session | Focus | Status |
 |---|---------|-------|--------|
 | 1 | **Analysis + Documentation + Architecture** | Repo analysis, full `/docs`, V2 architecture, **PostgreSQL schema design (Prisma/Neon)**, ER diagram, migration report, decision log, backups, security scanning | ✅ **DONE** |
-| 2 | Database + Prisma + RBAC + Authentication | Implement the schema in Prisma, run first migration on Neon, seed academic year + roles, NextAuth (Google + credentials, one-account-per-email), dynamic RBAC enforcement | ⏳ Next |
-| 3 | CMS Foundation | Draft/Publish lifecycle, version history, generic content editing layer, audit logging wired in | ⬜ Pending |
+| 2 | **Database + Prisma + RBAC + Authentication** | Schema in Prisma (33 tables/14 enums), first Neon migration (raw-SQL guards + 6 triggers), seed (year/roles/perms/org/positions/content types/bootstrap users), NextAuth (Google + credentials, one-account-per-email, JWT), dynamic server-side RBAC, 50 tests | ✅ **DONE** |
+| 3 | CMS Foundation | Draft/Publish lifecycle, version history, generic content editing layer, audit logging wired in | ⏳ Next |
 | 4 | Academic Year Engine | Year context, history queries, **Transition Wizard** (copy structure forward) | ⬜ Pending |
 | 5 | Organization Model | Clubs, Councils, Hostels, Mess as generic org units + positions/appointments; migrate hardcoded data | ⬜ Pending |
 | 6 | Events + Announcements | Year-scoped, draft/publish, paginated; replace the V1 base64-image events feature | ⬜ Pending |

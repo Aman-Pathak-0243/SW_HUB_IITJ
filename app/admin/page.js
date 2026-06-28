@@ -231,7 +231,12 @@ const AdminPage = () => {
   }
 
   // ---------------- ACCESS DENIED ----------------
-  if (!session.user.isAdmin) {
+  // Interim client-side gate. The V1 `isAdmin` allowlist flag is gone; the new
+  // session exposes `isDeveloper` (set in lib/auth/options.mjs). The full
+  // RBAC-gated admin panel (server-enforced via requirePermission) is built in
+  // Session 9 — the real authorization boundary is the server APIs, which are
+  // permission-gated (e.g. POST /api/events requires content.create).
+  if (!session.user.isDeveloper) {
     return (
       <>
         <style>{`
