@@ -64,8 +64,8 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (101 static tests; DB smoke + CMS live tests self-skip) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS lifecycle; slow — remote Neon latency) |
+| `npm test` | Run the Vitest suite (130 static tests; DB smoke + CMS + year-engine live tests self-skip) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year engine; slow — remote Neon latency, may need one re-run on a cold compute) |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
 | `npm run db:seed` | Seed the database (idempotent) |
@@ -145,6 +145,53 @@ await withAuditContext({ actorUserId: user.id, ipAddress, userAgent }, async () 
   event/announcement publish windows applied. Admin reads (drafts, other years)
   go through `lib/cms/content.mjs`.
 
+## Academic Year Engine (Session 4)
+
+The temporal layer lives in `lib/year/` and reuses the CMS audit/error plumbing.
+
+```js
+import * as year from "@/lib/year/context.mjs";
+import { runTransition } from "@/lib/year/transition.mjs";
+import { lockYear } from "@/lib/year/lock.mjs";
+
+const current = await year.resolveCurrentYear();           // the one is_current row
+await year.setCurrentYear(nextYearId, { userId: user.id }); // demote+promote in one tx
+// Copy 2025-26's structure into a freshly-created 2026-27 year:
+const { run, counts } = await runTransition(
+  { sourceYearId, targetYearId, copyStructure: true, copyContent: true },
+  { userId: user.id }
+);
+await lockYear(sourceYearId, { userId: user.id });          // make the old year read-only
+```
+
+- **Current year is singular & DB-guaranteed.** `resolveCurrentYear` /
+  `getCurrentYearId` (canonical here; `visibility.mjs` re-exports them). The
+  `academic_year_one_current_uq` partial unique enforces exactly one;
+  `setCurrentYear` demotes-then-promotes in one transaction.
+- **Mutations** (`createYear`, `setCurrentYear`, `lockYear`/`unlockYear`,
+  `runTransition`) gate on `year.*` via `assertActorPermission`, share the
+  `auditedMutation` wrapper (`lib/cms/audited-mutation.mjs`), and write exactly one
+  semantic `audit_log` row (a `{ system: true }` actor bypasses authz for
+  seeds/migrations).
+- **Transition Wizard** (`runTransition`) copies a source year's org structure
+  forward as new `org_unit` rows **reusing their `org_unit_lineage`** (never a bare
+  uuid), remapping parents within the target year. Options: `copyAppointments`
+  (default OFF), `copyContent` (clone the latest revision as a target-year **draft**,
+  default OFF), `copyRoleAssignments` (default OFF). It records a `transition_run`
+  (status + `counts`), is **idempotent / resumable** (re-run skips done rows; a
+  completed pair is a no-op; `{force:true}` re-syncs into the same run), and audits
+  `action='transition'`. It is NOT one giant transaction (Neon-latency-safe; DL-031).
+- **History** (`lib/year/history.mjs`): `listContentForYear` /
+  `listOrgUnitsForYear` / `listAppointmentsForYear` + `followLineage` /
+  `getUnitHistory` to track a logical unit across years. Reads only.
+- **Public archive** (`lib/year/public.mjs`): `listSelectableYears`,
+  `listPublicContentForYear`, `getPublicItemBySlugForYear` — a chosen year's
+  published content; the live publish window is enforced only for the current year
+  (DL-032).
+- **Locked years are read-only by the DB.** `lockYear` flips
+  `academic_year.status='locked'`; the `lock_guard` trigger then rejects writes to
+  that year's rows → friendly `YEAR_LOCKED`. The current year cannot be locked.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick
@@ -161,8 +208,14 @@ orientation:
 - `lib/rbac/` — `authorize.mjs` (permission engine), `permissions.mjs` (catalog + roles).
 - `lib/cms/` — the CMS engine: `content.mjs` (lifecycle + version history),
   `content-types.mjs` (registry + generic payload handlers), `visibility.mjs`
-  (public read rule), `audit.mjs` + `audit-context.mjs` (central audit writer),
-  `errors.mjs` (`mapDbError` → friendly errors).
+  (public read rule + shared `loadPublicItems`/`loadPublicItem`), `audit.mjs` +
+  `audit-context.mjs` (central audit writer), `audited-mutation.mjs` (shared
+  post-commit audited-mutation wrapper + Neon `TX_OPTS`), `errors.mjs`
+  (`mapDbError` → friendly errors).
+- `lib/year/` — the Academic Year Engine: `context.mjs` (current-year resolve /
+  set-current / create / list), `history.mjs` (cross-year reads + lineage follow),
+  `transition.mjs` (the Transition Wizard), `lock.mjs` (lock/unlock),
+  `public.mjs` (public year selector / archive).
 - `lib/org/structure.mjs` — org-type/edge/position seed catalog.
 - `tests/` — Vitest suite (`*.test.mjs`); `vitest.config.mjs`.
 - `lib/db.js` / `models/Event.js` — **legacy Mongoose** (only the not-yet-rebuilt

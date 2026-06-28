@@ -159,6 +159,66 @@ update protocol in [README.md](README.md)).
 - **Docs** — `DECISION_LOG.md` DL-028..DL-030; `KNOWN_ISSUES.md` #21 closed,
   #24/#25 added; `DEVELOPER_GUIDE.md` CMS section; `Token_Usage.md` Session-3 row.
 
+### Added/Changed — Session 4: Academic Year Engine · 2026-06-28
+
+- **Year context** (`lib/year/context.mjs`) — the canonical home for current-year
+  resolution (`resolveCurrentYear` / `getCurrentYearId` / `requireCurrentYear`;
+  `lib/cms/visibility.mjs` now re-exports it). Plus `listYears` (optional per-year
+  counts), `getYear` / `getYearByLabel`, `createYear`, and `setCurrentYear`
+  (demote-then-promote in ONE transaction so the `academic_year_one_current_uq`
+  partial unique never sees two current years). Mutations gate on `year.*` via
+  `assertActorPermission` and write exactly one semantic `audit_log` row.
+- **Cross-year history** (`lib/year/history.mjs`) — `listContentForYear` /
+  `listOrgUnitsForYear` / `listAppointmentsForYear` (filter by `academic_year_id`)
+  and `followLineage` / `getUnitHistory` (track a logical unit across years via the
+  real `org_unit_lineage` FK). Read-only; locked past years stay browsable.
+- **Transition Wizard** (`lib/year/transition.mjs`) — `runTransition` copies a
+  source year's STRUCTURE forward as new `org_unit` rows **reusing their
+  `org_unit_lineage`** (DL-007), remapping `parent_id` within the target year;
+  options `copy_appointments` / `copy_content` (clone the latest revision as a
+  target-year **draft**) / `copy_role_assignments` (defaults per DL-026). Records a
+  `transition_run` (status + per-entity `counts`), honors the `source<>target`
+  CHECK and the one-completed-per-pair partial unique, and is **idempotent /
+  resumable**: each phase skips rows already in the target, a partial/crashed run
+  self-heals on resume (parent reconciliation over all units; per-content-item
+  `$transaction`), a plain re-run is a no-op, and `{force:true}` re-syncs into the
+  SAME completed run (never a second 'completed'; prior provenance restored on
+  failure). Performed as idempotent statements with auto-audit SUPPRESSED, then one
+  `action='transition'` row (DL-031).
+- **Lock / unlock** (`lib/year/lock.mjs`) — `lockYear` / `unlockYear` flip
+  `academic_year.status`; the current year cannot be locked; blocked writes surface
+  the friendly `YEAR_LOCKED` error (real `lock_guard` trigger, DL-029).
+- **Public year selector** (`lib/year/public.mjs`) — `listSelectableYears`,
+  `listPublicContentForYear`, `getPublicItemBySlugForYear`, `getPublicYearArchive`:
+  a chosen past year's published content under the visibility rule, with the live
+  publish window enforced only for the current year (archive shows all; DL-032).
+- **Shared helpers** — `auditedMutation` + the Neon-safe `TX_OPTS` promoted to
+  `lib/cms/audited-mutation.mjs` (used by both the CMS service and the year engine;
+  DL-033); the public fetch-then-window loop shared via
+  `loadPublicItems`/`loadPublicItem` in `lib/cms/visibility.mjs`.
+- **Friendly errors** — `lib/cms/errors.mjs#mapDbError` extended with the
+  year/transition guard signatures (`CURRENT_YEAR_CONFLICT`, `TRANSITION_EXISTS`,
+  `TRANSITION_SELF`, `ONE_UNIT_PER_YEAR`, `INVALID_YEAR_LABEL`/`DATES`/`PROVENANCE`,
+  `YEAR_LABEL_TAKEN`); `YEAR_LOCKED` already present.
+- **Tests** — **130 static** (was 101): `year.test.mjs` (lock precondition,
+  snapshot, the new mapDbError signatures) + `year-transition.test.mjs` (pure
+  planning helpers: partition/lineage-index/parent-remap/revision-pick). Plus
+  **6 live-DB** (`year.db.test.mjs`, `RUN_DB_TESTS=1`): current-year resolution +
+  set-current, history + lineage follow, structure-only transition (lineage reuse,
+  parent remap, **auto-audit-suppression asserted**), structure+appointments+content,
+  full + role-assignment copy with idempotent re-run AND forced re-sync, and
+  lock/unlock (real trigger → `YEAR_LOCKED`). All 8 Session-3 CMS live tests remain
+  green after the shared-helper refactor. **No new migration** (Session-2 schema as-is).
+- **Adversarial review** — a 24-agent, 6-lens workflow (correctness, db-fidelity,
+  audit/RBAC, transition-idempotence, tests, simplify) with per-finding
+  verification; 18 confirmed findings → **16 fixed** (resumable parent wiring,
+  atomic per-item content clone, singleton-slot pre-skip, force-failure provenance,
+  shared-helper extraction, audit-leak-free test cleanup, suppression + force-resync
+  + role-copy test coverage) and **2 nits accepted** (defensive not-found branch;
+  copy-phase map asymmetry).
+- **Docs** — `DECISION_LOG.md` DL-031..DL-033; `KNOWN_ISSUES.md` #26 added;
+  `DEVELOPER_GUIDE.md` year-engine section; `Token_Usage.md` Session-4 row.
+
 ---
 
 ## Milestone history

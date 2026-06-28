@@ -295,4 +295,32 @@ Trade-offs · Future impact**.
 
 ---
 
-*(Session 4+ appends new records below.)*
+## Session 4 — Academic Year Engine decisions
+
+## DL-031 — The Transition Wizard copies as a sequence of idempotent statements (NOT one interactive transaction); crash-safety comes from idempotence + a `transition_run` status, not atomicity.
+
+- **Decision:** `runTransition` (`lib/year/transition.mjs`) performs the structure / appointment / content / role-assignment copy as a sequence of ordinary statements with **auto-audit suppressed**, recording exactly ONE semantic `audit_log` row (action `transition`) after the run completes. It is NOT wrapped in a single `prisma.$transaction`. Idempotence is structural: each phase skips target rows that already exist — org_units by `(academic_year_id, lineage_key)` (the unique), content_items by `(content_type, lineage_key)`, appointments by `(org_unit, position, person)` (+ a singleton-slot pre-skip), role grants by `(user, role, lineage)`. A completed run for a `(source, target)` pair makes a plain re-run a no-op (honoring `transition_run_one_completed_uq`); `{ force: true }` re-opens and re-syncs **the same** completed run row (never a second 'completed') and, on failure, **restores** that row's prior status/counts so a successful run's provenance is never destroyed. The org-unit parent wiring reconciles **all** source units with a target twin (not only freshly-created ones) so a partial/crashed prior run self-heals on resume; per-content-item cloning (item → revision → payload → draft pointer) is wrapped in a **small per-item `$transaction`** so a mid-item failure rolls back the bare header rather than leaving an unrepairable, forever-skipped row.
+- **Alternatives considered:** (a) One big interactive `$transaction` for the whole wizard — over high-latency Neon a ~40-unit + content copy can exceed any sane tx ceiling (P2028), and a single failure discards all progress. (b) No idempotence, rely on the operator not re-running — fragile and unsafe. (c) Non-transactional but with the header row alone as the skip marker — the original Session-4 build; the adversarial review showed a mid-item crash then leaves a half-created org_unit/content_item that is skipped forever (silent hierarchy corruption / revision-less content).
+- **Why chosen:** Matches the schema's "nothing overwritten, re-runnable" intent (SCHEMA_DESIGN cap 1) and the Neon latency reality. Statement-level idempotence + a status-tracked `transition_run` gives safe resume without a giant transaction; the two targeted `$transaction`s (per content item) and the all-units parent reconciliation close the only windows where "row exists" did not mean "row is complete."
+- **Trade-offs:** The whole run is not atomic — an interrupted run can leave the target year partially populated, but a re-run safely completes it (and reports accurate per-entity `counts`). A forced re-sync with a *changed singleton holder* pre-skips the new holder (leaving the prior target appointment for manual reconciliation) rather than aborting the batch.
+- **Future impact:** Session 5 (org model) and Session 9 (admin wizard UI) drive `runTransition` directly; the counts/status contract and idempotence guarantees are stable. If true atomicity is ever required, the phases already use friendly-error mapping and could be moved under one transaction behind a feature flag.
+
+## DL-032 — Public year selector: the live publish window is enforced only for the CURRENT year; a selected PAST year is an archive that shows all its published content.
+
+- **Decision:** `lib/year/public.mjs#listPublicContentForYear` / `getPublicItemBySlugForYear` apply the event/announcement `publish_from..publish_until` window **only when the selected year is the current year** (identical to `lib/cms/visibility.mjs`). For a past (active-but-not-current, or locked) year the window is ignored, so that year's published events/announcements stay browsable forever. Callers may override via `applyWindow`. Only `active`/`locked` years are publicly selectable; `planning` years are never exposed.
+- **Alternatives considered:** (a) Always enforce the window for the selected year — hides every past event whose window closed, making the archive empty and useless. (b) Never enforce the window — would leak not-yet-live current-year events. (c) Year-conditional enforcement (chosen).
+- **Why chosen:** The publish window is a "what is live right now" gate that is meaningful only for the live year; historically it is noise. Year-conditional enforcement keeps current-year behavior byte-for-byte identical to Session 3 while giving a sensible archive.
+- **Trade-offs:** A past-year archive shows events that were only ever scheduled (published with a future-then-past window). Acceptable for an archive; `applyWindow:true` is available if a caller wants strict windowing.
+- **Future impact:** Session 9 public pages get a year picker (`listSelectableYears`) and per-year archives for free; routing/URL year-namespacing remains a separate concern (DL-026).
+
+## DL-033 — Promote the post-commit "audited mutation" wrapper (+ Neon tx ceiling) to one shared module used by both the CMS service and the Year engine.
+
+- **Decision:** Extract `auditedMutation` and `TX_OPTS` into `lib/cms/audited-mutation.mjs`; `lib/cms/content.mjs` and `lib/year/context.mjs` (re-exported to `lock.mjs`) both import them. One place now owns the "run in a transaction with auto-audit suppressed, then write exactly one semantic `audit_log` row after commit via the un-extended `prismaBase`" pattern (DL-012 / DL-028).
+- **Alternatives considered:** (a) Copy the 12-line wrapper into each module (the original Session-4 build) — the adversarial review flagged the two copies as drift-prone (a fix to the suppress/record ordering would have to be made twice). (b) A class/base-service abstraction — over-engineered for two call sites.
+- **Why chosen:** Single source of truth for the audit-write grain with zero behavior change; the live CMS + Year suites both exercise it.
+- **Trade-offs:** One more small module in the import graph.
+- **Future impact:** Every future audited mutating service (Session 5 org, Session 6 events, Session 9 admin) imports the one wrapper and gets uniform semantic auditing.
+
+---
+
+*(Session 5+ appends new records below.)*
