@@ -1,0 +1,4 @@
+# Backups are local artifacts — never commit them (they can be large and may
+# contain PII / a DB dump). Keep the folder in git, ignore its contents.
+*
+!.gitignore

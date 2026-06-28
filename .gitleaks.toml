@@ -1,0 +1,22 @@
+# gitleaks configuration — Milestone 0.5 (secret scanning)
+# Extends gitleaks' built-in ruleset (covers GitHub PATs `ghp_…`, Google keys,
+# generic high-entropy tokens, etc.). Add project-specific rules/allowlists here.
+
+[extend]
+useDefault = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Allowlist
+# Keep this tight. Do NOT allowlist real secrets — rotate and remove them instead
+# (see docs/runbooks/git-history-purge.md). The entries below only suppress
+# known non-secret false positives.
+# ─────────────────────────────────────────────────────────────────────────────
+[allowlist]
+description = "Global allowlist for non-secret false positives"
+paths = [
+  '''package-lock.json''',   # integrity hashes look like secrets but are not
+  '''env\.example''',        # template with empty values only
+]
+# Example commit allowlist (add SHAs only after a value is confirmed non-secret
+# or has been rotated AND purged from history):
+# commits = []

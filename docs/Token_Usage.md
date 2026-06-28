@@ -1,0 +1,50 @@
+# Token Usage Log
+
+A permanent, session-by-session record of token usage for the IIT Jammu Portal
+V2.0 build. **Updated at the end of every session** (part of the end-of-session
+checklist in [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md)).
+
+## How to read this
+
+- **Workflow subagent tokens** are *measured precisely* — each multi-agent
+  Workflow run reports its total subagent output tokens. These are recorded
+  verbatim.
+- **Session total** is the authoritative number from Claude Code's own
+  accounting. The orchestration/main-loop usage is **not** separately exposed to
+  the assistant mid-session, so where a precise total isn't available it is marked
+  *(est.)*. **To get the exact total, run `/cost` in the Claude Code session** and
+  paste it into the table.
+- Numbers are **output tokens** unless noted; input/context tokens are larger and
+  billed separately — `/cost` reflects the true billable total.
+
+## Per-session log
+
+| Session | Date | Focus | Workflow subagent tokens (measured) | Session total | Notes |
+|---|---|---|---|---|---|
+| 1 | 2026-06-28 | Analysis + Documentation + Architecture | **338,732** (schema-design workflow: 9 agents, 36 tool calls, ~1,017s) | ~0.6M–0.9M *(est.)* — run `/cost` for exact | Also ran 3 Explore subagents in the analysis phase (not separately instrumented). Heavy file reading + ~35 doc writes. No app code. |
+| 2 | — | Database + Prisma + RBAC + Auth | — | — | |
+| 3 | — | CMS Foundation | — | — | |
+| 4 | — | Academic Year Engine | — | — | |
+| 5 | — | Organization Model | — | — | |
+| 6 | — | Events + Announcements | — | — | |
+| 7 | — | Resources + Media | — | — | |
+| 8 | — | Developer Console | — | — | |
+| 9 | — | Admin Panel | — | — | |
+| 10 | — | Testing + Deployment + Optimization | — | — | |
+
+## Running total
+
+- **Measured workflow subagent tokens to date:** 338,732
+- **Estimated cumulative session total:** ~0.6M–0.9M *(Session 1 only; update as sessions complete)*
+
+## Session 1 breakdown (detail)
+
+| Component | Tokens | Source |
+|---|---|---|
+| Schema-design workflow (3 design + 1 synth + 4 verify + 1 finalize) | 338,732 | Workflow usage report (measured) |
+| Analysis-phase Explore subagents (×3) | not instrumented | Agent tool (estimate ~30–50k output) |
+| Main orchestration loop (reads + ~35 doc writes + edits) | not separately exposed | use `/cost` |
+
+> **Maintenance note for future sessions:** record each Workflow run's reported
+> subagent token count here verbatim, and paste the `/cost` session total when
+> closing the session. Keep this table append-only across all 10 sessions.
