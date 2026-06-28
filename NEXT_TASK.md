@@ -1,47 +1,63 @@
 # Next Task
 
-**As of:** 2026-06-28 · **Session 2 complete → Session 3 is next.**
+**As of:** 2026-06-28 · **Session 4 complete → Session 5 is next.**
 
-## Session 3 — CMS Foundation
+## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess)
 
-Build the draft/publish content lifecycle, version history, the generic
-schema-driven editing layer, and wire in centralized audit logging — all on the
-Session-2 Prisma schema. **Read first:** [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md),
-[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (authoritative spec, esp. content
-spine + capabilities 6/7/8/9), [docs/DECISION_LOG.md](docs/DECISION_LOG.md)
-(DL-004/005/006/011/012 + Session-2 DL-017..DL-027),
-[docs/DATA_MIGRATION_REPORT.md](docs/DATA_MIGRATION_REPORT.md).
+Stand up the real organization structure as generic `org_unit` rows + `position`
+definitions + `appointment` rosters, and migrate the hardcoded V1 org content into
+the current year — all on the Session-2 schema, the Session-3 CMS service, and the
+Session-4 year engine (`lib/year/*`). **Read first:**
+[docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md),
+[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (capabilities 2 & 4 + `org_unit`,
+`org_unit_lineage`, `position`, `appointment`, `org_unit_type_allowed_child`),
+[docs/DATA_MIGRATION_REPORT.md](docs/DATA_MIGRATION_REPORT.md) (§7 — the V1
+clubs/councils/hostels/mess content to migrate),
+[docs/DECISION_LOG.md](docs/DECISION_LOG.md) (DL-007 lineage, DL-008 composite FK,
+DL-009/021 cardinality, DL-022 hierarchy guard, DL-026 defaults, DL-031 transition),
+[CURRENT_STATUS.md](CURRENT_STATUS.md).
 
 ### Ordered tasks
-1. **Content service** over `content_item` + `content_revision` + per-type
-   `*_payload`: create draft, edit draft, publish (supersede prior published,
-   repoint `published_revision_id`), unpublish, archive, and **restore** (overwrite
-   the open draft in place; honor the at-most-one-draft / one-published partial
-   uniques + the `content_item_pointer_guard` trigger).
-2. **Version history** — list/diff revisions; `is_restore_of_revision_id`
-   provenance; monotonic `revision_no`.
-3. **Generic editing layer** — route by `content_type` via the in-code handler
-   map ([lib/cms/content-types.mjs](lib/cms/content-types.mjs)); keep the startup
-   test that every `content_type_def` has a handler.
-4. **Central audit-write extension** (DL-012 / DL-025) — ONE Prisma Client
-   `$extends` (or audited-mutation service) capturing before/after and writing
-   `audit_log` on every create/update/delete/publish/transition/grant. Attach it
-   to [lib/prisma.mjs](lib/prisma.mjs). Add coverage tests.
-5. **Public visibility rule** in the data-access layer: `status='published' AND
-   academic_year_id = current year` (+ event/announcement publish windows).
-6. **Tests** — content lifecycle, restore, version history, audit coverage,
-   publish-visibility; extend the live DB smoke as useful.
+1. **Org-unit service** (`lib/org/*`) — create / edit / archive `org_unit` rows
+   (year-scoped, self-referential `parent_id`), each tied to an
+   `org_unit_lineage` (create a lineage only for a genuinely new logical unit;
+   never copy a bare uuid — DL-007). Reuse the shared `auditedMutation`
+   (`lib/cms/audited-mutation.mjs`) + `assertActorPermission` gated on
+   `org_unit.*`. Honor (don't re-implement) `org_unit_hierarchy_guard`
+   (same-year + allowed-child-type) and `lock_guard`; surface friendly errors
+   (extend `mapDbError` if a new guard signature appears — `ORG_HIERARCHY` is
+   already mapped).
+2. **Appointment (roster) service** — create / edit / archive `appointment` rows
+   (person-in-position-per-unit-per-year). Honor the composite FK (year
+   agreement), `appointment_type_guard` (position↔unit-type compatibility,
+   auto-fills `org_unit_type_id`/`is_singleton`), and the cardinality guards
+   (singleton partial unique + deferred count trigger). The `person` directory is
+   data; create/link people as needed (respect `person_email_link_guard`).
+3. **Migrate hardcoded V1 org content** (Report §7) — seed/import the 4 councils,
+   ~30 clubs, 6 hostels, 5 messes as `org_unit` + bound `*_profile` content_items
+   (via the CMS service) + appointments for the current year (2025-26). Idempotent
+   importer (upsert by `(academic_year_id, lineage_key)` / slug).
+4. **Data-driven public pages** — one `<OrgUnitPage>` (+ a list page) that renders
+   any unit from `lib/year/public.mjs` + the CMS payload, replacing the 4
+   near-identical V1 Clubs pages (KNOWN_ISSUES #13).
+5. **Tests** — org-unit create/hierarchy-guard rejection, appointment
+   type/cardinality guards (singleton vs multi-holder), the importer (idempotent),
+   and a public org page read. Extend the live DB suite as useful; keep the static
+   suite default-green.
 
-### Guard rails (already enforced by the DB — rely on them)
-- `lock_guard` (locked-year read-only; revision INSERT allowed for errata),
-  pointer same-item/status, partial uniques for one-draft/one-published. Don't
-  re-implement in app code; surface friendly errors on violation.
+### Guard rails (already enforced — rely on them)
+- `org_unit_hierarchy_guard`, the appointment composite FK + `appointment_type_guard`
+  + `appointment_singleton_position_uq` + deferred `appointment_cardinality_guard`,
+  `lock_guard`, and `person_email_link_guard`. Don't re-implement; surface friendly
+  errors via `mapDbError`.
+- The Transition Wizard (`lib/year/transition.mjs`) already copies org_units +
+  appointments forward; Session 5 just creates the *first* year's real data.
 
 ### End-of-session (mandatory)
 Run the END-OF-SESSION checklist in
 [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md): update CURRENT_STATUS,
 NEXT_TASK, TODO, CHANGELOG, DECISION_LOG, KNOWN_ISSUES, Developer Guide,
-Token_Usage; prepare one specific commit; output the Session-4 starter prompt.
+Token_Usage; prepare one specific commit; output the Session-6 starter prompt.
 
 ## Owner-owned (parallel, anytime)
 - Rotate/revoke the V1 leaked secrets and clean `README.md`

@@ -64,8 +64,8 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (static; DB smoke self-skips) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB smoke tests |
+| `npm test` | Run the Vitest suite (130 static tests; DB smoke + CMS + year-engine live tests self-skip) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year engine; slow — remote Neon latency, may need one re-run on a cold compute) |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
 | `npm run db:seed` | Seed the database (idempotent) |
@@ -101,6 +101,97 @@ export async function POST(req) {
 - Permission checks hit the DB live, so revoked roles / suspended accounts take
   effect on the next request (sessions are JWT — DL-019).
 
+## CMS content lifecycle (Session 3)
+
+The content engine lives in `lib/cms/` and runs on the content spine
+(`content_item` + immutable `content_revision` + per-type `*_payload`).
+
+```js
+import * as cms from "@/lib/cms/content.mjs";
+import { withAuditContext } from "@/lib/cms/audit-context.mjs";
+
+// In a route handler, after requirePermission(...):
+await withAuditContext({ actorUserId: user.id, ipAddress, userAgent }, async () => {
+  const { item } = await cms.createDraft(
+    { contentType: "event", academicYearId, title: "Fest",
+      payload: { body: "...", publishFrom, publishUntil } },
+    { userId: user.id }
+  );
+  await cms.publish(item.id, {}, { userId: user.id });
+});
+```
+
+- **Lifecycle:** `createDraft` → `editDraft` (edits the open draft in place, or
+  auto-opens one from the published revision) → `publish` (supersedes the prior
+  published revision, repoints the cache pointer) → `unpublish` / `archive`.
+  `restore(itemId, revisionId)` overwrites the open draft with a past revision.
+- **Versioning:** `listRevisions`, `getRevision`, `diffRevisions` (immutable
+  append-only revisions; monotonic `revision_no`; `is_restore_of_revision_id`).
+- **New content type = data + one table + one handler config** (no `ALTER TYPE`):
+  add a `content_type_def` row, a `*_payload` table (migration), and a config in
+  `lib/cms/content-types.mjs`. The startup test enforces "every type has a handler".
+- **Audit is automatic.** Import `prisma` from `lib/prisma.mjs` (the
+  audit-extended client) and mutations are recorded in `audit_log` — the CMS
+  service writes one semantic row per operation; other single-statement writes are
+  auto-audited. Use `prismaBase` ONLY to bypass audit (audit reader, repair
+  scripts). Set the actor with `withAuditContext` so rows are attributed.
+- **Don't re-check DB invariants in app code.** The one-draft/one-published
+  uniques, `content_item_pointer_guard`, `lock_guard`, and payload CHECKs are
+  enforced by the DB; wrap DB work in `withMappedDbErrors` (the service already
+  does) and you get friendly `CmsError`s (`YEAR_LOCKED`, `SLUG_TAKEN`, …) with an
+  HTTP `status` + `code`.
+- **Public reads** go through `lib/cms/visibility.mjs` (`listPublicContent`,
+  `getPublicItemBySlug`): published AND current-year AND not-archived, with
+  event/announcement publish windows applied. Admin reads (drafts, other years)
+  go through `lib/cms/content.mjs`.
+
+## Academic Year Engine (Session 4)
+
+The temporal layer lives in `lib/year/` and reuses the CMS audit/error plumbing.
+
+```js
+import * as year from "@/lib/year/context.mjs";
+import { runTransition } from "@/lib/year/transition.mjs";
+import { lockYear } from "@/lib/year/lock.mjs";
+
+const current = await year.resolveCurrentYear();           // the one is_current row
+await year.setCurrentYear(nextYearId, { userId: user.id }); // demote+promote in one tx
+// Copy 2025-26's structure into a freshly-created 2026-27 year:
+const { run, counts } = await runTransition(
+  { sourceYearId, targetYearId, copyStructure: true, copyContent: true },
+  { userId: user.id }
+);
+await lockYear(sourceYearId, { userId: user.id });          // make the old year read-only
+```
+
+- **Current year is singular & DB-guaranteed.** `resolveCurrentYear` /
+  `getCurrentYearId` (canonical here; `visibility.mjs` re-exports them). The
+  `academic_year_one_current_uq` partial unique enforces exactly one;
+  `setCurrentYear` demotes-then-promotes in one transaction.
+- **Mutations** (`createYear`, `setCurrentYear`, `lockYear`/`unlockYear`,
+  `runTransition`) gate on `year.*` via `assertActorPermission`, share the
+  `auditedMutation` wrapper (`lib/cms/audited-mutation.mjs`), and write exactly one
+  semantic `audit_log` row (a `{ system: true }` actor bypasses authz for
+  seeds/migrations).
+- **Transition Wizard** (`runTransition`) copies a source year's org structure
+  forward as new `org_unit` rows **reusing their `org_unit_lineage`** (never a bare
+  uuid), remapping parents within the target year. Options: `copyAppointments`
+  (default OFF), `copyContent` (clone the latest revision as a target-year **draft**,
+  default OFF), `copyRoleAssignments` (default OFF). It records a `transition_run`
+  (status + `counts`), is **idempotent / resumable** (re-run skips done rows; a
+  completed pair is a no-op; `{force:true}` re-syncs into the same run), and audits
+  `action='transition'`. It is NOT one giant transaction (Neon-latency-safe; DL-031).
+- **History** (`lib/year/history.mjs`): `listContentForYear` /
+  `listOrgUnitsForYear` / `listAppointmentsForYear` + `followLineage` /
+  `getUnitHistory` to track a logical unit across years. Reads only.
+- **Public archive** (`lib/year/public.mjs`): `listSelectableYears`,
+  `listPublicContentForYear`, `getPublicItemBySlugForYear` — a chosen year's
+  published content; the live publish window is enforced only for the current year
+  (DL-032).
+- **Locked years are read-only by the DB.** `lockYear` flips
+  `academic_year.status='locked'`; the `lock_guard` trigger then rejects writes to
+  that year's rows → friendly `YEAR_LOCKED`. The current year cannot be locked.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick
@@ -110,11 +201,21 @@ orientation:
 - `app/api/auth/[...nextauth]/route.js` — NextAuth handler (uses `lib/auth/options.mjs`).
 - `prisma/schema.prisma` — the V2 data model; `prisma/migrations/` — SQL migrations;
   `prisma/seed.mjs` — idempotent seed.
-- `lib/prisma.mjs` — Prisma Client singleton (global-cached).
+- `lib/prisma.mjs` — Prisma Client singleton (global-cached), **audit-extended**;
+  also exports `prismaBase` (un-extended, audit-bypass).
 - `lib/auth/` — `options.mjs` (NextAuth config + `authorizeCredentials`),
   `password.mjs` (argon2id), `session.mjs` (`requireUser`/`requirePermission`).
 - `lib/rbac/` — `authorize.mjs` (permission engine), `permissions.mjs` (catalog + roles).
-- `lib/cms/content-types.mjs` — content-type registry + handler map.
+- `lib/cms/` — the CMS engine: `content.mjs` (lifecycle + version history),
+  `content-types.mjs` (registry + generic payload handlers), `visibility.mjs`
+  (public read rule + shared `loadPublicItems`/`loadPublicItem`), `audit.mjs` +
+  `audit-context.mjs` (central audit writer), `audited-mutation.mjs` (shared
+  post-commit audited-mutation wrapper + Neon `TX_OPTS`), `errors.mjs`
+  (`mapDbError` → friendly errors).
+- `lib/year/` — the Academic Year Engine: `context.mjs` (current-year resolve /
+  set-current / create / list), `history.mjs` (cross-year reads + lineage follow),
+  `transition.mjs` (the Transition Wizard), `lock.mjs` (lock/unlock),
+  `public.mjs` (public year selector / archive).
 - `lib/org/structure.mjs` — org-type/edge/position seed catalog.
 - `tests/` — Vitest suite (`*.test.mjs`); `vitest.config.mjs`.
 - `lib/db.js` / `models/Event.js` — **legacy Mongoose** (only the not-yet-rebuilt

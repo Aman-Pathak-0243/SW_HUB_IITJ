@@ -24,19 +24,29 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: auth/password, credentials authorize, RBAC, content-type registry, schema+migration, live DB smoke (50 passing)
 - [x] Adversarial review workflow (16 agents); confirmed findings fixed + re-verified
 
-## Session 3 — CMS Foundation ⬜
-- [ ] Draft/publish lifecycle + restore + version history (content_item/content_revision/*_payload)
-- [ ] Central audit-log writer — one Prisma client `$extends`/service (DL-012/DL-025); attach to lib/prisma.mjs
-- [ ] Generic schema-driven editing layer + content_type registry handlers (lib/cms/content-types.mjs)
-- [ ] Public visibility rule (published AND current year [+ event windows]) in the data-access layer
+## Session 3 — CMS Foundation ✅
+- [x] Draft/publish lifecycle + restore + version history (content_item/content_revision/*_payload) — `lib/cms/content.mjs`
+- [x] Central audit-log writer — one Prisma client `$extends` + semantic service path (DL-012/DL-025/DL-028); attached to lib/prisma.mjs
+- [x] Generic schema-driven editing layer + content_type registry handlers (lib/cms/content-types.mjs)
+- [x] Public visibility rule (published AND current year + event/announcement windows) — `lib/cms/visibility.mjs`
+- [x] Friendly DB-guard error mapping (`lib/cms/errors.mjs`, DL-029); honors triggers/uniques, no app re-implementation
+- [x] Tests: 101 static (cms-errors/audit/content-types/visibility/diff) + 8 live-DB (lifecycle/restore/version/audit/visibility/republish/lock_guard)
+- [x] Adversarial review workflow (30 agents, 5 lenses); 24 confirmed findings fixed + re-verified
 
-## Session 4 — Academic Year Engine ⬜
-- [ ] Current-year context + history queries; lock_guard behavior
-- [ ] Transition Wizard (copy structure forward; options); public year selector
+## Session 4 — Academic Year Engine ✅
+- [x] Year context (`lib/year/context.mjs`): current-year resolve/set-current, list/create years; gated on `year.*`, audited
+- [x] History queries (`lib/year/history.mjs`): cross-year content/org/roster reads + `org_unit_lineage` follow; lock_guard respected (read-only past years)
+- [x] Transition Wizard (`lib/year/transition.mjs`): copy structure forward reusing lineage (DL-007); copy_appointments/content/role_assignments options (DL-026); `transition_run` status+counts; idempotent/resumable + force re-sync; audited `transition`
+- [x] Lock/unlock (`lib/year/lock.mjs`): can't lock current year; `YEAR_LOCKED` surfaced
+- [x] Public year selector (`lib/year/public.mjs`): chosen-year published content, archive-aware windows (DL-032)
+- [x] Shared `auditedMutation`+`TX_OPTS` (`lib/cms/audited-mutation.mjs`, DL-033); shared public read loop; `mapDbError` year/transition signatures
+- [x] Tests: 130 static (year + year-transition) + 6 live-DB (resolution/history/transition×3/lock); 8 CMS live still green
+- [x] Adversarial review (24 agents, 6 lenses); 18 findings → 16 fixed, 2 nits accepted
 
-## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess) ⬜
-- [ ] Org units/positions/appointments; migrate hardcoded org content (Report §7)
-- [ ] Data-driven public pages (one `<OrgUnitPage>` replaces 4 Clubs pages)
+## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess) ⬜ (next)
+- [ ] Org-unit + appointment services (`lib/org/*`); honor hierarchy/type/cardinality guards
+- [ ] Migrate hardcoded org content (Report §7) into current year (idempotent importer)
+- [ ] Data-driven public pages (one `<OrgUnitPage>` replaces 4 Clubs pages, #13)
 
 ## Session 6 — Events + Announcements ⬜
 - [ ] Migrate 3 backed-up events → Postgres (year 2025-26); fix V1 event bugs

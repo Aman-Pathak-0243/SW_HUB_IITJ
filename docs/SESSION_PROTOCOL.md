@@ -18,9 +18,9 @@ context and no repeated work.
 |---|---------|-------|--------|
 | 1 | **Analysis + Documentation + Architecture** | Repo analysis, full `/docs`, V2 architecture, **PostgreSQL schema design (Prisma/Neon)**, ER diagram, migration report, decision log, backups, security scanning | ✅ **DONE** |
 | 2 | **Database + Prisma + RBAC + Authentication** | Schema in Prisma (33 tables/14 enums), first Neon migration (raw-SQL guards + 6 triggers), seed (year/roles/perms/org/positions/content types/bootstrap users), NextAuth (Google + credentials, one-account-per-email, JWT), dynamic server-side RBAC, 50 tests | ✅ **DONE** |
-| 3 | CMS Foundation | Draft/Publish lifecycle, version history, generic content editing layer, audit logging wired in | ⏳ Next |
-| 4 | Academic Year Engine | Year context, history queries, **Transition Wizard** (copy structure forward) | ⬜ Pending |
-| 5 | Organization Model | Clubs, Councils, Hostels, Mess as generic org units + positions/appointments; migrate hardcoded data | ⬜ Pending |
+| 3 | **CMS Foundation** | Draft/Publish lifecycle, restore, version history + diff, generic schema-driven editing layer, **central audit-write `$extends`**, public visibility rule, friendly DB-guard errors | ✅ **DONE** |
+| 4 | **Academic Year Engine** | Year context (resolve/set-current/list/create), cross-year history + `org_unit_lineage` follow, **Transition Wizard** (idempotent structure/appointments/content/role copy forward), lock/unlock, public year selector; 130 static + 6 live tests; 24-agent review | ✅ **DONE** |
+| 5 | Organization Model | Clubs, Councils, Hostels, Mess as generic org units + positions/appointments; migrate hardcoded data | ⏳ Next |
 | 6 | Events + Announcements | Year-scoped, draft/publish, paginated; replace the V1 base64-image events feature | ⬜ Pending |
 | 7 | Resources + Media | Resources (PDFs/links); Media assets + Cloudinary; Admin Media Migration Tool (`/public` → Cloudinary) | ⬜ Pending |
 | 8 | Developer Console | Monitoring, logs, audit trail, testing reports, backups/restore/rollback, migrations, cost estimation | ⬜ Pending |
