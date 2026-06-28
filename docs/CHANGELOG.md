@@ -221,6 +221,82 @@ update protocol in [README.md](README.md)).
 
 ---
 
+### Added/Changed — Session 5: Organization Model · 2026-06-28
+
+- **Org-unit service** (`lib/org/units.mjs`) — `createOrgUnit` / `editOrgUnit` /
+  `publishOrgUnit` / `archiveOrgUnit` over the year-scoped, self-referential
+  `org_unit`. Creating a unit mints a NEW `org_unit_lineage` only for a genuinely
+  new logical unit (never a bare uuid — DL-007); pass an existing `lineageKey` to
+  add a per-year instance. Honors (never re-implements) `org_unit_hierarchy_guard`
+  (same-year parent + allowed child type) and `lock_guard`; rejections surface as
+  friendly `ORG_HIERARCHY` / `YEAR_LOCKED`. `editOrgUnit` keeps `status`↔`archivedAt`
+  consistent. Gates on `org_unit.*`, one semantic audit row per op.
+- **Person directory** (`lib/org/people.mjs`) — `upsertPerson` keyed by cleaned
+  full name, **case-insensitively**; idempotent; `personType` set once. V1 role
+  mailboxes are NOT migrated to the UNIQUE `person.email` (DL-034) and any email
+  that would collide with another person is dropped. Authorizes at the **same RBAC
+  scope** as the appointment it serves (so a unit/year-scoped manager is not
+  locked out). `person_email_link_guard` honored trivially (no app_user links).
+- **Appointment (roster) service** (`lib/org/appointments.mjs`) — `createAppointment`
+  / `editAppointment` / `publishAppointment` / `archiveAppointment`. Derives
+  `academic_year_id` FROM the unit (composite-FK agreement), leaves
+  `org_unit_type_id` NULL for `appointment_type_guard` to auto-fill + set
+  `is_singleton`, and honors both cardinality guards (singleton partial unique +
+  deferred count trigger) → friendly `APPOINTMENT_TYPE` / `APPOINTMENT_CARDINALITY`
+  / `APPOINTMENT_DUPLICATE`.
+- **V1 dataset** (`lib/org/data/*`) — the 4 councils, **30 clubs** (6+5+8+11),
+  6 hostels, 5 messes + the 17-member campus mess committee, extracted verbatim
+  from the four V1 Clubs pages + `hostels`/`messes` pages, plus a PURE
+  `buildImportPlan()` (slugs, seeded position keys, parsed mission lists / meal
+  timings / capacities). The Academic council student lead is titled **"Technical
+  Secretary"** (intended V2 rename). `lib/org/normalize.mjs` holds the pure
+  helpers (slugify, clock/range/capacity parsing, `@db.Time` conversion,
+  honorific-aware person typing, dedup keys).
+- **Idempotent importer** (`lib/org/import.mjs`, run via `npm run db:import:org`)
+  — stands up every unit + bound `*_profile` content_item (through the CMS
+  service) + people + appointments for a year (current by default). Idempotent by
+  natural key (unit by year+slug, content by type+year+unit, appointment by
+  year+unit+position+person, person by name, media by url/path); re-runs create 0
+  and a partial run is **resumable** (a found-but-draft unit/profile/appointment is
+  re-published). V1 image refs become lightweight `media_asset` inventory rows
+  (external Cloudinary URLs / `/public` paths kept for the Session-7 migration),
+  written on the audit-bypassing base client.
+- **Public org pages** (`lib/org/public.mjs` + `app/components/OrgUnitPage.jsx` +
+  `app/org/[type]/[slug]` + `app/org/[type]`) — ONE data-driven `<OrgUnitPage>`
+  renders any council/club/hostel/mess from the published unit + its bound profile
+  + roster, replacing the four near-identical V1 Clubs pages (**KNOWN_ISSUES #13**).
+  The public rule (status=published AND current/selected year AND not-archived)
+  applies to BOTH the unit and its profile content; per-unit reads run concurrently
+  (Neon latency). Routes are `force-dynamic` and degrade gracefully when the DB is
+  unavailable.
+- **Schema fix (forward migration)** — `20260628130000_fix_appointment_singleton_guard`:
+  `appointment_type_guard` set `is_singleton := (max_holders = 1)`, which is **NULL**
+  for unlimited positions → violated the NOT NULL column. Latent until Session 5
+  created the first multi-holder appointment (the live test caught it). Fixed with
+  `COALESCE(max_holders = 1, false)` (`CREATE OR REPLACE`, idempotent; trigger
+  untouched). Applied to Neon via `prisma migrate deploy` (DL-027).
+- **Tests** — **152 static** (was 130): `org.test.mjs` (normalize helpers + the
+  import-plan integrity: 30 clubs, unique slugs, seeded positions, parsed timings,
+  Technical-Secretary rename, one singleton mess secretary). Plus **4 live-DB**
+  (`org.db.test.mjs`, `RUN_DB_TESTS=1`): org-unit create + hierarchy-guard
+  rejection, appointment type + cardinality guards (singleton vs multi-holder), an
+  idempotent importer (a tiny plan; second run creates 0), and a public org read
+  (profile + roster + child clubs + mess meal-timings round-trip). Friendly-error
+  matchers added: `SLUG_TAKEN` (org_unit) + `APPOINTMENT_DUPLICATE`.
+- **Adversarial review** — a 25-agent, 6-lens workflow (guard-honoring,
+  idempotency/migration, RBAC/audit, data fidelity, public pages, correctness) with
+  per-finding verification; 19 findings → 15 confirmed, **13 fixed** (resumable
+  profile re-publish, scoped person auth, two same-person name canonicalizations,
+  org-unit slug + duplicate-appointment error mapping, status/archivedAt sync,
+  concurrent public reads, DB-down vs not-published page state, cached-media count,
+  Sports-secretary photo) and **2 accepted** (public phone numbers withheld as PII;
+  case-insensitive dedup chosen over a fuzzy/middle-name merge).
+- **Docs** — `DECISION_LOG.md` DL-034..DL-036; `KNOWN_ISSUES.md` #13 resolved + #27
+  (full live import is an operator step); `DEVELOPER_GUIDE.md` org section;
+  `Token_Usage.md` Session-5 row.
+
+---
+
 ## Milestone history
 
 *(Each completed milestone adds a dated, versioned entry here describing what

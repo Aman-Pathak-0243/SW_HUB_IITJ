@@ -1469,6 +1469,18 @@ this document in sync with the code:
 - **Central audit-write extension** is delivered in **Session 3** with the CMS
   mutation pipeline; the table + indexes ship in Session 2 (DL-025).
 
+### Session 5 schema addendum (forward migration)
+
+- **`appointment_type_guard` `is_singleton` fix** — the Session-2 trigger set
+  `NEW.is_singleton := (max_holders = 1)`, which is **NULL** for unlimited
+  positions (`max_holders IS NULL`) and violated the `is_singleton NOT NULL`
+  column. Latent until Session 5 created the first multi-holder appointment.
+  Fixed with `COALESCE(max_holders = 1, false)` in the forward migration
+  `20260628130000_fix_appointment_singleton_guard` (`CREATE OR REPLACE FUNCTION`,
+  idempotent; the `appointment_type_guard_trg` trigger binding is unchanged).
+  Applied to Neon via `prisma migrate deploy`. No table/column change (DL-036).
+  Raw-SQL trigger functions remain **6** (this only corrects one body).
+
 ---
 
 *Generated from the Session-1 schema-design workflow (9 agents, all adversarial

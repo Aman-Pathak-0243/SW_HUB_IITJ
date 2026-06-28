@@ -323,4 +323,32 @@ Trade-offs · Future impact**.
 
 ---
 
-*(Session 5+ appends new records below.)*
+## Session 5 — Organization Model decisions
+
+## DL-034 — Person identity is the cleaned full name (case-insensitive); V1 role-mailbox "emails" are NOT migrated to `person.email`.
+
+- **Decision:** A `person` is deduplicated by its whitespace-cleaned full name, compared **case-insensitively** (`lib/org/people.mjs#upsertPerson` uses `fullName { equals, mode:'insensitive' }`). The institutional "emails" attached to people in the V1 hostel data (e.g. `warden.egret@iitjammu.ac.in`, `hsec.boys@iitjammu.ac.in`) are **shared ROLE mailboxes**, not personal identity emails, so they are NOT written to `person.email` (which is `UNIQUE WHERE NOT NULL`). The hostel's office mailbox is kept on `hostel_profile_payload.office_email` instead. `upsertPerson` additionally drops any `email` that would collide with a different existing person (defensive). The few V1 spelling variants of one human ("Mr. Sumit Raj Ghosh" vs "Sumit Raj Ghosh"; "Akash Awale" vs "Dr. Akash Subhash Awale") are reconciled to a single canonical name **in the dataset** (`lib/org/data/*`), not by a fuzzy matcher.
+- **Alternatives considered:** (a) Key by email — impossible: the same warden mailbox is reused by two different wardens, and `person.email` is UNIQUE, so it both mis-merges distinct people and would throw P2002. (b) Migrate the role mailboxes onto `person.email` first-wins — silently drops real contacts and still mis-attributes. (c) A fuzzy / honorific-and-middle-name normalizer for the dedup key — over-engineered and risky (could merge genuinely different people); the divergent cases are a tiny, known set better fixed as data.
+- **Why chosen:** Names are the real identity in this single-institute directory (the same "Mehul Gupta" is hostel secretary across four hostels = one person, four appointments — exactly the normalization win). Case-insensitivity matches the intent of the pure `personKey` helper without needing a stored generated column. Reconciling the 2 known variants as data keeps the dedup logic simple and deterministic, and keeps `inferPersonType` order-independent (the honorific is now consistent across a person's occurrences).
+- **Trade-offs:** Two genuinely different humans who share an exact cleaned name would merge (acceptable at this scale; none in the V1 data). Personal contact emails are not captured for migrated people (the role mailbox lives on the unit profile); a future admin can add identity emails per person.
+- **Future impact:** The directory stays clean and FK-safe; Session 9's people admin can add/curate emails and optionally link `app_user` accounts (then `person_email_link_guard` enforces email agreement).
+
+## DL-035 — The campus-wide mess committee is attached to the first mess unit.
+
+- **Decision:** V1 models the mess committee as ONE campus-wide roster (a single list, not per-mess). Because the mess position definitions (`mess_secretary`, `mess_committee_member`) require a mess-type `org_unit` (`appointment_type_guard`), the importer attaches the entire committee to the **first mess unit by sort order** ("Annapurna Mess (2nd Floor)") as the canonical committee roster, preserving each V1 title in `appointment.title_override` ("AD - Mess Management", "Mess Warden - Canary", …). "Mess Secretary" maps to the singleton `mess_secretary`; everyone else to the unlimited `mess_committee_member`.
+- **Alternatives considered:** (a) Duplicate the whole committee onto all 5 messes — 16×5 fabricated appointments and a singleton-secretary contradiction. (b) Best-effort per-mess attribution by parsing titles ("Mess Warden - Canary" → Canary) — unreliable and incomplete (most members carry no mess). (c) A new institute-level "mess administration" unit type — schema/seed change unjustified for V2.
+- **Why chosen:** It is faithful to "one committee", keeps cardinality sane (one secretary, many members), and satisfies the type guard with zero schema change. `title_override` preserves the human-meaningful V1 labels.
+- **Trade-offs:** The committee is rendered under one mess rather than as a standalone institute roster; per-mess attribution is deferred until the data distinguishes it.
+- **Future impact:** If a future year provides per-mess committees, the same services attach them to the right unit with no code change.
+
+## DL-036 — Fix `appointment_type_guard.is_singleton` via a forward migration (`COALESCE`), not by editing the init migration.
+
+- **Decision:** The Session-2 `appointment_type_guard` trigger computed `NEW.is_singleton := (v_max_holders = 1)`, which evaluates to **NULL** when `position.max_holders IS NULL` (unlimited positions: coordinators, caretakers, wellness wardens, attendants, mess committee members), violating `appointment.is_singleton NOT NULL`. The bug was latent because no prior session created an unlimited-holder appointment (Session 4 only copied a singleton secretary); the Session-5 live test (`tests/org.db.test.mjs`) surfaced it on the first coordinator insert. Fixed with `NEW.is_singleton := COALESCE(v_max_holders = 1, false)` in a NEW forward migration (`20260628130000_fix_appointment_singleton_guard`, a `CREATE OR REPLACE FUNCTION` — idempotent, leaves the trigger binding intact), applied to Neon via `prisma migrate deploy`. The recorded init migration is left untouched (DL-027: never rewrite/`db pull`/`migrate reset`).
+- **Alternatives considered:** (a) Edit the init migration's function in place + re-stamp the checksum — breaks the "init is immutable once applied" invariant and risks drift. (b) A column default / app-side default for `is_singleton` — the trigger overwrites it, so the NULL would still land. (c) Make `is_singleton` nullable — weakens the singleton partial-unique predicate.
+- **Why chosen:** A forward `CREATE OR REPLACE` migration is the sanctioned evolution path (DL-027), is safe to re-apply, and a fresh `migrate deploy` from empty reproduces the corrected behavior (init creates the buggy function, the fix migration corrects it, in order).
+- **Trade-offs:** One more migration directory; the raw-SQL trigger remains invisible to Prisma drift detection (catalogued as before).
+- **Future impact:** Establishes the pattern for future raw-SQL trigger fixes — a new `CREATE OR REPLACE` migration, never an init rewrite. The live-DB test suite is what guards these triggers against regression.
+
+---
+
+*(Session 6+ appends new records below.)*

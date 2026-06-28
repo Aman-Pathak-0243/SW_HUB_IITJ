@@ -43,13 +43,18 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: 130 static (year + year-transition) + 6 live-DB (resolution/history/transition×3/lock); 8 CMS live still green
 - [x] Adversarial review (24 agents, 6 lenses); 18 findings → 16 fixed, 2 nits accepted
 
-## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess) ⬜ (next)
-- [ ] Org-unit + appointment services (`lib/org/*`); honor hierarchy/type/cardinality guards
-- [ ] Migrate hardcoded org content (Report §7) into current year (idempotent importer)
-- [ ] Data-driven public pages (one `<OrgUnitPage>` replaces 4 Clubs pages, #13)
+## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess) ✅
+- [x] Org-unit + lineage service (`lib/org/units.mjs`); honors hierarchy + lock guards; lineage minted only for new logical units (DL-007)
+- [x] Person directory (`lib/org/people.mjs`, dedup-by-name case-insensitive, DL-034) + appointment service (`lib/org/appointments.mjs`); honors composite FK + type guard + both cardinality guards
+- [x] V1 dataset (`lib/org/data/*`: 4 councils/30 clubs/6 hostels/5 messes/17 committee; "Technical Secretary") + idempotent importer (`lib/org/import.mjs`, `npm run db:import:org`)
+- [x] Data-driven public pages: one `<OrgUnitPage>` + `app/org/[type]/...` replaces the 4 Clubs pages (#13); `lib/org/public.mjs` read layer
+- [x] Forward migration `20260628130000_fix_appointment_singleton_guard` (is_singleton NULL bug; DL-036), applied to Neon
+- [x] Tests: 152 static (`org.test.mjs`) + 4 live-DB (`org.db.test.mjs`: hierarchy/type/cardinality guards, idempotent importer, public read)
+- [x] Adversarial review (25 agents, 6 lenses); 15 confirmed → 13 fixed, 2 accepted
+- [ ] **Operator:** run `npm run db:import:org` to populate the live 2025-26 year (#27)
 
-## Session 6 — Events + Announcements ⬜
-- [ ] Migrate 3 backed-up events → Postgres (year 2025-26); fix V1 event bugs
+## Session 6 — Events + Announcements ⬜ (next)
+- [ ] Events on Postgres via the CMS service; replace V1 Mongo write path; migrate 3 backed-up events (year 2025-26); fix `/past-events` (#3), base64 images (#5), no-edit/delete (#16)
 - [ ] Announcements (schedule/pin/audience); decide `queries` doc disposition
 
 ## Session 7 — Resources + Media ⬜

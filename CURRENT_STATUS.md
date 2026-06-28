@@ -1,13 +1,53 @@
 # Current Status
 
 **Last updated:** 2026-06-28
-**Session:** 4 of 10 — **COMPLETE** (Academic Year Engine)
-**Next session:** 5 — Organization Model (clubs/councils/hostels/mess as org units + appointments; migrate hardcoded V1 data)
+**Session:** 5 of 10 — **COMPLETE** (Organization Model)
+**Next session:** 6 — Events + Announcements (rebuild on Postgres via the CMS service; migrate the 3 backed-up events; announcements with schedule/pin/audience)
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+## What is done (Session 5)
+
+- **Org-unit service** ([lib/org/units.mjs](lib/org/units.mjs)) — create / edit /
+  publish / archive year-scoped `org_unit` rows; a NEW `org_unit_lineage` is minted
+  only for a genuinely new logical unit (never a bare uuid — DL-007). Honors
+  `org_unit_hierarchy_guard` + `lock_guard` (friendly `ORG_HIERARCHY` / `YEAR_LOCKED`);
+  keeps `status`↔`archivedAt` consistent; gates on `org_unit.*`; one semantic audit row.
+- **Person directory** ([lib/org/people.mjs](lib/org/people.mjs)) — `upsertPerson`
+  keyed by cleaned full name (case-insensitive), idempotent; V1 role mailboxes are
+  NOT migrated to the UNIQUE `person.email` (DL-034); authorizes at the appointment's
+  RBAC scope. **Appointment service** ([lib/org/appointments.mjs](lib/org/appointments.mjs))
+  — create / edit / publish / archive; derives year FROM the unit (composite FK),
+  leaves `org_unit_type_id` NULL for `appointment_type_guard` to auto-fill + set
+  `is_singleton`, honors both cardinality guards (friendly `APPOINTMENT_TYPE` /
+  `APPOINTMENT_CARDINALITY` / `APPOINTMENT_DUPLICATE`).
+- **V1 dataset + importer** ([lib/org/data/*](lib/org/data/index.mjs),
+  [lib/org/import.mjs](lib/org/import.mjs)) — 4 councils, **30 clubs**, 6 hostels,
+  5 messes + the 17-member mess committee, with a pure `buildImportPlan()`. The
+  idempotent importer (`npm run db:import:org`) stands up units + bound `*_profile`
+  content (via the CMS service) + people + appointments for a year; re-runs create 0;
+  a partial run is resumable (found-but-draft entities are re-published). V1 images
+  become lightweight `media_asset` inventory rows (Cloudinary URLs / `/public` paths
+  kept for Session 7). The Academic council lead is now **"Technical Secretary"**.
+- **Public org pages** ([lib/org/public.mjs](lib/org/public.mjs),
+  [app/components/OrgUnitPage.jsx](app/components/OrgUnitPage.jsx), `app/org/[type]/...`)
+  — ONE data-driven `<OrgUnitPage>` renders any council/club/hostel/mess from the
+  published unit + profile + roster, **replacing the 4 duplicated V1 Clubs pages**
+  (KNOWN_ISSUES #13). Per-unit reads run concurrently; routes are `force-dynamic`.
+- **Schema fix** — forward migration `20260628130000_fix_appointment_singleton_guard`
+  (`appointment_type_guard` set `is_singleton` to NULL for unlimited positions;
+  `COALESCE`-fixed; applied to Neon via `prisma migrate deploy` — DL-027/DL-036).
+  Found by the live test; latent since Session 2.
+- **Tests** — **152 static** (was 130): `org.test.mjs` (pure helpers + import-plan
+  integrity). Plus **4 live-DB** (`org.db.test.mjs`): org-unit + hierarchy guard,
+  appointment type/cardinality guards, idempotent importer, public org read. All
+  Session-3/4 live tests still green.
+- **Adversarial review** — 25-agent, 6-lens workflow with per-finding verification:
+  15 confirmed → **13 fixed, 2 accepted** (public phone withheld as PII;
+  case-insensitive dedup over a fuzzy merge).
 
 ## What is done (Session 4)
 
@@ -95,39 +135,46 @@
 
 ## What is NOT done yet (next sessions)
 
-- Organization model (clubs/councils/hostels/mess as org units + appointments) →
-  **Session 5 (next)**; migrate hardcoded V1 org content. The year engine, lineage,
-  and `runTransition` from this session are the substrate it builds on.
-- Events/announcements rebuilt on Postgres (uses the CMS service) → Session 6.
+- **Run the full live org import** into 2025-26: `npm run db:import:org` (idempotent,
+  ~15 min on Neon — an OPERATOR step like `db:seed`, KNOWN_ISSUES #27). The importer
+  is tested end-to-end; it just hasn't been run against the real current year here.
+- Events/announcements rebuilt on Postgres (uses the CMS service) → **Session 6 (next)**;
+  migrate the 3 backed-up events; decide the `queries` collection disposition.
 - Resources + Media (Cloudinary) → Session 7; Developer Console → Session 8;
-  full RBAC-gated Admin Panel (UI over the CMS service) → Session 9.
+  full RBAC-gated Admin Panel (UI over the CMS/org services) → Session 9.
 - Owner-owned: rotate/remove the V1 leaked secrets in `README.md`
   ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
 
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (130 passing); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
-  live smoke + CMS (8) + year-engine (6) live tests. The remote Neon compute has
-  high per-round-trip latency **and auto-suspends**, so live tests are slow
-  (minutes) and occasionally hit a transient "Can't reach database server" on a
-  cold compute — re-run once if so (not a logic failure).
+  green (**152 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  live smoke + CMS (8) + year-engine (6) + org (4) live tests. The remote Neon
+  compute has high per-round-trip latency **and auto-suspends**, so live tests are
+  slow (minutes) and occasionally hit a transient "Can't reach database server" on a
+  cold compute — re-run once if so (not a logic failure). The org live suite is the
+  slowest (the importer makes many sequential audited tx round-trips).
 - Import `prisma` from `lib/prisma.mjs` for all app DB access — it is the
   audit-extended client, so mutations are audited automatically. Use `prismaBase`
-  only to bypass audit (audit reader, repair scripts, test cleanup / fixtures).
+  only to bypass audit (audit reader, repair scripts, test cleanup / fixtures, the
+  importer's media-inventory rows).
 - **Mutation entrypoints:** the CMS service (`lib/cms/content.mjs`) for content;
-  the year engine (`lib/year/*`) for years/transitions/locks. Both use the shared
-  `auditedMutation` (`lib/cms/audited-mutation.mjs`). Route handlers (Session 9)
-  call `requirePermission` then the service; year mutations gate on `year.*`.
-- **Public read paths:** `lib/cms/visibility.mjs` (current year) and
-  `lib/year/public.mjs` (any selectable year). `resolveCurrentYear` is canonical
-  in `lib/year/context.mjs`.
-- The **Transition Wizard** (`lib/year/transition.mjs#runTransition`) is the
-  forward-copy primitive Session 5 will lean on once real org units exist; it
-  reuses `org_unit_lineage` and is idempotent/resumable.
-- Raw-SQL objects live in the init migration's tail and are invisible to Prisma —
-  never `prisma db pull` / `migrate reset`. **No new migration was needed this
-  session** (the year engine uses the Session-2 schema as-is).
+  the year engine (`lib/year/*`) for years/transitions/locks; the **org services
+  (`lib/org/{units,people,appointments}.mjs`)** for structure/roster; the
+  **importer (`lib/org/import.mjs`)** for the V1 migration. All use the shared
+  `auditedMutation`. Route handlers (Session 9) call `requirePermission` then the
+  service; org mutations gate on `org_unit.*` / `appointment.*`.
+- **Public read paths:** `lib/cms/visibility.mjs` (current-year content),
+  `lib/year/public.mjs` (any selectable year's content), and **`lib/org/public.mjs`
+  (org units + profiles + rosters)**. `resolveCurrentYear` is canonical in
+  `lib/year/context.mjs`. The data-driven org pages live under `app/org/[type]/...`.
+- The **Transition Wizard** (`lib/year/transition.mjs#runTransition`) carries the
+  Session-5 org units + appointments forward into a new year (reusing lineage,
+  idempotent/resumable) — no per-session re-migration needed.
+- Raw-SQL objects live in migrations and are invisible to Prisma — never
+  `prisma db pull` / `migrate reset`. **Session 5 added ONE forward migration**
+  (`20260628130000_fix_appointment_singleton_guard`, a `CREATE OR REPLACE`); add
+  future raw-SQL fixes the same way (DL-027/DL-036), never by rewriting the init.
 
 ## Next action
 

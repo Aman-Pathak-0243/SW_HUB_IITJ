@@ -20,8 +20,8 @@ context and no repeated work.
 | 2 | **Database + Prisma + RBAC + Authentication** | Schema in Prisma (33 tables/14 enums), first Neon migration (raw-SQL guards + 6 triggers), seed (year/roles/perms/org/positions/content types/bootstrap users), NextAuth (Google + credentials, one-account-per-email, JWT), dynamic server-side RBAC, 50 tests | ✅ **DONE** |
 | 3 | **CMS Foundation** | Draft/Publish lifecycle, restore, version history + diff, generic schema-driven editing layer, **central audit-write `$extends`**, public visibility rule, friendly DB-guard errors | ✅ **DONE** |
 | 4 | **Academic Year Engine** | Year context (resolve/set-current/list/create), cross-year history + `org_unit_lineage` follow, **Transition Wizard** (idempotent structure/appointments/content/role copy forward), lock/unlock, public year selector; 130 static + 6 live tests; 24-agent review | ✅ **DONE** |
-| 5 | Organization Model | Clubs, Councils, Hostels, Mess as generic org units + positions/appointments; migrate hardcoded data | ⏳ Next |
-| 6 | Events + Announcements | Year-scoped, draft/publish, paginated; replace the V1 base64-image events feature | ⬜ Pending |
+| 5 | **Organization Model** | Org-unit + person + appointment services; V1 dataset (4 councils/30 clubs/6 hostels/5 messes/committee) + idempotent importer; one data-driven `<OrgUnitPage>` (replaces the 4 Clubs pages); honors hierarchy/type/cardinality/lock guards; fixed the `is_singleton` trigger (forward migration); 152 static + 4 live tests; 25-agent review | ✅ **DONE** |
+| 6 | Events + Announcements | Year-scoped, draft/publish, paginated; replace the V1 base64-image events feature | ⏳ Next |
 | 7 | Resources + Media | Resources (PDFs/links); Media assets + Cloudinary; Admin Media Migration Tool (`/public` → Cloudinary) | ⬜ Pending |
 | 8 | Developer Console | Monitoring, logs, audit trail, testing reports, backups/restore/rollback, migrations, cost estimation | ⬜ Pending |
 | 9 | Admin Panel | Full RBAC-gated admin UI over CMS/years/orgs/events/announcements/resources/media/users/roles | ⬜ Pending |
