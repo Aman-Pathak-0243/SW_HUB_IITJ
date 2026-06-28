@@ -1,47 +1,54 @@
 # Next Task
 
-**As of:** 2026-06-28 · **Session 2 complete → Session 3 is next.**
+**As of:** 2026-06-28 · **Session 3 complete → Session 4 is next.**
 
-## Session 3 — CMS Foundation
+## Session 4 — Academic Year Engine
 
-Build the draft/publish content lifecycle, version history, the generic
-schema-driven editing layer, and wire in centralized audit logging — all on the
-Session-2 Prisma schema. **Read first:** [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md),
-[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (authoritative spec, esp. content
-spine + capabilities 6/7/8/9), [docs/DECISION_LOG.md](docs/DECISION_LOG.md)
-(DL-004/005/006/011/012 + Session-2 DL-017..DL-027),
-[docs/DATA_MIGRATION_REPORT.md](docs/DATA_MIGRATION_REPORT.md).
+Build the year-context layer, cross-year history queries, and the **Transition
+Wizard** that copies a source year's structure forward — all on the Session-2
+Prisma schema and the Session-3 CMS service. **Read first:**
+[docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md),
+[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (capability 1 + the
+`academic_year` / `transition_run` / `org_unit_lineage` entries),
+[docs/DECISION_LOG.md](docs/DECISION_LOG.md) (DL-004/007/026 + Session-3
+DL-028..030), [CURRENT_STATUS.md](CURRENT_STATUS.md).
 
 ### Ordered tasks
-1. **Content service** over `content_item` + `content_revision` + per-type
-   `*_payload`: create draft, edit draft, publish (supersede prior published,
-   repoint `published_revision_id`), unpublish, archive, and **restore** (overwrite
-   the open draft in place; honor the at-most-one-draft / one-published partial
-   uniques + the `content_item_pointer_guard` trigger).
-2. **Version history** — list/diff revisions; `is_restore_of_revision_id`
-   provenance; monotonic `revision_no`.
-3. **Generic editing layer** — route by `content_type` via the in-code handler
-   map ([lib/cms/content-types.mjs](lib/cms/content-types.mjs)); keep the startup
-   test that every `content_type_def` has a handler.
-4. **Central audit-write extension** (DL-012 / DL-025) — ONE Prisma Client
-   `$extends` (or audited-mutation service) capturing before/after and writing
-   `audit_log` on every create/update/delete/publish/transition/grant. Attach it
-   to [lib/prisma.mjs](lib/prisma.mjs). Add coverage tests.
-5. **Public visibility rule** in the data-access layer: `status='published' AND
-   academic_year_id = current year` (+ event/announcement publish windows).
-6. **Tests** — content lifecycle, restore, version history, audit coverage,
-   publish-visibility; extend the live DB smoke as useful.
+1. **Year context** — a `lib/year/context.mjs` resolving the current academic year
+   (the `is_current` partial-unique guarantees exactly one), plus helpers to set
+   the current year and to list years. Reuse the audit-extended `prisma` so year
+   changes are audited; gate mutations with `requirePermission('year.*')`.
+2. **History queries** — read content/org/appointments for any past year (filter
+   by `academic_year_id`); follow `org_unit_lineage` to track a logical unit
+   across years. Respect `lock_guard` (past years are read-only).
+3. **Transition Wizard** — implement `transition_run`: copy a source year's
+   STRUCTURE forward as new `org_unit` rows REUSING their `org_unit_lineage`
+   (never copying a bare uuid — DL-007), with options `copy_appointments`
+   (default OFF — DL-026), `copy_content` (clone latest revision as a target-year
+   draft — DL-026), `copy_role_assignments` (default OFF). Record counts + status;
+   honor the `source<>target` CHECK and the one-completed-per-pair partial unique;
+   make it idempotent/re-runnable. Audit as `action='transition'`.
+4. **Lock/unlock** — a `year.lock` operation (status `active`↔`locked`) so past
+   years become read-only; surface the friendly `YEAR_LOCKED` error (already in
+   `lib/cms/errors.mjs`) on blocked writes.
+5. **Public year selector** — a data-access helper so public pages can show a past
+   year's published content (still gated by the visibility rule, but for the
+   selected year rather than only the current one).
+6. **Tests** — current-year resolution, history queries, a full transition run
+   (structure-only; structure+content), idempotence/re-run, lock behavior, and
+   audit coverage for the transition. Extend the live DB suite as useful.
 
-### Guard rails (already enforced by the DB — rely on them)
-- `lock_guard` (locked-year read-only; revision INSERT allowed for errata),
-  pointer same-item/status, partial uniques for one-draft/one-published. Don't
-  re-implement in app code; surface friendly errors on violation.
+### Guard rails (already enforced — rely on them)
+- `lock_guard` (locked-year read-only), the `is_current` partial unique, the
+  `transition_run` `source<>target` CHECK + one-completed-per-pair unique, and the
+  `org_unit_hierarchy_guard`. Don't re-implement; surface friendly errors (extend
+  `mapDbError` if a transition introduces a new guard signature).
 
 ### End-of-session (mandatory)
 Run the END-OF-SESSION checklist in
 [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md): update CURRENT_STATUS,
 NEXT_TASK, TODO, CHANGELOG, DECISION_LOG, KNOWN_ISSUES, Developer Guide,
-Token_Usage; prepare one specific commit; output the Session-4 starter prompt.
+Token_Usage; prepare one specific commit; output the Session-5 starter prompt.
 
 ## Owner-owned (parallel, anytime)
 - Rotate/revoke the V1 leaked secrets and clean `README.md`

@@ -1,70 +1,76 @@
 # Current Status
 
 **Last updated:** 2026-06-28
-**Session:** 2 of 10 — **COMPLETE** (Database + Prisma + RBAC + Authentication)
-**Next session:** 3 — CMS Foundation (draft/publish, version history, audit logging)
+**Session:** 3 of 10 — **COMPLETE** (CMS Foundation)
+**Next session:** 4 — Academic Year Engine (year context, history queries, Transition Wizard)
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
-## What is done (Session 2)
+## What is done (Session 3)
 
-- **Prisma wired up** — `prisma@6` + `@prisma/client` + `@next-auth/prisma-adapter`
-  + `@node-rs/argon2` installed; pooled `DATABASE_URL` (with `pgbouncer=true`) +
-  unpooled `DIRECT_URL` in git-ignored `.env.local`.
-- **Schema implemented** — [prisma/schema.prisma](prisma/schema.prisma): all 33
-  tables + 14 enums from [docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md), composite
-  FK, plain-scalar revision pointers, full back-relation graph. `prisma validate`
-  passes.
-- **First migration applied to Neon** — one hand-assembled init migration
-  (Prisma base DDL + raw-SQL tail: citext extension, partial/expression/
-  NULLS-NOT-DISTINCT uniques, GIN/BRIN, CHECKs, and **6 trigger functions**:
-  lock_guard, org_unit_hierarchy_guard, appointment_type_guard,
-  appointment_cardinality_guard, content_item_pointer_guard,
-  person_email_link_guard). `prisma migrate status` → up to date.
-- **Seeded** — current `academic_year` 2025-26 (active, is_current); 40
-  permissions; 5 roles (developer `grants_all`, super_admin, content_editor,
-  org_manager, viewer) + role_permission; 6 org_unit_types + 6 allowed-child
-  edges; 16 positions; 10 content_type_def rows; bootstrap developer + the two
-  former V1 admin emails as super_admins (replacing the hardcoded allowlist).
-- **Auth** — NextAuth v4 + PrismaAdapter; Google OAuth + email/password
-  (argon2id); one account per email (account linking); JWT sessions; suspended/
-  disabled accounts blocked at sign-in and at protected routes.
-- **RBAC** — one server-side authorization utility
-  ([lib/rbac/authorize.mjs](lib/rbac/authorize.mjs) +
-  [lib/auth/session.mjs](lib/auth/session.mjs)): permission union + grants_all/
-  is_developer short-circuit, scope (year/org-lineage), live revocation. V1
-  hardcoded email allowlist **removed** (KNOWN_ISSUES #8 closed). `POST
-  /api/events` now permission-gated (KNOWN_ISSUES #2 closed).
-- **Tests** — 50 passing across 6 files (password/argon2, RBAC resolution +
-  catalog, content-type registry, credentials authorize, schema+migration
-  structure, and a live Neon DB smoke incl. behavioral trigger tests for the
-  singleton-cardinality and org-hierarchy guards).
-- **Adversarial review workflow** (16 agents) run; all confirmed critical/major
-  findings fixed and re-verified.
+- **Central audit-write choke point** (DL-012/DL-025/DL-028) — `lib/cms/audit.mjs`
+  + `lib/cms/audit-context.mjs`, mounted in `lib/prisma.mjs`
+  (`prisma = base.$extends(buildAuditExtension(base))`; `prismaBase` exported for
+  bypass). Auto path audits every mutating op on audited models (recursion-safe
+  via `base`, best-effort); the CMS service uses the semantic path — exactly one
+  `audit_log` row per business action (create/publish/unpublish/archive/restore),
+  written after commit with auto-audit suppressed in-transaction via an
+  `AsyncLocalStorage` actor context. KNOWN_ISSUES #21 closed.
+- **Content lifecycle service** — [lib/cms/content.mjs](lib/cms/content.mjs):
+  `createDraft`, `editDraft` (in-place or auto-open a draft from published),
+  `publish` (supersede → publish → repoint), `unpublish`, `archive`, `restore`
+  (overwrite the open draft in place; `is_restore_of_revision_id` recorded).
+  Honors the one-draft/one-published partial uniques + `content_item_pointer_guard`;
+  reuses `assertPermission` on every mutating op, authorizing before any state check.
+- **Version history** — `listRevisions`, `getRevision`, `diffRevisions` (+ pure
+  `diffRevisionViews`); monotonic `revision_no`.
+- **Generic editing layer** — [lib/cms/content-types.mjs](lib/cms/content-types.mjs)
+  data-driven handlers (write/read/copy payloads + normalized list children +
+  required-field validation) routed by `content_type`; the "every
+  content_type_def has a handler" startup test is kept.
+- **Public visibility** — [lib/cms/visibility.mjs](lib/cms/visibility.mjs):
+  published AND current-year AND not-archived AND has-published-revision, plus
+  event/announcement publish windows.
+- **Friendly DB-guard errors** — [lib/cms/errors.mjs](lib/cms/errors.mjs):
+  `mapDbError` translates trigger/unique/CHECK/Prisma violations into HTTP-shaped
+  `CmsError`s; DB guards honored, never re-implemented (DL-029).
+- **Tests** — **101 static passing** (was 50) across 11 files, default-green
+  without a DB; plus **8 live-DB tests** (`RUN_DB_TESTS=1`) covering lifecycle,
+  one-draft/one-published, restore + provenance + audit, audit coverage,
+  visibility/windows, unpublish→republish, and a real-`lock_guard` YEAR_LOCKED test.
+- **Adversarial review workflow** (30 agents, 5 lenses, per-finding verification):
+  24 confirmed findings (1 major + minor/nit) all addressed and re-verified.
 
 ## What is NOT done yet (next sessions)
 
-- **Central audit-write Prisma extension → Session 3** (table + indexes exist;
-  the single write choke point lands with the CMS mutation pipeline — DL-025).
-- CMS draft/publish lifecycle, version history, generic editing layer → Session 3.
-- Events rebuilt on Postgres → Session 6; full RBAC-gated admin panel → Session 9.
+- Academic Year Engine: current-year context, history queries, **Transition
+  Wizard** (copy structure forward) → Session 4.
+- Organization model (clubs/councils/hostels/mess as org units + appointments) →
+  Session 5; migrate hardcoded V1 org content.
+- Events/announcements rebuilt on Postgres (uses the CMS service) → Session 6.
+- Resources + Media (Cloudinary) → Session 7; Developer Console → Session 8;
+  full RBAC-gated Admin Panel (UI over the CMS service) → Session 9.
 - Owner-owned: rotate/remove the V1 leaked secrets in `README.md`
   ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
 
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green; `RUN_DB_TESTS=1 npm test` adds the live smoke (needs `.env.local`).
-- Neon serverless compute **auto-suspends**; the first connection wakes it
-  (retry — the seed has a `waitForDb` loop; the smoke test warms in `beforeAll`).
-- Prisma CLI reads `.env`, not `.env.local`: use the `db:*` npm scripts
-  (`dotenv -e .env.local -- ...`) or `set -a; . ./.env.local; set +a` first.
-- Raw-SQL objects live in the init migration's tail and are **invisible to
-  Prisma** — never `prisma db pull`. They're catalogued in SCHEMA_DESIGN and
-  guarded by `tests/migration.test.mjs`.
+  green; `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the live smoke +
+  CMS live tests. The remote Neon compute has high per-round-trip latency, so the
+  live CMS tests are slow (minutes) and use generous per-test/tx timeouts.
+- Import `prisma` from `lib/prisma.mjs` for all app DB access — it is the
+  audit-extended client, so mutations are audited automatically. Use `prismaBase`
+  only to bypass audit (audit reader, repair scripts, test cleanup).
+- The CMS service (`lib/cms/content.mjs`) is the mutation entrypoint; route
+  handlers (Session 9) call `requirePermission` then the service. The public read
+  path is `lib/cms/visibility.mjs`.
+- Raw-SQL objects live in the init migration's tail and are invisible to Prisma —
+  never `prisma db pull` / `migrate reset`. No new migration was needed this
+  session (the CMS layer uses the Session-2 schema as-is).
 
 ## Next action
 

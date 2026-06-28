@@ -24,11 +24,14 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: auth/password, credentials authorize, RBAC, content-type registry, schema+migration, live DB smoke (50 passing)
 - [x] Adversarial review workflow (16 agents); confirmed findings fixed + re-verified
 
-## Session 3 — CMS Foundation ⬜
-- [ ] Draft/publish lifecycle + restore + version history (content_item/content_revision/*_payload)
-- [ ] Central audit-log writer — one Prisma client `$extends`/service (DL-012/DL-025); attach to lib/prisma.mjs
-- [ ] Generic schema-driven editing layer + content_type registry handlers (lib/cms/content-types.mjs)
-- [ ] Public visibility rule (published AND current year [+ event windows]) in the data-access layer
+## Session 3 — CMS Foundation ✅
+- [x] Draft/publish lifecycle + restore + version history (content_item/content_revision/*_payload) — `lib/cms/content.mjs`
+- [x] Central audit-log writer — one Prisma client `$extends` + semantic service path (DL-012/DL-025/DL-028); attached to lib/prisma.mjs
+- [x] Generic schema-driven editing layer + content_type registry handlers (lib/cms/content-types.mjs)
+- [x] Public visibility rule (published AND current year + event/announcement windows) — `lib/cms/visibility.mjs`
+- [x] Friendly DB-guard error mapping (`lib/cms/errors.mjs`, DL-029); honors triggers/uniques, no app re-implementation
+- [x] Tests: 101 static (cms-errors/audit/content-types/visibility/diff) + 8 live-DB (lifecycle/restore/version/audit/visibility/republish/lock_guard)
+- [x] Adversarial review workflow (30 agents, 5 lenses); 24 confirmed findings fixed + re-verified
 
 ## Session 4 — Academic Year Engine ⬜
 - [ ] Current-year context + history queries; lock_guard behavior

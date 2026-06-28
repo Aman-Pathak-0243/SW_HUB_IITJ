@@ -108,6 +108,57 @@ update protocol in [README.md](README.md)).
 - **KNOWN_ISSUES closed:** #8 (hardcoded email allowlist) and #2 (unauthenticated
   `POST /api/events`).
 
+### Added/Changed — Session 3: CMS Foundation · 2026-06-28
+
+- **Central audit-write choke point** (DL-012/DL-025/DL-028) — `lib/cms/audit.mjs`
+  + `lib/cms/audit-context.mjs`, mounted in `lib/prisma.mjs` via `prisma =
+  base.$extends(buildAuditExtension(base))`. Two paths: an **auto** query
+  extension that audits every mutating op on audited models (recursion-safe via
+  the un-extended `base` client; best-effort, never blocks the mutation), and a
+  **semantic** path the CMS service uses (one `audit_log` row per business action
+  — create/publish/unpublish/archive/restore — written after commit, with
+  auto-audit suppressed inside the transaction via an `AsyncLocalStorage` actor
+  context). `prismaBase` exported for the rare audit-bypass caller. KNOWN_ISSUES
+  #21 closed.
+- **Content lifecycle service** — `lib/cms/content.mjs`: `createDraft`,
+  `editDraft` (edits the open draft in place, or auto-opens one from the
+  published/latest revision), `publish` (supersedes prior published → marks
+  draft published → repoints `published_revision_id`), `unpublish`, `archive`
+  (soft-delete), and `restore` (overwrites the open draft in place, recording
+  `is_restore_of_revision_id`; honors the one-open-draft partial unique). Every
+  mutating op reuses the Session-2 RBAC util (`assertPermission`) against the
+  item's (year, org-lineage) scope and authorizes before any state check.
+- **Version history** — `listRevisions`, `getRevision` (spine + typed payload),
+  `diffRevisions` / pure exported `diffRevisionViews` (field-level diff; lists &
+  JSONB compared by value, Dates by ISO). Monotonic `revision_no`.
+- **Generic schema-driven editing layer** — `lib/cms/content-types.mjs` extended
+  with data-driven payload handlers (`writePayload`/`readPayload`/`copyPayload`,
+  scalar fields + normalized list children + required-field validation) routed by
+  `content_type`. The "every content_type_def has a handler" guarantee is kept.
+- **Public visibility rule** — `lib/cms/visibility.mjs`: `published AND
+  current-year AND not-archived AND has-published-revision`, plus event/
+  announcement `publish_from`/`publish_until` windows; `listPublicContent` /
+  `getPublicItemBySlug` / pure `isPubliclyVisible` + `isWithinPublishWindow`.
+- **Friendly DB-guard errors** — `lib/cms/errors.mjs`: `CmsError` family +
+  `mapDbError` translating trigger/partial-unique/CHECK/Prisma violations
+  (`YEAR_LOCKED`, `ONE_DRAFT`/`ONE_PUBLISHED`, `SLUG_TAKEN`, `PUBLISH_WINDOW`, …)
+  into HTTP-shaped errors. App code honors the DB guards, never re-implements them
+  (DL-029).
+- **Tests** — 101 static (was 50): new `cms-errors`, `cms-audit`,
+  `cms-content-types`, `cms-visibility`, `cms-diff` (DB-free, default-green) +
+  `cms.db.test.mjs` (8 live-DB tests, `RUN_DB_TESTS=1`): full lifecycle, one-draft/
+  one-published enforcement, restore (+ provenance + audit), audit-coverage,
+  public visibility/windows, friendly errors, unpublish→republish ordering, and a
+  locked-year test that provokes the real `lock_guard` trigger → `YEAR_LOCKED`.
+- **Adversarial review** — a 30-agent, 5-lens review workflow (correctness,
+  db-fidelity, audit/RBAC, tests, simplify) with per-finding verification; 24
+  confirmed findings (1 major + minor/nit) all addressed: the required-field 500
+  bug, diff JSONB reference-equality, authorize-before-state-disclosure ordering,
+  unmapped CHECK violations, upsert-as-create derivation, and the cited
+  coverage/clarity gaps.
+- **Docs** — `DECISION_LOG.md` DL-028..DL-030; `KNOWN_ISSUES.md` #21 closed,
+  #24/#25 added; `DEVELOPER_GUIDE.md` CMS section; `Token_Usage.md` Session-3 row.
+
 ---
 
 ## Milestone history
