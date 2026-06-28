@@ -23,19 +23,22 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 let pdfjsLibPromise = null;
 function loadPdfJs() {
   if (!pdfjsLibPromise) {
-    // NOTE: pinned to pdfjs-dist@3.11.174 — newer 5.x/6.x releases have an
-    // active upstream rendering regression ("getOrInsertComputed is not a
-    // function", see mozilla/pdf.js#20680) that silently fails page.render()
-    // and leaves the canvas blank. 3.11.174 is a known-stable release.
-    // package.json should pin: "pdfjs-dist": "3.11.174"
-    pdfjsLibPromise = import("pdfjs-dist/build/pdf").then((mod) => {
+    // Pinned to pdfjs-dist@6.0.227 (package.json pins the exact version, no caret)
+    // and the library + worker are imported from the SAME build to remove the
+    // version/worker mismatch (KNOWN_ISSUES #4: the file previously claimed
+    // 3.11.174 + a 3.x ".js" worker while package.json shipped 6.x + the ".mjs"
+    // worker). We use the LEGACY build: it is polyfilled and the most robust under
+    // the Next/Turbopack bundler, sidestepping the modern-API render regression
+    // ("getOrInsertComputed", mozilla/pdf.js#20680) seen with the non-legacy 6.x
+    // build. The lib entry and worker MUST come from the same build dir.
+    pdfjsLibPromise = import("pdfjs-dist/legacy/build/pdf.mjs").then((mod) => {
       // Some bundlers expose the library on `.default`, others spread it
       // directly onto the module namespace — handle both.
       const pdfjsLib = mod.default && mod.default.getDocument ? mod.default : mod;
-     const workerUrl = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+      const workerUrl = new URL(
+        "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+        import.meta.url
+      ).toString();
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
       return pdfjsLib;
     });

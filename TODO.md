@@ -64,11 +64,17 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Adversarial review (64 agents, 8 lenses); 23 confirmed → 12 fixed, 1 accepted
 - [ ] **Operator:** run `npm run db:import:events` (and `db:import:org`) to populate the live 2025-26 year (#27)
 
-## Session 7 — Resources + Media ⬜ (next)
-- [ ] Resources (`content_type='resource'`, org-bound) via the CMS service + public/data-driven view
-- [ ] Media service + Cloudinary upload path; Admin Media Migration Tool (`/public` → Cloudinary, reversible) reconciling the Session-5/6 inventory rows + base64 placeholders (DL-039)
+## Session 7 — Resources + Media ✅
+- [x] Resources (`content_type='resource'`, org-bound) via the CMS service (DL-041); each resource gets its own content lineage; `lib/resources/{data,public,import}.mjs` + idempotent `npm run db:import:resources`
+- [x] Data-driven resources view: `ResourcesSection` (PDF via `PdfSlideshow` + link cards) rendered in `<OrgUnitPage>`; `getPublicOrgUnit` returns `resources`
+- [x] Media service (DL-042): `lib/media/service.mjs` curated `media_asset` CRUD (audited) + the one shared `findOrCreateInventoryAsset`; `lib/media/cloudinary.mjs` pure URL/signature/`resolveDeliveryUrl` + injectable uploader
+- [x] Admin Media Migration Tool (DL-043): `lib/media/migrate.mjs` idempotent + reversible + dry-run `/public`→Cloudinary, reconciling base64 placeholders (DL-039); `npm run db:migrate:media` (`--apply`/`--rollback`)
+- [x] Config: pdfjs pinned + legacy build (#4/DL-044); image hosts → `res.cloudinary.com` only (#17/DL-045); `CLOUDINARY_*` in `env.example`
+- [x] Tests: 219 static (`media.test.mjs` + `resources.test.mjs`) + 7 live-DB (`media.db` ×3, `resources.db` ×4); `next build` clean; no new migration
+- [x] Adversarial review (10 lenses, per-finding 2-verifier); 14 confirmed → all addressed
+- [ ] **Operator:** run `npm run db:import:resources` (after `db:import:org`) and the media migration `npm run db:migrate:media -- --apply` against 2025-26 (#27/#18)
 
-## Session 8 — Developer Console ⬜
+## Session 8 — Developer Console ⬜ (next)
 - [ ] Monitoring, logs, audit viewer, testing reports, deploy status
 - [ ] Backup/restore/rollback UI, migration tools, cost estimation
 

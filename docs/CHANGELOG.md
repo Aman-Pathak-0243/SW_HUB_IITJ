@@ -376,6 +376,78 @@ update protocol in [README.md](README.md)).
   resolved + a new accepted importer-resume edge; `DEVELOPER_GUIDE.md` events
   section; `Token_Usage.md` Session-6 row.
 
+### Added/Changed — Session 7: Resources + Media · 2026-06-29
+
+- **Resources on Postgres via the CMS service (DL-041)** — per-org-unit PDFs / Drive
+  links are `content_type='resource'` (org-bound) CMS content driven through the
+  Session-3 service (no new pipeline, like events). `lib/resources/public.mjs`
+  shapes the public records (`listResourcesForUnit`, `listPublicResourcesByUnit`);
+  `lib/org/public.mjs#getPublicOrgUnit` now returns a `resources` array. Each
+  resource mints its **own** content lineage (reusing the unit's would trip
+  `content_item`'s `UNIQUE(content_type, year, lineage_key)` and cap a unit at one
+  resource — caught by the live test).
+- **V1 resources dataset + idempotent importer (DL-041)** — `lib/resources/data.mjs`
+  lifts the V1 infra PDFs/Drive links (the 3 student-life councils share the Student
+  Club Activities PDF; campus-wide Hostel/Mess PDFs bind to the first unit of their
+  kind, DL-035). `lib/resources/import.mjs` (`npm run db:import:resources`) is
+  idempotent by `(content_type='resource', year, slug)`, resumable (DL-031), and
+  SKIPS a resource whose unit is absent (`missingUnit`) — run `db:import:org` first.
+- **Data-driven resources view** — new client `ResourcesSection` renders a `pdf`
+  resource via `PdfSlideshow` (real pages + Drive "View in Detail") and a link/drive
+  resource as a card+button (label driven by the actual destination); rendered by
+  the single `<OrgUnitPage>`.
+- **Media service (DL-042)** — `lib/media/service.mjs`: curated `media_asset` CRUD
+  (`createMediaAsset`/`updateMediaAsset`/`archiveMediaAsset`) through the shared
+  `auditedMutation` (one semantic audit row; authorize `media.upload`/`update`/`delete`
+  FIRST — before any existence read), reads (`listMediaAssets`/`getMediaAsset` +
+  `shapeAsset`), and the bulk audit-bypassing `findOrCreateInventoryAsset` (now the
+  ONE inventory writer — the org + events importers were refactored onto it,
+  removing two drifted copies; a base64 dedup bug in the org copy is fixed in passing,
+  DL-039). `lib/media/cloudinary.mjs`: pure `cloudinaryUrl` / `publicIdFromPath` /
+  `signUploadParams` / `resolveDeliveryUrl` (the single delivery-URL resolver — a
+  transformed PDF now carries `.pdf` so Cloudinary returns the file) + the one impure,
+  injectable `uploadFileToCloudinary`.
+- **Admin Media Migration Tool (DL-043)** — `lib/media/migrate.mjs`
+  (`npm run db:migrate:media`): idempotent, reversible `/public` → Cloudinary.
+  `migratePublicAssets` (DRY-RUN default; `--apply`) uploads `/public` inventory rows
+  and repoints them (`cloudinary_public_id`/`url`/`migrated_at`), excluding
+  already-migrated rows (re-run → 0). `rollbackMigration` (`--rollback`) restores
+  `local` + `url ← original_path` (idempotent). Reconciles the Session-6 base64
+  placeholders (DL-039) — reported `base64Pending`, or uploaded via an optional
+  `base64Resolver`. Bulk writes use `prismaBase`; one summary audit row per run; a
+  `filter` scopes a subset; the Cloudinary uploader is injected (fake in tests).
+- **pdfjs version mismatch fixed (#4, DL-044)** — `pdfjs-dist` pinned to exact
+  `6.0.227`; `PdfSlideshow` imports the library + worker from the same **legacy**
+  build (`pdfjs-dist/legacy/build/pdf.mjs` + `…/pdf.worker.min.mjs`); stale 3.x
+  comment rewritten.
+- **Image hosts narrowed (#17, DL-045)** — `next.config.mjs` `remotePatterns` and
+  `EventsBoard`'s cover allowlist reduced to `res.cloudinary.com` only (the unused
+  unsplash hosts removed).
+- **Cloudinary env** — `env.example` documents `CLOUDINARY_CLOUD_NAME` /
+  `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` / `CLOUDINARY_UPLOAD_FOLDER`.
+- **Tests** — **219 static** (was 171): `media.test.mjs` (URL/public-id/signature/
+  delivery resolution incl. the PDF-format case, migration-plan classification,
+  `shapeAsset`) + `resources.test.mjs` (import-plan integrity, namespaced slugs,
+  bindings-match-real-units, public shaping). Plus **6 live-DB** (`RUN_DB_TESTS=1`,
+  self-healing throwaway years / marker-scoped rows): `media.db.test.mjs` (migrate
+  idempotent + reversible + base64 reconcile; curated CRUD one-audit-row + RBAC 403 +
+  migration-owned-field restriction; `media.migrate` 403) and `resources.db.test.mjs`
+  (publish→visible + org-view + unpublish/archive hides; importer idempotent +
+  `missingUnit`; partial-run resume; shared-file media dedup). All prior live suites
+  still green; `next build` clean. **No new migration** (Session-2 schema already
+  modeled `resource_payload` / `media_asset`).
+- **Adversarial review** — a 10-lens workflow (correctness, idempotency/
+  reversibility, RBAC/audit, data-model/guards, public-visibility, Cloudinary/URL,
+  Next.js/SSR, test-coverage, reuse, docs-consistency) with per-finding 2-verifier
+  adversarial verification; **14 confirmed → all addressed** (PDF transformed-URL
+  `.pdf` format, org/events importer dedup unification + base64 fix, `base64Pending`
+  count, media auth-before-disclosure, `listPublicResourcesByUnit` unit-visibility
+  gate, `ResourceCard` label, resolveDeliveryUrl dead-ternary, + new resume / media-
+  dedup / curated-service / `shapeAsset` tests and scoped test audit cleanup).
+- **Docs** — `DECISION_LOG.md` DL-041..DL-045; `KNOWN_ISSUES.md` #4/#17 resolved,
+  #18 reduced to an operator prune-after-migration; `DEVELOPER_GUIDE.md` Resources &
+  Media section; `Token_Usage.md` Session-7 row.
+
 ---
 
 ## Milestone history
