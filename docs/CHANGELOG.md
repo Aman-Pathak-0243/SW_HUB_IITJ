@@ -61,6 +61,53 @@ update protocol in [README.md](README.md)).
   AUTHENTICATION_AND_RBAC, PROJECT_OVERVIEW, DEVELOPER_GUIDE, README,
   ARCHITECTURAL_DECISIONS (ADR-0006 Postgres/Prisma, ADR-0007 session model).
 
+### Added/Changed — Session 2: Database + Prisma + RBAC + Authentication · 2026-06-28
+
+- **Prisma + Postgres stood up.** Added `prisma@6`, `@prisma/client`,
+  `@next-auth/prisma-adapter`, `@node-rs/argon2`; dev deps `vitest`, `dotenv-cli`.
+  `.env.local` gains `DIRECT_URL` (unpooled) and `pgbouncer=true` on the pooled
+  `DATABASE_URL`; `env.example` updated. `package.json` gains `test` + `db:*`
+  scripts and the Prisma `seed` config.
+- **`prisma/schema.prisma`** — all 33 tables + 14 Prisma enums from
+  `SCHEMA_DESIGN.md`: snake_case `@@map`, `gen_random_uuid()` defaults, citext/
+  inet/time/jsonb types, the composite FK `appointment(org_unit_id,
+  academic_year_id) → org_unit(id, academic_year_id)`, plain-scalar revision
+  pointers (no circular FK), and the full enumerated back-relation graph.
+  NextAuth canonical `User`/`Account`/`VerificationToken` models mapped to
+  `app_user`/`auth_account`/`verification_token`.
+- **First migration applied to Neon** — one hand-assembled init migration:
+  Prisma base DDL + a raw-SQL tail (CREATE EXTENSION citext; partial/expression/
+  `NULLS NOT DISTINCT` unique indexes; GIN/BRIN; CHECK constraints; and **6
+  trigger functions** — lock_guard, org_unit_hierarchy_guard,
+  appointment_type_guard, appointment_cardinality_guard (deferred),
+  content_item_pointer_guard, person_email_link_guard). `migrate status` clean.
+- **Seed** (`prisma/seed.mjs`, idempotent) — current `academic_year` 2025-26;
+  40-permission catalog; 5 roles (developer `grants_all`, super_admin, +3
+  operational) + role_permission; 6 org_unit_types + 6 allowed-child edges; 16
+  positions; 10 content_type_def rows; bootstrap developer + the two former V1
+  admin emails as super_admins.
+- **Authentication** — NextAuth v4 + PrismaAdapter; Google OAuth +
+  email/password (argon2id); one account per email (account linking); JWT
+  sessions; suspended/disabled accounts blocked at sign-in and at protected
+  routes. The **V1 hardcoded `ADMIN_EMAILS` allowlist is removed**.
+- **RBAC** — one server-side authorization utility (`lib/rbac/authorize.mjs` +
+  `lib/auth/session.mjs`): permission union + grants_all/is_developer
+  short-circuit, year/org-lineage scope, live (per-request) revocation.
+  `POST /api/events` is now permission-gated.
+- **Tests** — 50 passing across 6 Vitest files (password/argon2, credentials
+  authorize, RBAC resolution + catalog, content-type registry, schema+migration
+  structure, and a live Neon DB smoke incl. behavioral trigger tests).
+- **Adversarial review** — a 16-agent review workflow checked schema fidelity,
+  raw-SQL, auth, RBAC, seed, and task completeness; all confirmed critical/major
+  findings were fixed (singleton partial unique + `is_singleton`, org-hierarchy
+  guard, OAuth status gate, Google `name` coalesce, events-API gating, seed
+  robustness) and re-verified.
+- **Docs** — `DECISION_LOG.md` DL-017..DL-027; `SCHEMA_DESIGN.md` Session-2
+  implementation addenda; `DEVELOPER_GUIDE.md` DB/test workflow; `Token_Usage.md`
+  Session-2 row; `KNOWN_ISSUES.md` (#2/#8 closed, new items noted).
+- **KNOWN_ISSUES closed:** #8 (hardcoded email allowlist) and #2 (unauthenticated
+  `POST /api/events`).
+
 ---
 
 ## Milestone history

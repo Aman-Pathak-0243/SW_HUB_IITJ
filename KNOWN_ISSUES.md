@@ -6,14 +6,14 @@ milestone. Details for security items are in [docs/SECURITY.md](docs/SECURITY.md
 
 | # | Sev | Issue | Location | Status |
 |---|-----|-------|----------|--------|
-| 1 | 🔴 | **Secrets committed in repo.** A 35-char token and a GitHub PAT (`ghp_…`) are in plaintext. Rotate/remove + purge history. | `README.md` | In progress — gitleaks CI + purge runbook added (M0.5); **rotation/removal owned by owner** |
-| 2 | 🟠 | **`POST /api/events` has no auth check.** Anyone reachable can create events; UI gate doesn't protect the API. | `app/api/events/route.js` | Open |
+| 1 | 🔴 | **Secrets committed in repo.** A 35-char token and a GitHub PAT (`ghp_…`) are in plaintext in `README.md` (commit `1c88312`). Rotate/remove + purge history. CI gitleaks **temporarily allowlists commits `1c88312` + `6459654` by SHA** so it stays green for new work; **remove that allowlist after rotation + purge**. The literal value was briefly copied into Session-1 docs and has been **redacted**. | `README.md` | In progress — owner owns rotation/removal/purge |
+| 2 | 🟠 | **`POST /api/events` has no auth check.** Anyone reachable can create events; UI gate doesn't protect the API. | `app/api/events/route.js` | ✅ Resolved (Session 2) — POST gated by `requirePermission('content.create')`. Full Postgres rebuild still in Session 6. |
 | 3 | 🟠 | **`/past-events` is broken.** Reads `data.success`/`data.events`, but the API returns a bare array → page always empty. | `app/past-events/page.js` | Open |
 | 4 | 🟠 | **`pdfjs-dist` version mismatch.** Code comments require 3.11.174 (3.x worker path `pdf.worker.min.js`); `package.json` declares `^6.0.227` and imports the `.mjs` worker. Risk: blank PDF previews. | `app/components/PdfSlideshow.jsx`, `package.json` | Open |
 | 5 | 🟠 | **Base64 images stored in MongoDB.** `/admin` uploads images as data URLs into `Event.image` → DB bloat, large responses, no validation/size limit. | `app/admin/page.js`, `models/Event.js` | Open |
 | 6 | 🟡 | **`process.exit(1)` on DB connect failure.** Kills the web server instead of returning 500. | `lib/db.js` | Open |
 | 7 | 🟡 | **Fragile connection caching.** Module-level boolean, not the recommended `global`-cached promise; unreliable in serverless/hot-reload. | `lib/db.js` | Open |
-| 8 | 🟡 | **Authorization by hardcoded email allowlist.** Changing admins needs a code change + redeploy; only 2 emails can log in at all. | `app/api/auth/[...nextauth]/route.js` | Open |
+| 8 | 🟡 | **Authorization by hardcoded email allowlist.** Changing admins needs a code change + redeploy; only 2 emails can log in at all. | `app/api/auth/[...nextauth]/route.js` | ✅ Resolved (Session 2) — replaced by DB-driven RBAC (`role`/`permission`/`role_assignment`); admins managed as data. |
 | 9 | 🟡 | **No input validation/sanitization** on the events API beyond Mongoose `required`. | `app/api/events/route.js` | Open |
 | 10 | ⚪ | **Dead/alternate pages** not routed and partly referencing non-existent routes (`/Clubs/Wellness`, `/student-life`). | `app/page1.js`, `app/admin/page2.js` | Open |
 | 11 | ⚪ | **Inconsistent brand blue.** `#003087` vs `#003f87` used interchangeably. | multiple | Open |
@@ -26,11 +26,14 @@ milestone. Details for security items are in [docs/SECURITY.md](docs/SECURITY.md
 | 18 | ⚪ | **`/public` is ~74 MB** shipped with the app (100 images). | `public/` | Open — Media Migration Tool in Session 7 |
 | 19 | 🟠 | **Neon DB credential shared in plaintext chat.** Stored correctly in git-ignored `.env.local`, but if the sharing channel isn't private, rotate the Neon password. Never commit it. | `.env.local` | Open — owner to assess |
 | 20 | ⚪ | **Undocumented `queries` collection** (1 doc) found in Mongo `test` db during backup; not referenced in V1 source. Decide disposition in Session 6. | MongoDB `test.queries` | Captured in backup; Session 6 |
+| 21 | ⚪ | **Central audit-write extension not yet implemented.** `audit_log` table + indexes exist; the single Prisma `$extends` write choke point lands in Session 3 with the CMS mutation pipeline (DL-025). Until then mutations are not audited. | `lib/prisma.mjs` | Planned — Session 3 |
+| 22 | ⚪ | **JWT auth-revocation latency.** Authorization + account status are re-checked live per request, so revoked roles / suspended accounts are blocked immediately for protected actions; but a valid token still *authenticates* for ≤24h after sign-out (no server-side token denylist). Acceptable per DL-019. | `lib/auth/options.mjs` | Accepted (DL-019) |
+| 23 | ⚪ | **`lock_guard` covers the four spine tables.** It guards org_unit/appointment/content_item (I/U/D) and content_revision (U/D); per-type `*_payload` rows rely on revision immutability rather than their own lock trigger. Add payload-level guards only if direct payload mutation of locked years becomes a real path. | migration raw-SQL | Accepted (documented) |
 
 ## Notes
 - **Database pivot context:** several V1 issues are resolved by the move to
   PostgreSQL/Prisma rather than patched in place — #2 (events API auth) and #8
-  (allowlist) → **Session 2** (auth/RBAC); #5/#9/#16 (base64 images, validation,
+  (allowlist) → **✅ resolved in Session 2** (auth/RBAC); #5/#9/#16 (base64 images, validation,
   no edit/delete) and #3 (past-events contract) → **Session 6** (events rebuilt on
   Postgres); #6/#7 (Mongoose connection) become moot once Mongoose is retired.
 - #4 (pdf.js) and #11/#12 (brand blue, fonts) are UI/library issues addressed when

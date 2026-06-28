@@ -13,20 +13,22 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Verified schema design (SCHEMA_DESIGN.md, 33 tables, ER + reasoning)
 - [x] DATA_MIGRATION_REPORT, DECISION_LOG, SESSION_PROTOCOL; MILESTONE_PLAN as living doc
 
-## Session 2 — Database + Prisma + RBAC + Authentication ⏳ (next)
-- [ ] Install deps; add Prisma + adapter; set `DIRECT_URL` for migrations
-- [ ] `prisma/schema.prisma` from SCHEMA_DESIGN.md (33 tables, 15 enums)
-- [ ] Raw-SQL migration objects (partial uniques, composite FK, triggers, GIN/BRIN, bigint identity)
-- [ ] `prisma migrate` on Neon
-- [ ] Seed (year, roles+permissions, org types, positions, content_type_def)
-- [ ] NextAuth + Prisma adapter; Google + credentials; one account per email
-- [ ] Server-side RBAC util; replace hardcoded email allowlist (KNOWN_ISSUES #8)
-- [ ] Auth + permission + migration tests
+## Session 2 — Database + Prisma + RBAC + Authentication ✅
+- [x] Install deps; add Prisma + adapter (+ @node-rs/argon2); set `DIRECT_URL` (+ `pgbouncer=true` on pooled)
+- [x] `prisma/schema.prisma` from SCHEMA_DESIGN.md (33 tables, 14 Prisma enums)
+- [x] Raw-SQL migration objects (partial/NULLS-NOT-DISTINCT uniques, composite FK, 6 triggers, GIN/BRIN, CHECKs)
+- [x] `prisma migrate` applied on Neon (single hand-assembled init; `migrate status` clean)
+- [x] Seed (year 2025-26, 40 perms, 5 roles+role_permission, 6 org types + 6 edges, 16 positions, 10 content types, bootstrap dev/admins)
+- [x] NextAuth + Prisma adapter; Google + credentials (argon2id); one account per email; JWT
+- [x] Server-side RBAC util; replaced hardcoded email allowlist (KNOWN_ISSUES #8); gated `POST /api/events` (#2)
+- [x] Tests: auth/password, credentials authorize, RBAC, content-type registry, schema+migration, live DB smoke (50 passing)
+- [x] Adversarial review workflow (16 agents); confirmed findings fixed + re-verified
 
 ## Session 3 — CMS Foundation ⬜
-- [ ] Draft/publish lifecycle + version history (content_item/content_revision)
-- [ ] Central audit-log writer (one Prisma client extension/service)
-- [ ] Generic schema-driven editing layer + content_type registry handlers
+- [ ] Draft/publish lifecycle + restore + version history (content_item/content_revision/*_payload)
+- [ ] Central audit-log writer — one Prisma client `$extends`/service (DL-012/DL-025); attach to lib/prisma.mjs
+- [ ] Generic schema-driven editing layer + content_type registry handlers (lib/cms/content-types.mjs)
+- [ ] Public visibility rule (published AND current year [+ event windows]) in the data-access layer
 
 ## Session 4 — Academic Year Engine ⬜
 - [ ] Current-year context + history queries; lock_guard behavior

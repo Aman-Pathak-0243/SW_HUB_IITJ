@@ -175,4 +175,96 @@ Trade-offs · Future impact**.
 
 ---
 
-*(Session 2+ appends new records below.)*
+## Session 2 — Database, Prisma, Auth & RBAC decisions
+
+## DL-017 — NextAuth adapter model naming: Prisma models User/Account/VerificationToken mapped to snake_case tables; add app_user.image for adapter compatibility.
+
+- **Decision:** Name the Prisma models `User`, `Account`, `VerificationToken` (so the default `@next-auth/prisma-adapter` resolves `prisma.user/account/verificationToken`) while keeping the snake_case tables `app_user`, `auth_account`, `verification_token` via `@@map`. Add a nullable scalar `image` column to `app_user` (the adapter's OAuth avatar URL), distinct from the curated `avatar_media_id` FK relation.
+- **Alternatives considered:** (a) Keep model name `AppUser` and hand-write a custom adapter mapping `prisma.appUser`. (b) Resolve the adapter's `image` solely through `avatar_media_id` (a uuid FK) — impossible, the adapter writes a URL string. (c) Canonical model names + `@@map` + a separate `image` text column.
+- **Why this was chosen:** Adopted (c). The default PrismaAdapter is hardcoded to `prisma.user/account/verificationToken`; matching model names avoids a brittle hand-rolled adapter while the tables stay snake_case (SCHEMA_DESIGN intent). The adapter writes `image` (string), so `app_user` needs a real `image` text column; the app resolves the display avatar as `avatar` (media_asset relation) first, falling back to `image`.
+- **Trade-offs:** One extra nullable column not in the original SCHEMA_DESIGN dictionary (now documented in the Session-2 addenda there). Model names diverge from the doc's `AppUser` label (table name unchanged).
+- **Future impact:** Google + credentials auth work with the canonical adapter out of the box; a curated avatar can later override the OAuth image without schema change.
+
+## DL-018 — audit_log.id as BIGSERIAL (Prisma @default(autoincrement())) rather than GENERATED ALWAYS AS IDENTITY.
+
+- **Decision:** Implement the high-volume `audit_log` PK as `BigInt @id @default(autoincrement())` (emits `BIGSERIAL`).
+- **Alternatives considered:** (a) `GENERATED ALWAYS AS IDENTITY` via raw SQL (the SCHEMA_DESIGN note). (b) BIGSERIAL via Prisma autoincrement.
+- **Why this was chosen:** Adopted (b). Prisma has no native representation for IDENTITY columns; a raw-SQL `ALTER ... ADD GENERATED ALWAYS AS IDENTITY` would either force every `audit_log.create()` to supply an id (no Prisma default) or create permanent Prisma↔DB drift on `migrate dev`. BIGSERIAL gives the same monotonic bigint PK and is Prisma-native. The append-only guarantee is enforced by the central audit-write service (the only writer) plus the table being insert-only, not by IDENTITY's reject-manual-id property.
+- **Trade-offs:** BIGSERIAL permits a manual id insert (IDENTITY ALWAYS would forbid it); acceptable since application code never supplies audit ids.
+- **Future impact:** Audit inserts are omittable-id and drift-free; if a stronger guarantee is ever needed it can be added as a controlled migration.
+
+## DL-019 — JWT sessions (24h) with LIVE per-request DB permission resolution; resolves the JWT-revocation open question.
+
+- **Decision:** `session.strategy = 'jwt'`, `maxAge = 24h`. Authorization permissions are resolved LIVE from the DB on every protected action (`lib/rbac/authorize.mjs`), and `requireUser()` re-checks `app_user.status` live. The JWT only carries identity (`uid`) + a coarse `isDeveloper` UI hint.
+- **Alternatives considered:** (a) Database sessions for instant server-side revocation. (b) Stuff the permission set into the JWT (fast, but stale until refresh). (c) JWT identity + live DB permission/status checks.
+- **Why this was chosen:** Adopted (c). It keeps the simplicity/scalability of stateless JWT while eliminating the usual JWT downside: because permissions and account status are read from the DB per protected request, a revoked role or a suspended account takes effect on the **next request**, not on token refresh. This is the recommended resolution of SCHEMA_DESIGN's "JWT session revocation latency" open question.
+- **Trade-offs:** One small DB read per protected action (role_assignment + status). Acceptable and indexed (`role_assignment_active_user_idx`). A stolen-but-valid token remains usable for ≤24h for *authentication* even after sign-out (mitigated by short TTL); all *authorization* is live.
+- **Future impact:** No session table to maintain; revocation is effectively immediate for authorization. If instant auth-revocation is ever required, a token denylist or DB sessions can be added.
+
+## DL-020 — Password hashing: argon2id via @node-rs/argon2 (OWASP params).
+
+- **Decision:** Hash passwords with argon2id using `@node-rs/argon2` (m=19456 KiB, t=2, p=1).
+- **Alternatives considered:** `node-argon2` (node-gyp native build), `bcrypt`, `scrypt`.
+- **Why this was chosen:** `@node-rs/argon2` ships prebuilt binaries (no node-gyp/Vercel build friction), argon2id is the current OWASP first choice, and the chosen parameters are OWASP's recommended baseline. `password_hash` is NULL for OAuth-only accounts.
+- **Trade-offs:** A native dependency (prebuilt, low risk). Parameters can be tuned later as hardware improves.
+- **Future impact:** Strong, standard credential storage; verify() reads parameters from the encoded hash so params can evolve without breaking existing hashes.
+
+## DL-021 — Roster cardinality: denormalized appointment.is_singleton + partial unique (singletons) AND deferred count trigger (multi-holder).
+
+- **Decision:** Keep DL-009's two-guard design. Because a partial-index predicate cannot read `position.max_holders`, denormalize `appointment.is_singleton` (maintained by the `appointment_type_guard` trigger from `position.max_holders`) and build the concurrency-safe singleton guard as `appointment_singleton_position_uq (academic_year_id, org_unit_id, position_id) WHERE archived_at IS NULL AND status <> 'archived' AND is_singleton`. Keep the deferred `appointment_cardinality_guard` count trigger for bounded multi-holder positions (max_holders > 1).
+- **Alternatives considered:** (a) Trigger-only for all cardinality (the initial Session-2 build) — has a TOCTOU/MVCC race under READ COMMITTED: two concurrent inserts of the same singleton can both pass the count check and commit. (b) `pg_advisory_xact_lock` in the trigger. (c) Denormalized flag + partial unique + count trigger.
+- **Why this was chosen:** Adopted (c) after the Session-2 adversarial review flagged the race. A real partial UNIQUE index serializes concurrent inserts at the index level regardless of isolation, which is exactly why DL-009 mandated it; the count trigger alone cannot. The denormalized boolean is the only way to express the singleton predicate in a partial index.
+- **Trade-offs:** One extra boolean column maintained by a trigger. Negligible.
+- **Future impact:** "single secretary/PIC/warden, multiple coordinators" is guaranteed even under concurrent writes.
+
+## DL-022 — Add the org_unit parent-hierarchy guard trigger (same-year + allowed-child-type).
+
+- **Decision:** Add `org_unit_hierarchy_guard` (BEFORE INSERT/UPDATE on org_unit): when `parent_id` is set, the parent must be in the SAME academic year and `(parent_type, child_type)` must exist in `org_unit_type_allowed_child` (also blocks self-parenting).
+- **Alternatives considered:** App-layer-only enforcement; or the plain single-column FK alone (the initial Session-2 build).
+- **Why this was chosen:** SCHEMA_DESIGN mandates "same-year + allowed-child-type trigger-checked" for `org_unit.parent_id`; the initial build shipped only a single-column FK, leaving cross-year hierarchy contamination and disallowed parent types possible — the same class of bug DL-008's composite FK closed for appointments. The Session-2 review caught the omission.
+- **Trade-offs:** A trigger (more moving parts) vs an unenforceable rule. Worth it for the structural backbone.
+- **Future impact:** The org hierarchy cannot be corrupted across years or against the allowed-child rules even by direct DB writes; RBAC scope traversal over the hierarchy stays sound.
+
+## DL-023 — ESM `.mjs` for all new server/library modules (no package-wide "type":"module").
+
+- **Decision:** Author Prisma client, auth, RBAC, CMS, seed, and tests as `.mjs` ES modules; do NOT set `"type":"module"` in package.json.
+- **Alternatives considered:** Set `"type":"module"` globally; or keep `.js` with CommonJS.
+- **Why this was chosen:** `empty-module.js` (referenced by `next.config.mjs`) uses CommonJS `module.exports`, so a package-wide `"type":"module"` would break it. `.mjs` files are unambiguously ESM for node (seed), Vitest, and the Next bundler alike, with no per-file config.
+- **Trade-offs:** Explicit `.mjs` extensions in imports; mild inconsistency with V1 `.js` app files (which Next transpiles as ESM regardless).
+- **Future impact:** Seed/tests run under plain `node`/Vitest; app code imports the same modules through the bundler. A future migration to `"type":"module"` (after `empty-module.js` is removed) is optional.
+
+## DL-024 — Interim auth gating of legacy V1 surfaces (events API now permission-gated; admin page gated on isDeveloper) pending their rebuilds.
+
+- **Decision:** Gate the legacy `POST /api/events` with `requirePermission('content.create')` now (closing KNOWN_ISSUES #2), and change `app/admin/page.js` from the dead V1 `session.user.isAdmin` flag to `session.user.isDeveloper`. Full rebuilds remain scheduled: events on Postgres in Session 6, the RBAC-gated admin panel in Session 9.
+- **Alternatives considered:** Leave the V1 handlers untouched until their rebuild sessions; or fully rebuild now (out of Session-2 scope).
+- **Why this was chosen:** KNOWN_ISSUES #2 (unauthenticated event writes) is explicitly assigned to Session 2, and the review confirmed the endpoint was an open write hole. Gating it with the new utility both closes the hole and demonstrates the authorization utility "used by a protected handler" (task #7), without prematurely doing the Session-6 rebuild. The admin page referenced a flag the new session never sets (fail-closed); pointing it at the real `isDeveloper` flag makes it usable in the interim while the real boundary stays server-side.
+- **Trade-offs:** The events handler still writes to Mongo until Session 6; the admin UI gate is client-side (UX only). Both are documented interim states.
+- **Future impact:** No unauthenticated mutation endpoint remains. Sessions 6/9 replace these with Postgres-backed, server-enforced implementations.
+
+## DL-025 — Defer the central audit-write Prisma extension to Session 3 (CMS Foundation).
+
+- **Decision:** Create the `audit_log` table + indexes now, but implement the single central audit-write Prisma Client extension / service in Session 3, when the first audited mutations (CMS create/update/publish/restore) actually exist. This supersedes DL-012's implicit Session-2 placement for the *writer* only (the *schema* is delivered in Session 2).
+- **Alternatives considered:** Build the extension now with nothing to audit; or leave it silently unscheduled.
+- **Why this was chosen:** An audit writer with no mutating call sites would be dead, untestable code. Session 3 introduces the mutation pipeline it must wrap, so the choke point is built and tested against real operations there. TODO.md already schedules it under Session 3; this records the rationale so the deferral is explicit, not silent.
+- **Trade-offs:** Capability-8 enforcement lands one session later than the schema. No runtime risk (no audited mutations exist yet in the new pipeline).
+- **Future impact:** The audit extension is implemented once, against real CMS mutations, with coverage tests — exactly where DL-012 intended a single choke point.
+
+## DL-026 — Confirmed defaults for the SCHEMA_DESIGN "Open questions".
+
+- **Decision:** Adopt these expert defaults: (1) Transition wizard `copy_appointments` defaults OFF (structure copied, rosters re-confirmed). (2) Locked-year errata = controlled unlock→correct→relock OR append a new content_revision; `lock_guard` blocks INSERT/UPDATE/DELETE on org_unit/appointment/content_item and UPDATE/DELETE on content_revision in a locked year (revision INSERT allowed for the append path). (3) `copy_content` with no published source clones the latest revision as a target-year draft. (4) Approval workflow: single-state `review` for now; no reviewer-assignment table until a multi-step sign-off is required. (5) Slug URLs: single canonical current-year URL for now; year-namespacing is a routing concern deferred (constraint already supports both). (6) JWT revocation: handled by live DB permission + status checks (DL-019). (7) `person.email = app_user.email` enforced by trigger when linked. (8) Permissions are additive union with grants_all short-circuit; no negative/deny permissions. (9) Whole-year scoping only; no term/semester table in V2.
+- **Alternatives considered:** Per question, recorded inline above; all alternatives were the heavier/over-engineered options.
+- **Why this was chosen:** Each default is the least-surprising, lowest-complexity choice that satisfies the current single-institute requirements while leaving the heavier option additive.
+- **Trade-offs:** Some conveniences (multi-step review, year-namespaced URLs, term scoping) are deferred; all are additive later.
+- **Future impact:** Future sessions implement against these confirmed defaults; revisiting any is an additive change, not a rework.
+
+## DL-027 — Migration delivery: single hand-assembled init migration; evolve the dev DB non-destructively (no `migrate reset`).
+
+- **Decision:** Deliver one init migration = Prisma-generated base DDL (`migrate diff --from-empty`) + a hand-written raw-SQL tail (extension, partial/expression/NULLS-NOT-DISTINCT uniques, GIN/BRIN, CHECKs, triggers), applied via `prisma migrate deploy`. During the Session-2 review fixes, the live dev DB was evolved by applying a non-destructive delta via `prisma db execute` + re-stamping the init checksum (verified by `prisma migrate status`), rather than `prisma migrate reset` (which the Prisma AI-safety guard blocks without explicit user consent, and which destroys data).
+- **Alternatives considered:** (a) `migrate dev` (needs a Neon shadow DB / CREATEDB the pooled user lacks). (b) `migrate reset` to re-apply the corrected init (destructive; blocked by the AI guard). (c) Offline `migrate diff` to author the SQL + `migrate deploy`, evolving the existing DB with a checked delta.
+- **Why this was chosen:** Adopted (c). It avoids the Neon shadow-DB friction, never runs a destructive op, and keeps a single clean init migration that a fresh `migrate deploy` reproduces exactly. The checksum re-stamp keeps the recorded migration consistent with the corrected file so future `migrate` commands don't flag drift.
+- **Trade-offs:** The raw-SQL objects are invisible to Prisma drift detection and must be hand-maintained (catalogued in SCHEMA_DESIGN + covered by `tests/migration.test.mjs`). Never run `prisma db pull` (it would drop them from the schema's view).
+- **Future impact:** Future sessions add forward migrations via the same diff+deploy pattern; raw-SQL objects evolve in explicit, reviewed migrations.
+
+---
+
+*(Session 3+ appends new records below.)*

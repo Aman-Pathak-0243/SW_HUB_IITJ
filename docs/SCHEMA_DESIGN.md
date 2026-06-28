@@ -1435,6 +1435,40 @@ AUDIT: implement one Prisma Client extension (or a single audited-mutation servi
 
 SEED: one academic_year (is_current, active); system roles (Developer grants_all, Admin) + permission catalog + role_permission; org_unit_type rows (council/club/committee/hostel/mess/office) + org_unit_type_allowed_child edges (council->club, etc.); base position rows (coordinator/co-coordinator/secretary/pic/warden/caretaker/wellness_warden/attendant/dean/...); content_type_def rows for all content types with payload_table mapping; org_unit_lineage + org_unit per logical unit; media_asset rows for /public assets (storage_provider='local', original_path set). Quote "position" in raw SQL; Prisma model Position { @@map("position") }.
 
+## Session 2 implementation addenda (what shipped vs this spec)
+
+The schema was implemented in `prisma/schema.prisma` + the init migration in
+Session 2. These intentional refinements (each with a DECISION_LOG record) keep
+this document in sync with the code:
+
+- **Prisma enums = 14** (this doc's "15" counted `content_type`, which is a
+  text-PK lookup table `content_type_def`, not an enum — see DL-006/DL-014). The
+  14 native enums are exactly the list in "Enumerated types".
+- **NextAuth model names** are `User` / `Account` / `VerificationToken` (so the
+  default PrismaAdapter resolves them) mapped to `app_user` / `auth_account` /
+  `verification_token` (DL-017).
+- **`app_user.image` (text, NULL)** added for the NextAuth adapter's OAuth avatar
+  URL, distinct from the curated `avatar_media_id` relation (DL-017).
+- **`appointment.is_singleton` (boolean)** added: a denormalized flag maintained
+  by `appointment_type_guard` from `position.max_holders`, so the **singleton
+  partial unique** `appointment_singleton_position_uq` can express the
+  `max_holders=1` predicate at the index level (concurrency-safe). The deferred
+  count trigger remains for bounded multi-holder positions (DL-009/DL-021).
+- **`org_unit_hierarchy_guard` trigger** implements the mandated "same-year +
+  allowed-child-type" rule on `org_unit.parent_id` (DL-022). Total raw-SQL trigger
+  functions: **6** (lock_guard, org_unit_hierarchy_guard, appointment_type_guard,
+  appointment_cardinality_guard, content_item_pointer_guard, person_email_link_guard).
+- **`audit_log.id` = BIGSERIAL** (`@default(autoincrement())`) rather than
+  `GENERATED ALWAYS AS IDENTITY` — Prisma-native, drift-free; append-only is
+  enforced by the central audit writer (DL-018).
+- **`auth_account.expires_at` = Int** (canonical NextAuth adapter shape; the
+  adapter writes a JS number). Widen to BigInt only if Y2038 matters.
+- **content_item public-listing index** is the raw-SQL partial
+  `content_item_listing_idx (… WHERE archived_at IS NULL)`; the redundant
+  non-partial Prisma index was removed.
+- **Central audit-write extension** is delivered in **Session 3** with the CMS
+  mutation pipeline; the table + indexes ship in Session 2 (DL-025).
+
 ---
 
 *Generated from the Session-1 schema-design workflow (9 agents, all adversarial

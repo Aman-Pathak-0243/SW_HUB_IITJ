@@ -7,9 +7,11 @@ at future IIT Jammu students inheriting the codebase.
 > The project is built across 10 sessions; each begins by reading the tracking
 > files and ends by updating them. Don't repeat completed work.
 
-> **Database pivot (Session 1):** V2 uses **PostgreSQL on Neon + Prisma**
-> (replacing V1's MongoDB/Mongoose). Prisma is wired up in **Session 2**; V1 code
-> still references Mongoose until then.
+> **Database (Session 2):** V2 runs on **PostgreSQL (Neon) + Prisma** (replacing
+> V1's MongoDB/Mongoose). The schema, first migration, seed, NextAuth auth, and
+> RBAC are live. Some V1 surfaces (events API, admin page) are interim until
+> their rebuilds (Sessions 6/9). The legacy `mongoose`/`lib/db.js` path remains
+> only for the not-yet-rebuilt events endpoint.
 
 ## Prerequisites
 
@@ -26,22 +28,34 @@ at future IIT Jammu students inheriting the codebase.
 npm install
 
 # 2. Create your env file from the template
-cp env.example .env.local   # or .env
+cp env.example .env.local   # NOT .env — Next.js & our db:* scripts read .env.local
 
 # 3. Fill in values in .env.local:
-#    MONGODB_URI=...
-#    GOOGLE_CLIENT_ID=...
-#    GOOGLE_CLIENT_SECRET=...
-#    NEXTAUTH_SECRET=...                 # generate a random secret
+#    DATABASE_URL=...            # Neon POOLED host (…-pooler…), add &pgbouncer=true
+#    DIRECT_URL=...              # Neon UNPOOLED host (no -pooler) — for migrations
+#    NEXTAUTH_SECRET=...         # openssl rand -base64 32
 #    NEXTAUTH_URL=http://localhost:3000
+#    GOOGLE_CLIENT_ID=... / GOOGLE_CLIENT_SECRET=...
+#    BOOTSTRAP_DEVELOPER_EMAIL=... [BOOTSTRAP_DEVELOPER_PASSWORD=...] BOOTSTRAP_ADMIN_EMAILS=a@x,b@y
 
-# 4. Run the dev server
-npm run dev        # http://localhost:3000
+# 4. Set up the database (Prisma)
+npm run db:generate     # generate Prisma Client
+npm run db:migrate      # apply migrations to Neon (prisma migrate deploy, uses DIRECT_URL)
+npm run db:seed         # seed year/roles/permissions/org-types/positions/content-types/bootstrap users
+
+# 5. Run the dev server
+npm run dev             # http://localhost:3000
 ```
 
-> `.env*` files are git-ignored — never commit real secrets. (See
-> [SECURITY.md](SECURITY.md): there are leaked secrets in `README.md` that must
-> be rotated/removed.)
+> `.env*` files are git-ignored — never commit real secrets. The **Prisma CLI
+> reads `.env`, not `.env.local`**, so the `db:*` scripts wrap commands with
+> `dotenv -e .env.local --`. Running `prisma` directly? do `set -a; . ./.env.local;
+> set +a` first. (See [SECURITY.md](SECURITY.md): leaked V1 secrets in `README.md`
+> must be rotated/removed.)
+
+> **Neon auto-suspends** the serverless compute when idle; the first connection
+> wakes it (a few seconds) and may need a retry. The seed has a `waitForDb` loop;
+> the DB test warms in `beforeAll`.
 
 ## Useful commands
 
@@ -50,10 +64,42 @@ npm run dev        # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
+| `npm test` | Run the Vitest suite (static; DB smoke self-skips) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB smoke tests |
+| `npm run db:generate` | `prisma generate` |
+| `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
+| `npm run db:seed` | Seed the database (idempotent) |
+| `npm run db:studio` | Prisma Studio (DB browser) |
 | `npx eslint .` | Lint (config: `eslint.config.mjs`) |
 
-There are **no test commands yet** — the test harness is added in the V2 testing
-milestone (see [TESTING_STRATEGY.md](TESTING_STRATEGY.md)).
+> **Never run `prisma db pull`** — the migration's raw-SQL objects (partial/
+> NULLS-NOT-DISTINCT uniques, triggers, GIN/BRIN, CHECKs) are invisible to Prisma
+> introspection and would be dropped from the schema's view. They live in the
+> init migration's hand-written tail and are guarded by `tests/migration.test.mjs`.
+> `prisma migrate reset` is destructive and blocked for AI agents — evolve the dev
+> DB with forward migrations / checked deltas instead (see DL-027).
+
+## Auth & RBAC (how to protect a handler)
+
+```js
+import { requirePermission } from "@/lib/auth/session.mjs"; // or relative path
+
+export async function POST(req) {
+  try {
+    // 401 if unauthenticated, 403 if lacking the permission; scope is optional.
+    await requirePermission("content.create", { orgUnitLineageKey, academicYearId });
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: e.status ?? 403 });
+  }
+  // ...authorized work...
+}
+```
+
+- Permissions/roles are DATA (`lib/rbac/permissions.mjs` is the seed + catalog).
+  Add a permission → add a row there, re-seed. No code edit to enforce it.
+- Developer (`is_developer` / a `grants_all` role) short-circuits all checks.
+- Permission checks hit the DB live, so revoked roles / suspended accounts take
+  effect on the next request (sessions are JWT — DL-019).
 
 ## Project map
 
@@ -61,9 +107,18 @@ See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick
 orientation:
 
 - `app/` — App Router pages, components, and API routes.
-- `app/components/` — shared `Header`, `Footer`, `EventCard`, `PdfSlideshow`.
-- `lib/db.js` — MongoDB connection helper.
-- `models/Event.js` — the only Mongoose model.
+- `app/api/auth/[...nextauth]/route.js` — NextAuth handler (uses `lib/auth/options.mjs`).
+- `prisma/schema.prisma` — the V2 data model; `prisma/migrations/` — SQL migrations;
+  `prisma/seed.mjs` — idempotent seed.
+- `lib/prisma.mjs` — Prisma Client singleton (global-cached).
+- `lib/auth/` — `options.mjs` (NextAuth config + `authorizeCredentials`),
+  `password.mjs` (argon2id), `session.mjs` (`requireUser`/`requirePermission`).
+- `lib/rbac/` — `authorize.mjs` (permission engine), `permissions.mjs` (catalog + roles).
+- `lib/cms/content-types.mjs` — content-type registry + handler map.
+- `lib/org/structure.mjs` — org-type/edge/position seed catalog.
+- `tests/` — Vitest suite (`*.test.mjs`); `vitest.config.mjs`.
+- `lib/db.js` / `models/Event.js` — **legacy Mongoose** (only the not-yet-rebuilt
+  events endpoint; retired in Session 6).
 - `public/` — local images (do **not** reorganize; see the media migration plan).
 - `docs/` — this documentation.
 

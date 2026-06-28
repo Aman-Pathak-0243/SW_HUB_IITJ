@@ -7,11 +7,11 @@ regardless of the V2 timeline.
 ## 🔴 CRITICAL — Secrets committed to the repository
 
 `README.md` contains what appear to be **live secrets**, in plaintext, in version
-control:
+control (the literal values are intentionally **not reproduced here** — they live
+in the `README.md` history at commit `1c88312` and must be rotated):
 
-- A 35-character token string: `UD9ky0m6Q4Zk0z5oiGBxXMdglatCqa2mfC`
-- A **GitHub Personal Access Token** prefix: `ghp_i8…` (the `ghp_` prefix is the
-  GitHub PAT format).
+- A 35-character high-entropy token string *(value redacted)*.
+- A string beginning with the **GitHub Personal Access Token** prefix `ghp_`.
 
 **Required actions (do these now, outside the V2 milestone flow):**
 1. **Revoke/rotate** both credentials immediately (assume they are compromised —

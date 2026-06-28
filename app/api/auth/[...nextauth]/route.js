@@ -1,30 +1,10 @@
-import NextAuth from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
+// NextAuth v4 App Router handler. The V1 hardcoded ADMIN_EMAILS allowlist
+// (KNOWN_ISSUES #8) is GONE: identity comes from app_user + auth_account and
+// authorization from role_assignment/role_permission (see lib/rbac/authorize.mjs
+// and lib/auth/options.mjs). Admins are managed as data, not code.
+import NextAuth from "next-auth";
+import { authOptions } from "../../../../lib/auth/options.mjs";
 
-const ADMIN_EMAILS = [
-  "tusharneymar8@gmail.com",
-  "apaarmsd@gmail.com"
-  
-]
+const handler = NextAuth(authOptions);
 
-const handler = NextAuth({
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-  ],
-
-  callbacks: {
-    async signIn({ user }) {
-      return ADMIN_EMAILS.includes(user.email)
-    },
-
-    async session({ session }) {
-      session.user.isAdmin = ADMIN_EMAILS.includes(session.user.email)
-      return session
-    },
-  },
-})
-
-export { handler as GET, handler as POST }
+export { handler as GET, handler as POST };
