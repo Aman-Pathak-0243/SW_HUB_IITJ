@@ -246,6 +246,68 @@ const view = await getPublicOrgUnit("coding-club");        // unit + profile + r
   `appointment_type_guard` so `is_singleton` is never NULL for unlimited positions)
   — never edit the init migration in place (DL-027/DL-036).
 
+## Events & Announcements (Session 6)
+
+Events and Announcements are **just CMS content** — there is no separate events
+service. To create/edit/publish one, call the Session-3 CMS service directly with
+the right `content_type`:
+
+```js
+import { createDraft, publish } from "./lib/cms/content.mjs";
+
+// An event (year-scoped, NOT org-bound). The publish_from/publish_until window is
+// enforced by the DB CHECK → a friendly PUBLISH_WINDOW error if from > until.
+const { item } = await createDraft({
+  contentType: "event",
+  academicYearId,                 // required — events are year-scoped
+  slug: "tech-talk-2026",
+  title: "Tech Talk 2026",
+  payload: { body: "…", eventDate: new Date("2026-09-15"), audience: "public",
+             publishFrom: null, publishUntil: null, coverMediaId: null },
+}, actor);
+await publish(item.id, {}, actor);
+
+// An announcement (pinned-first on the public page; body is required).
+await createDraft({
+  contentType: "announcement", academicYearId, slug: "hostel-notice",
+  title: "Hostel Notice", pinned: true,
+  payload: { body: "…", audience: "students" },
+}, actor);
+```
+
+**Public reads** — `lib/events/public.mjs` (anonymous, no auth):
+
+- `listPublicEvents()` → shaped events for the current year (windowed,
+  public-audience). Pair with the **pure** `splitEventsByDate(events)` →
+  `{ upcoming, past }` for the pages (this is the tested fix for the old
+  `/past-events` contract bug).
+- `listPublicAnnouncements()` → pinned-first (DL-010).
+- `listEventsForYear(yearId)` / `listAnnouncementsForYear(yearId)` → a past year's
+  archive (the live window is NOT enforced for a non-current year — DL-032).
+- `getPublicEventBySlug(slug)` / `getPublicAnnouncementBySlug(slug)`.
+- **Audience gating (DL-040):** all readers default to `PUBLIC_AUDIENCES` (`['public']`)
+  so non-public content never reaches anonymous visitors. Pass `{ audiences: [...] }`
+  to widen (the seam for a future role-aware / admin view). `filterByAudience` is pure.
+
+**Data-driven pages** (`force-dynamic`, mobile-first responsive, graceful DB-down):
+`/events`, `/past-events`, `/announcements` → `EventsBoard` (reuses `EventCard`;
+allowlists cover-image hosts so an off-host URL can't crash the render) and
+`AnnouncementCard`.
+
+**The API** — `app/api/events/route.js` is CMS-backed: `GET` returns
+`{ events }` (published, current-year, in-window, public); `POST` is gated by
+`content.create` (scoped to the current year), validates input, **rejects inline
+base64** (upload via the Media tool, Session 7, and pass a URL), creates the cover
+`media_asset` via `prismaBase`, then `createDraft` (+publish). Mongoose is no longer
+in the request path.
+
+**Migrate the V1 events** — `npm run db:import:events` (idempotent; `--draft` /
+`--no-media`). Mirrors `db:import:org`: re-runs create 0; a partial run resumes.
+
+**Concurrency:** event writes are DB-serialized (the `content_item_slug_uq` /
+one-published partial uniques), so simultaneous creates/publishes can't corrupt —
+a loser gets a friendly 409 (`SLUG_TAKEN` / `ONE_PUBLISHED`). No app-level locking.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

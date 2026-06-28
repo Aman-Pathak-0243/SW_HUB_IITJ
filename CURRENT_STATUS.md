@@ -1,13 +1,62 @@
 # Current Status
 
-**Last updated:** 2026-06-28
-**Session:** 5 of 10 — **COMPLETE** (Organization Model)
-**Next session:** 6 — Events + Announcements (rebuild on Postgres via the CMS service; migrate the 3 backed-up events; announcements with schedule/pin/audience)
+**Last updated:** 2026-06-29
+**Session:** 6 of 10 — **COMPLETE** (Events + Announcements)
+**Next session:** 7 — Resources + Media (Resources PDFs/links via the CMS service; MediaAsset + Cloudinary uploads; Admin Media Migration Tool `/public` → Cloudinary)
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+## What is done (Session 6)
+
+- **Events + Announcements on Postgres** ([lib/events/public.mjs](lib/events/public.mjs),
+  [lib/events/data.mjs](lib/events/data.mjs), [lib/events/import.mjs](lib/events/import.mjs))
+  — both are year-scoped CMS content (`content_type='event'`/`'announcement'`)
+  driven entirely through the Session-3 CMS service (no new mutation/audit/
+  visibility code; DL-037). The read layer adds the pure `splitEventsByDate`
+  (upcoming/past), pinned-first announcements (DL-010), archive readers (DL-032)
+  and by-slug readers, and resolves the revision title + cover URL in two batched
+  queries (no N+1). Publish windows are honored by the DB CHECKs → `PUBLISH_WINDOW`.
+- **3 backed-up Mongo events migrated** — idempotent importer (`npm run db:import:events`)
+  stands up `content_item + content_revision + event_payload` for a year, published;
+  re-runs create 0; a partial run resumes (a never-archived stranded draft is
+  re-published). base64/URL images become `media_asset` inventory rows, never inline
+  blobs (DL-039, KNOWN_ISSUES #5); the 3 real events have empty images.
+- **V1 Mongo events API replaced** ([app/api/events/route.js](app/api/events/route.js))
+  — CMS-backed: public `GET` (published, current-year, in-window, public-audience),
+  and a gated `POST` (authenticate → authorize `content.create` scoped to the
+  current year → validate → reject inline base64 → `createDraft`+publish, with
+  orphan-media cleanup on failure). Mongoose retired from the request path.
+- **Public audience gating (DL-040)** — anonymous reads return only
+  `audience='public'` via the pure `filterByAudience`; a widened `audiences` set is
+  the seam for a future role-aware view (closes a disclosure path the review found).
+- **Data-driven pages** — [/events](app/events/page.jsx) (upcoming + past),
+  [/past-events](app/past-events/page.js) (**fixes #3**: now a Server Component +
+  tested `splitEventsByDate`, not the broken `data.success`/`data.events` client
+  fetch), [/announcements](app/announcements/page.js) (pinned-first). New
+  `EventsBoard` (reuses `EventCard`, allowlists cover-image hosts so an off-host URL
+  can't crash the render) + `AnnouncementCard`; all `force-dynamic`, mobile-first
+  responsive, graceful DB-down fallbacks. The V1 `/admin` event form now posts an
+  image URL (not base64) + audience and surfaces friendly errors.
+- **`queries` collection** — the lone backed-up doc is junk test data with no V1
+  consumer → **not migrated** (retained in the backup); no `contact_message` module
+  built (DL-038). Closes KNOWN_ISSUES #20.
+- **Concurrency / load** — event writes are DB-serialized by the unique/partial
+  uniques (simultaneous same-slug creates → exactly one wins, rest get a friendly
+  409; concurrent publishes → `ONE_PUBLISHED`); reads are stateless over the pooled
+  Neon connection. Proven by a live concurrency test.
+- **Tests** — **171 static** (was 152; `events.test.mjs`) + **10 live-DB**
+  (`events.db.test.mjs`, self-healing throwaway 2087-88 year): window
+  visible/expire/open, `PUBLISH_WINDOW` (event + announcement), past/upcoming split,
+  pinned-first, importer idempotency, audience gating, media inventory (URL + base64
+  placeholder), partial-run resume, archive-vs-live window + by-slug, and concurrent
+  same-slug creation. All prior live suites still green. **No new migration** (Session-2
+  schema already modeled events/announcements). `next build` compiles cleanly.
+- **Adversarial review** — 64-agent, 8-lens workflow with per-finding 2-verifier
+  verification: 23 confirmed → **12 fixed, 1 accepted** (importer can't distinguish a
+  deliberately-unpublished draft from an interrupted one).
 
 ## What is done (Session 5)
 
@@ -138,18 +187,21 @@
 - **Run the full live org import** into 2025-26: `npm run db:import:org` (idempotent,
   ~15 min on Neon — an OPERATOR step like `db:seed`, KNOWN_ISSUES #27). The importer
   is tested end-to-end; it just hasn't been run against the real current year here.
-- Events/announcements rebuilt on Postgres (uses the CMS service) → **Session 6 (next)**;
-  migrate the 3 backed-up events; decide the `queries` collection disposition.
-- Resources + Media (Cloudinary) → Session 7; Developer Console → Session 8;
-  full RBAC-gated Admin Panel (UI over the CMS/org services) → Session 9.
+- Run the live events migration into 2025-26: `npm run db:import:events` (idempotent,
+  ~1 min; an operator step like `db:seed`/`db:import:org`). The 3 events are tested
+  end-to-end; they just haven't been imported into the real current year here.
+- Resources + Media (Cloudinary) → **Session 7 (next)**; Developer Console → Session 8;
+  full RBAC-gated Admin Panel (UI over the CMS/org/events services) → Session 9.
+- Cover-image hosts for events: only Cloudinary/Unsplash are allowlisted in
+  `next.config.mjs`; the Session-7 media work broadens this for curated covers.
 - Owner-owned: rotate/remove the V1 leaked secrets in `README.md`
   ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
 
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**152 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
-  live smoke + CMS (8) + year-engine (6) + org (4) live tests. The remote Neon
+  green (**171 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  live smoke + CMS (8) + year-engine (6) + org (4) + events (10) live tests. The remote Neon
   compute has high per-round-trip latency **and auto-suspends**, so live tests are
   slow (minutes) and occasionally hit a transient "Can't reach database server" on a
   cold compute — re-run once if so (not a logic failure). The org live suite is the
@@ -165,9 +217,14 @@
   `auditedMutation`. Route handlers (Session 9) call `requirePermission` then the
   service; org mutations gate on `org_unit.*` / `appointment.*`.
 - **Public read paths:** `lib/cms/visibility.mjs` (current-year content),
-  `lib/year/public.mjs` (any selectable year's content), and **`lib/org/public.mjs`
-  (org units + profiles + rosters)**. `resolveCurrentYear` is canonical in
-  `lib/year/context.mjs`. The data-driven org pages live under `app/org/[type]/...`.
+  `lib/year/public.mjs` (any selectable year's content), **`lib/org/public.mjs`
+  (org units + profiles + rosters)**, and **`lib/events/public.mjs`
+  (events + announcements: current-year, archive, by-slug; pure `splitEventsByDate`
+  + `filterByAudience`)**. `resolveCurrentYear` is canonical in
+  `lib/year/context.mjs`. Data-driven pages: `app/org/[type]/...`, `app/events`,
+  `app/past-events`, `app/announcements`. Events/announcements are CMS content, so
+  their MUTATIONS go through `lib/cms/content.mjs` directly (no separate service);
+  `lib/events/import.mjs` is the V1 events migration (`npm run db:import:events`).
 - The **Transition Wizard** (`lib/year/transition.mjs#runTransition`) carries the
   Session-5 org units + appointments forward into a new year (reusing lineage,
   idempotent/resumable) — no per-session re-migration needed.

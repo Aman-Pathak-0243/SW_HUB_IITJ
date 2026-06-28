@@ -3,10 +3,13 @@ import Image from "next/image";
 const EventCard = ({ event }) => {
   const { title, description, date, image } = event;
 
-  const dateObj = new Date(date);
-  const day = dateObj.toLocaleDateString("en-IN", { day: "2-digit" });
-  const month = dateObj.toLocaleDateString("en-IN", { month: "short" }).toUpperCase();
-  const year = dateObj.toLocaleDateString("en-IN", { year: "numeric" });
+  // Tolerate a missing/invalid date: `new Date(null)` is the 1970 epoch (not
+  // "Invalid Date"), so guard explicitly and hide the date badge when absent.
+  const dateObj = date != null ? new Date(date) : null;
+  const hasDate = dateObj && !Number.isNaN(dateObj.getTime());
+  const day = hasDate ? dateObj.toLocaleDateString("en-IN", { day: "2-digit" }) : "";
+  const month = hasDate ? dateObj.toLocaleDateString("en-IN", { month: "short" }).toUpperCase() : "";
+  const year = hasDate ? dateObj.toLocaleDateString("en-IN", { year: "numeric" }) : "";
 
   return (
     <>
@@ -195,13 +198,15 @@ const EventCard = ({ event }) => {
         <div className="event-card-body">
 
           {/* Date badge */}
-          <div className="event-date-badge">
-            <div className="event-date-block">
-              <span className="event-date-day">{day}</span>
-              <span className="event-date-month">{month}</span>
+          {hasDate && (
+            <div className="event-date-badge">
+              <div className="event-date-block">
+                <span className="event-date-day">{day}</span>
+                <span className="event-date-month">{month}</span>
+              </div>
+              <span className="event-date-year">{year}</span>
             </div>
-            <span className="event-date-year">{year}</span>
-          </div>
+          )}
 
           {/* Title */}
           <h3 className="event-card-title">{title}</h3>

@@ -297,6 +297,87 @@ update protocol in [README.md](README.md)).
 
 ---
 
+### Added/Changed — Session 6: Events + Announcements · 2026-06-29
+
+- **Events + Announcements on Postgres via the CMS service (DL-037)** — both are
+  year-scoped CMS content (`content_type='event'` / `'announcement'`) driven
+  entirely through the Session-3 service (`lib/cms/content.mjs`) — no new
+  mutation/audit/visibility pipeline. A thin domain layer
+  (`lib/events/public.mjs`) shapes the public records and adds the pure
+  `splitEventsByDate` (upcoming/past) and pinned-first announcement reads
+  (DL-010), plus current-year, archive (`listEventsForYear`/`listAnnouncementsForYear`,
+  DL-032) and by-slug readers. `publish_from`/`publish_until` windows are honored
+  by the existing `event_publish_window_chk` / `announcement_publish_window_chk`
+  CHECKs → friendly `PUBLISH_WINDOW` (never re-implemented; DL-029).
+- **Idempotent events importer** (`lib/events/import.mjs`, `npm run db:import:events`)
+  — migrates the 3 backed-up Mongo `events` docs (`lib/events/data.mjs`, verbatim)
+  into `content_item + content_revision + event_payload` for a year (current by
+  default), published. Idempotent by `(content_type='event', year, slug)`; re-runs
+  create 0; a partial run resumes (a never-archived stranded draft is re-published).
+  Mirrors `lib/org/import.mjs`.
+- **base64 images → media placeholders, never inline blobs (DL-039, KNOWN_ISSUES #5)**
+  — `classifyMedia` now detects `data:` URLs and records a short
+  `BASE64_PLACEHOLDER_URL` `media_asset` row (the blob stays in the Session-1
+  backup, reconciled by the Session-7 Cloudinary tool). URL/`/public` covers become
+  external/local inventory rows. All 3 V1 events have empty images → zero media in
+  practice.
+- **V1 Mongo events API replaced (DL-037)** — `app/api/events/route.js` is now
+  CMS-backed: `GET` reads published, current-year, in-window, public-audience
+  events from Postgres (self-describing `{ events }`); `POST` authenticates,
+  authorizes `content.create` scoped to the current year, validates input (title,
+  audience enum), **rejects inline base64** (422 `UNSUPPORTED_IMAGE`), creates a
+  cover `media_asset` via `prismaBase`, then calls `createDraft` (+publish),
+  cleaning up an orphaned media row if the CMS write fails. Mongoose is retired
+  from the request path. Closes #2/#9/#16 at the API.
+- **Public audience gating (DL-040)** — anonymous reads are gated to
+  `audience='public'` via the pure, tested `filterByAudience` (default
+  `PUBLIC_AUDIENCES`); a widened `audiences` set is the seam for a future
+  role-aware view. Fixes an information-disclosure path the review found.
+- **Data-driven public pages** — `/events` (upcoming + past), `/past-events`
+  (**fixes #3**: the V1 page read `data.success`/`data.events` off a bare array and
+  was always empty — now a Server Component + tested `splitEventsByDate`), and
+  `/announcements` (pinned-first). New `EventsBoard` (reuses `EventCard`,
+  allowlists cover hosts so an off-host URL can't crash the render) +
+  `AnnouncementCard`; `EventCard` hardened against undated events. All
+  `force-dynamic`, mobile-first responsive, with graceful DB-down fallbacks.
+- **V1 admin event form** (`app/admin/page.js`) — base64 file upload replaced by
+  an image-URL field + audience selector; surfaces the route's friendly error.
+  (Full RBAC-gated admin panel remains Session 9.)
+- **`queries` collection disposition (DL-038)** — the lone backed-up doc is junk
+  test data with no V1 consumer → **not migrated** (retained in the backup); no
+  `contact_message` module built (it would be a standalone table, not CMS content;
+  speculative without a real form). Closes #20.
+- **Concurrency / load** — event writes are DB-serialized (the
+  `content_item_slug_uq` / one-published partial uniques), so simultaneous
+  creates/publishes can't corrupt; reads are stateless Server Components over the
+  pooled Neon connection. A live test fires 5 concurrent same-slug creates and
+  asserts exactly one wins (the rest get a friendly 409).
+- **Tests** — **171 static** (was 152): `events.test.mjs` (import plan, the
+  `splitEventsByDate` split, base64 classifier, audience gating, event/announcement
+  handlers + windowed registry). Plus **10 live-DB** (`events.db.test.mjs`,
+  `RUN_DB_TESTS=1`, self-healing throwaway 2087-88 year): publish→visible-in-window
+  / expire / future-open, `PUBLISH_WINDOW` (event + announcement), past/upcoming
+  split, pinned-first, importer idempotency, audience gating, media inventory
+  (URL + base64 placeholder), partial-run resume, archive vs live window (DL-032) +
+  by-slug, and concurrent same-slug creation. All prior live suites still green.
+  **No new migration** (the schema already modeled events/announcements in Session 2).
+- **Adversarial review** — a 64-agent, 8-lens workflow (CMS fidelity, visibility/
+  window, importer, API route, pages/UI, tests, RBAC/audit, correctness) with
+  per-finding 2-verifier adversarial verification; 28 findings → **23 confirmed →
+  12 fixed, 1 accepted** (audience disclosure, orphan-media-on-failure, RBAC empty
+  scope, off-host image render-crash, base64-bypass, audience validation, media
+  audit attribution, importer archived-resume guard, broken admin form, GET
+  logging, archive/by-slug coverage; accepted: importer can't distinguish a
+  deliberately-unpublished draft from an interrupted one). The two "undated 1970
+  badge" findings were rejected (already guarded).
+- **Production build** — `next build` compiles cleanly; `/events`, `/past-events`,
+  `/announcements`, `/api/events` are correctly server-rendered-on-demand.
+- **Docs** — `DECISION_LOG.md` DL-037..DL-040; `KNOWN_ISSUES.md` #3/#5/#16/#20
+  resolved + a new accepted importer-resume edge; `DEVELOPER_GUIDE.md` events
+  section; `Token_Usage.md` Session-6 row.
+
+---
+
 ## Milestone history
 
 *(Each completed milestone adds a dated, versioned entry here describing what
