@@ -43,18 +43,30 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: 130 static (year + year-transition) + 6 live-DB (resolution/history/transition×3/lock); 8 CMS live still green
 - [x] Adversarial review (24 agents, 6 lenses); 18 findings → 16 fixed, 2 nits accepted
 
-## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess) ⬜ (next)
-- [ ] Org-unit + appointment services (`lib/org/*`); honor hierarchy/type/cardinality guards
-- [ ] Migrate hardcoded org content (Report §7) into current year (idempotent importer)
-- [ ] Data-driven public pages (one `<OrgUnitPage>` replaces 4 Clubs pages, #13)
+## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess) ✅
+- [x] Org-unit + lineage service (`lib/org/units.mjs`); honors hierarchy + lock guards; lineage minted only for new logical units (DL-007)
+- [x] Person directory (`lib/org/people.mjs`, dedup-by-name case-insensitive, DL-034) + appointment service (`lib/org/appointments.mjs`); honors composite FK + type guard + both cardinality guards
+- [x] V1 dataset (`lib/org/data/*`: 4 councils/30 clubs/6 hostels/5 messes/17 committee; "Technical Secretary") + idempotent importer (`lib/org/import.mjs`, `npm run db:import:org`)
+- [x] Data-driven public pages: one `<OrgUnitPage>` + `app/org/[type]/...` replaces the 4 Clubs pages (#13); `lib/org/public.mjs` read layer
+- [x] Forward migration `20260628130000_fix_appointment_singleton_guard` (is_singleton NULL bug; DL-036), applied to Neon
+- [x] Tests: 152 static (`org.test.mjs`) + 4 live-DB (`org.db.test.mjs`: hierarchy/type/cardinality guards, idempotent importer, public read)
+- [x] Adversarial review (25 agents, 6 lenses); 15 confirmed → 13 fixed, 2 accepted
+- [ ] **Operator:** run `npm run db:import:org` to populate the live 2025-26 year (#27)
 
-## Session 6 — Events + Announcements ⬜
-- [ ] Migrate 3 backed-up events → Postgres (year 2025-26); fix V1 event bugs
-- [ ] Announcements (schedule/pin/audience); decide `queries` doc disposition
+## Session 6 — Events + Announcements ✅
+- [x] Events + Announcements as CMS `content_type` callers (`lib/events/*`) — no new pipeline (DL-037); publish windows via the DB CHECKs → `PUBLISH_WINDOW`
+- [x] Idempotent events importer (`lib/events/import.mjs`, `npm run db:import:events`) — 3 backed-up Mongo events → `content_item`+`event_payload` (+ media inventory, never base64 blobs — #5/DL-039); re-runs create 0; partial run resumes
+- [x] V1 Mongo events API replaced by a CMS-backed `app/api/events` (Mongoose retired from the request path); gated POST → `createDraft`; rejects base64 (closes #2/#9/#16 at the API)
+- [x] Announcements (pinned-first, audience, window; DL-010); public **audience gating** to `audience='public'` (DL-040)
+- [x] Data-driven `/events`, `/past-events` (fixes #3), `/announcements` Server Components + `EventsBoard`/`AnnouncementCard`; responsive; V1 `/admin` form now URL-based (not base64)
+- [x] `queries` doc disposition: junk test data → not migrated; no `contact_message` module (DL-038, closes #20)
+- [x] Tests: 171 static (`events.test.mjs`) + 10 live-DB (`events.db.test.mjs`: window/expire/open, PUBLISH_WINDOW event+announcement, split, pinned-first, idempotency, audience, media inventory, resume, archive/by-slug, concurrency). `next build` clean. No new migration
+- [x] Adversarial review (64 agents, 8 lenses); 23 confirmed → 12 fixed, 1 accepted
+- [ ] **Operator:** run `npm run db:import:events` (and `db:import:org`) to populate the live 2025-26 year (#27)
 
-## Session 7 — Resources + Media ⬜
-- [ ] Resources (PDFs/links); MediaAsset + Cloudinary uploads
-- [ ] Admin Media Migration Tool (`/public` → Cloudinary, reversible)
+## Session 7 — Resources + Media ⬜ (next)
+- [ ] Resources (`content_type='resource'`, org-bound) via the CMS service + public/data-driven view
+- [ ] Media service + Cloudinary upload path; Admin Media Migration Tool (`/public` → Cloudinary, reversible) reconciling the Session-5/6 inventory rows + base64 placeholders (DL-039)
 
 ## Session 8 — Developer Console ⬜
 - [ ] Monitoring, logs, audit viewer, testing reports, deploy status

@@ -1,53 +1,41 @@
-"use client";
-import React, { useState, useEffect } from "react";
+// Past Events page (Session 6) — /past-events. REWRITTEN as a Server Component
+// that reads published current-year events from Postgres (lib/events/public.mjs)
+// and shows the strictly-past ones via the tested splitEventsByDate rule.
+//
+// Fixes KNOWN_ISSUES #3: the V1 client page fetched /api/events and filtered on
+// `data.success` / `data.events`, but the API returned a BARE ARRAY, so the page
+// was ALWAYS empty. The past/upcoming split is now a single server-side, unit-
+// tested function — no fragile client-side response-shape assumptions.
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import EventCard from "../components/EventCard";
+import EventsBoard from "../components/EventsBoard";
+import { listPublicEvents, splitEventsByDate } from "../../lib/events/public.mjs";
 
-const PastEvents = () => {
-  const [pastEvents, setPastEvents] = useState([]);
+export const dynamic = "force-dynamic";
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const res = await fetch("/api/events");
-        const data = await res.json();
-
-        if (data.success) {
-          const today = new Date();
-          const filtered = data.events.filter((e) => new Date(e.date) < today);
-          setPastEvents(filtered);
-        }
-      } catch (error) {
-        console.error("Failed to fetch events:", error);
-      }
-    };
-
-    fetchEvents();
-  }, []);
+export default async function PastEventsPage() {
+  let past = [];
+  let errored = false;
+  try {
+    const events = await listPublicEvents();
+    ({ past } = splitEventsByDate(events));
+  } catch (e) {
+    console.error("[/past-events] failed to load events:", e?.message ?? e);
+    errored = true;
+  }
 
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-8 md:px-16">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl sm:text-4xl font-bold text-[#003f87] text-center mb-10">
-            Past Events
-          </h1>
-          {pastEvents.length === 0 ? (
-            <p className="text-center text-gray-500 text-lg">No past events yet.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {pastEvents.map((event) => (
-                <EventCard key={event._id} event={event} />
-              ))}
-            </div>
-          )}
-        </div>
+      <main className="min-h-screen bg-gray-50 pt-24 pb-20">
+        <h1 className="text-3xl sm:text-4xl font-bold text-[#003f87] text-center mb-12">Past Events</h1>
+        {errored ? (
+          <p className="max-w-3xl mx-auto px-6 text-center text-gray-500">This section is temporarily unavailable. Please try again shortly.</p>
+        ) : (
+          <EventsBoard sections={[{ key: "past", title: "Past Events", events: past, emptyText: "No past events yet." }]} />
+        )}
       </main>
       <Footer />
     </>
   );
-};
-
-export default PastEvents;
+}

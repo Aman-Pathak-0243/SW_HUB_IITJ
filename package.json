@@ -12,6 +12,8 @@
     "db:migrate": "dotenv -e .env.local -- prisma migrate deploy",
     "db:migrate:dev": "dotenv -e .env.local -- prisma migrate dev",
     "db:seed": "dotenv -e .env.local -- node prisma/seed.mjs",
+    "db:import:org": "dotenv -e .env.local -- node scripts/import-org.mjs",
+    "db:import:events": "dotenv -e .env.local -- node scripts/import-events.mjs",
     "db:reset": "dotenv -e .env.local -- prisma migrate reset",
     "db:studio": "dotenv -e .env.local -- prisma studio"
   },

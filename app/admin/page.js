@@ -12,7 +12,8 @@ const AdminPage = () => {
     title: "",
     description: "",
     date: "",
-    image: "",
+    image: "", // an image URL (Session 6: base64 uploads retired — KNOWN_ISSUES #5)
+    audience: "public",
   });
   const [message, setMessage] = useState("");
   const [toast, setToast] = useState(null); // { text, type: 'success'|'error'|'loading' }
@@ -23,7 +24,6 @@ const AdminPage = () => {
       setTimeout(() => setToast(null), 3500);
     }
   };
-  const [imagePreview, setImagePreview] = useState(null);
 
   // ---------------- LOADING ----------------
   if (status === "loading") {
@@ -296,35 +296,34 @@ const AdminPage = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-      setForm((prev) => ({ ...prev, image: reader.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
+  // Session 6: the CMS-backed POST /api/events rejects inline base64 images
+  // (KNOWN_ISSUES #5). We submit an image URL instead (Cloudinary upload arrives
+  // with the Session-7 Media tool); the server creates the event via the CMS
+  // service and we surface its friendly error message on failure.
   const handleSubmit = async (e) => {
     e.preventDefault();
     showToast("Publishing event...", "loading");
-
-    const res = await fetch("/api/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-
-    console.log("res =", res);
-
-    if (res.ok) {
-      showToast("Event published successfully!", "success");
-      setForm({ title: "", description: "", date: "", image: "" });
-      setImagePreview(null);
-    } else {
-      showToast("Failed to add event. Try again.", "error");
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          description: form.description,
+          date: form.date,
+          audience: form.audience,
+          coverUrl: form.image || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast("Event published successfully!", "success");
+        setForm({ title: "", description: "", date: "", image: "", audience: "public" });
+      } else {
+        showToast(data.error || "Failed to add event. Try again.", "error");
+      }
+    } catch {
+      showToast("Network error — please try again.", "error");
     }
   };
 
@@ -817,28 +816,37 @@ const AdminPage = () => {
                 </div>
 
                 <div className="field-group">
-                  <label className="field-label">Event Image</label>
-                  <div className="img-upload-zone">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                    />
-                    {imagePreview ? (
-                      <div className="img-preview-wrap">
-                        <img src={imagePreview} alt="Preview" />
-                        <div className="img-preview-overlay">
-                          🖼️ Click to change image
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="img-upload-placeholder">
-                        <div className="img-upload-icon">📷</div>
-                        <p>Click to select an image<br />from your gallery</p>
-                        <span>JPG, PNG, WEBP supported</span>
-                      </div>
-                    )}
-                  </div>
+                  <label className="field-label">Audience</label>
+                  <select
+                    name="audience"
+                    value={form.audience}
+                    onChange={handleChange}
+                    className="admin-input"
+                  >
+                    <option value="public">Public (everyone)</option>
+                    <option value="students">Students</option>
+                    <option value="faculty">Faculty</option>
+                    <option value="staff">Staff</option>
+                    <option value="internal">Internal</option>
+                  </select>
+                </div>
+
+                <div className="field-group">
+                  <label className="field-label">Event Image URL (optional)</label>
+                  <input
+                    type="url"
+                    name="image"
+                    value={form.image}
+                    onChange={handleChange}
+                    placeholder="https://… (paste an image URL; uploads arrive with the Media tool)"
+                    className="admin-input"
+                  />
+                  {form.image && /^https?:\/\//.test(form.image) && (
+                    <div className="img-preview-wrap" style={{ marginTop: 12 }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={form.image} alt="Cover preview" style={{ maxWidth: "100%", borderRadius: 12 }} />
+                    </div>
+                  )}
                 </div>
 
                 <button type="submit" className="admin-submit-btn">

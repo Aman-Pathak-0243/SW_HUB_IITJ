@@ -221,6 +221,163 @@ update protocol in [README.md](README.md)).
 
 ---
 
+### Added/Changed — Session 5: Organization Model · 2026-06-28
+
+- **Org-unit service** (`lib/org/units.mjs`) — `createOrgUnit` / `editOrgUnit` /
+  `publishOrgUnit` / `archiveOrgUnit` over the year-scoped, self-referential
+  `org_unit`. Creating a unit mints a NEW `org_unit_lineage` only for a genuinely
+  new logical unit (never a bare uuid — DL-007); pass an existing `lineageKey` to
+  add a per-year instance. Honors (never re-implements) `org_unit_hierarchy_guard`
+  (same-year parent + allowed child type) and `lock_guard`; rejections surface as
+  friendly `ORG_HIERARCHY` / `YEAR_LOCKED`. `editOrgUnit` keeps `status`↔`archivedAt`
+  consistent. Gates on `org_unit.*`, one semantic audit row per op.
+- **Person directory** (`lib/org/people.mjs`) — `upsertPerson` keyed by cleaned
+  full name, **case-insensitively**; idempotent; `personType` set once. V1 role
+  mailboxes are NOT migrated to the UNIQUE `person.email` (DL-034) and any email
+  that would collide with another person is dropped. Authorizes at the **same RBAC
+  scope** as the appointment it serves (so a unit/year-scoped manager is not
+  locked out). `person_email_link_guard` honored trivially (no app_user links).
+- **Appointment (roster) service** (`lib/org/appointments.mjs`) — `createAppointment`
+  / `editAppointment` / `publishAppointment` / `archiveAppointment`. Derives
+  `academic_year_id` FROM the unit (composite-FK agreement), leaves
+  `org_unit_type_id` NULL for `appointment_type_guard` to auto-fill + set
+  `is_singleton`, and honors both cardinality guards (singleton partial unique +
+  deferred count trigger) → friendly `APPOINTMENT_TYPE` / `APPOINTMENT_CARDINALITY`
+  / `APPOINTMENT_DUPLICATE`.
+- **V1 dataset** (`lib/org/data/*`) — the 4 councils, **30 clubs** (6+5+8+11),
+  6 hostels, 5 messes + the 17-member campus mess committee, extracted verbatim
+  from the four V1 Clubs pages + `hostels`/`messes` pages, plus a PURE
+  `buildImportPlan()` (slugs, seeded position keys, parsed mission lists / meal
+  timings / capacities). The Academic council student lead is titled **"Technical
+  Secretary"** (intended V2 rename). `lib/org/normalize.mjs` holds the pure
+  helpers (slugify, clock/range/capacity parsing, `@db.Time` conversion,
+  honorific-aware person typing, dedup keys).
+- **Idempotent importer** (`lib/org/import.mjs`, run via `npm run db:import:org`)
+  — stands up every unit + bound `*_profile` content_item (through the CMS
+  service) + people + appointments for a year (current by default). Idempotent by
+  natural key (unit by year+slug, content by type+year+unit, appointment by
+  year+unit+position+person, person by name, media by url/path); re-runs create 0
+  and a partial run is **resumable** (a found-but-draft unit/profile/appointment is
+  re-published). V1 image refs become lightweight `media_asset` inventory rows
+  (external Cloudinary URLs / `/public` paths kept for the Session-7 migration),
+  written on the audit-bypassing base client.
+- **Public org pages** (`lib/org/public.mjs` + `app/components/OrgUnitPage.jsx` +
+  `app/org/[type]/[slug]` + `app/org/[type]`) — ONE data-driven `<OrgUnitPage>`
+  renders any council/club/hostel/mess from the published unit + its bound profile
+  + roster, replacing the four near-identical V1 Clubs pages (**KNOWN_ISSUES #13**).
+  The public rule (status=published AND current/selected year AND not-archived)
+  applies to BOTH the unit and its profile content; per-unit reads run concurrently
+  (Neon latency). Routes are `force-dynamic` and degrade gracefully when the DB is
+  unavailable.
+- **Schema fix (forward migration)** — `20260628130000_fix_appointment_singleton_guard`:
+  `appointment_type_guard` set `is_singleton := (max_holders = 1)`, which is **NULL**
+  for unlimited positions → violated the NOT NULL column. Latent until Session 5
+  created the first multi-holder appointment (the live test caught it). Fixed with
+  `COALESCE(max_holders = 1, false)` (`CREATE OR REPLACE`, idempotent; trigger
+  untouched). Applied to Neon via `prisma migrate deploy` (DL-027).
+- **Tests** — **152 static** (was 130): `org.test.mjs` (normalize helpers + the
+  import-plan integrity: 30 clubs, unique slugs, seeded positions, parsed timings,
+  Technical-Secretary rename, one singleton mess secretary). Plus **4 live-DB**
+  (`org.db.test.mjs`, `RUN_DB_TESTS=1`): org-unit create + hierarchy-guard
+  rejection, appointment type + cardinality guards (singleton vs multi-holder), an
+  idempotent importer (a tiny plan; second run creates 0), and a public org read
+  (profile + roster + child clubs + mess meal-timings round-trip). Friendly-error
+  matchers added: `SLUG_TAKEN` (org_unit) + `APPOINTMENT_DUPLICATE`.
+- **Adversarial review** — a 25-agent, 6-lens workflow (guard-honoring,
+  idempotency/migration, RBAC/audit, data fidelity, public pages, correctness) with
+  per-finding verification; 19 findings → 15 confirmed, **13 fixed** (resumable
+  profile re-publish, scoped person auth, two same-person name canonicalizations,
+  org-unit slug + duplicate-appointment error mapping, status/archivedAt sync,
+  concurrent public reads, DB-down vs not-published page state, cached-media count,
+  Sports-secretary photo) and **2 accepted** (public phone numbers withheld as PII;
+  case-insensitive dedup chosen over a fuzzy/middle-name merge).
+- **Docs** — `DECISION_LOG.md` DL-034..DL-036; `KNOWN_ISSUES.md` #13 resolved + #27
+  (full live import is an operator step); `DEVELOPER_GUIDE.md` org section;
+  `Token_Usage.md` Session-5 row.
+
+---
+
+### Added/Changed — Session 6: Events + Announcements · 2026-06-29
+
+- **Events + Announcements on Postgres via the CMS service (DL-037)** — both are
+  year-scoped CMS content (`content_type='event'` / `'announcement'`) driven
+  entirely through the Session-3 service (`lib/cms/content.mjs`) — no new
+  mutation/audit/visibility pipeline. A thin domain layer
+  (`lib/events/public.mjs`) shapes the public records and adds the pure
+  `splitEventsByDate` (upcoming/past) and pinned-first announcement reads
+  (DL-010), plus current-year, archive (`listEventsForYear`/`listAnnouncementsForYear`,
+  DL-032) and by-slug readers. `publish_from`/`publish_until` windows are honored
+  by the existing `event_publish_window_chk` / `announcement_publish_window_chk`
+  CHECKs → friendly `PUBLISH_WINDOW` (never re-implemented; DL-029).
+- **Idempotent events importer** (`lib/events/import.mjs`, `npm run db:import:events`)
+  — migrates the 3 backed-up Mongo `events` docs (`lib/events/data.mjs`, verbatim)
+  into `content_item + content_revision + event_payload` for a year (current by
+  default), published. Idempotent by `(content_type='event', year, slug)`; re-runs
+  create 0; a partial run resumes (a never-archived stranded draft is re-published).
+  Mirrors `lib/org/import.mjs`.
+- **base64 images → media placeholders, never inline blobs (DL-039, KNOWN_ISSUES #5)**
+  — `classifyMedia` now detects `data:` URLs and records a short
+  `BASE64_PLACEHOLDER_URL` `media_asset` row (the blob stays in the Session-1
+  backup, reconciled by the Session-7 Cloudinary tool). URL/`/public` covers become
+  external/local inventory rows. All 3 V1 events have empty images → zero media in
+  practice.
+- **V1 Mongo events API replaced (DL-037)** — `app/api/events/route.js` is now
+  CMS-backed: `GET` reads published, current-year, in-window, public-audience
+  events from Postgres (self-describing `{ events }`); `POST` authenticates,
+  authorizes `content.create` scoped to the current year, validates input (title,
+  audience enum), **rejects inline base64** (422 `UNSUPPORTED_IMAGE`), creates a
+  cover `media_asset` via `prismaBase`, then calls `createDraft` (+publish),
+  cleaning up an orphaned media row if the CMS write fails. Mongoose is retired
+  from the request path. Closes #2/#9/#16 at the API.
+- **Public audience gating (DL-040)** — anonymous reads are gated to
+  `audience='public'` via the pure, tested `filterByAudience` (default
+  `PUBLIC_AUDIENCES`); a widened `audiences` set is the seam for a future
+  role-aware view. Fixes an information-disclosure path the review found.
+- **Data-driven public pages** — `/events` (upcoming + past), `/past-events`
+  (**fixes #3**: the V1 page read `data.success`/`data.events` off a bare array and
+  was always empty — now a Server Component + tested `splitEventsByDate`), and
+  `/announcements` (pinned-first). New `EventsBoard` (reuses `EventCard`,
+  allowlists cover hosts so an off-host URL can't crash the render) +
+  `AnnouncementCard`; `EventCard` hardened against undated events. All
+  `force-dynamic`, mobile-first responsive, with graceful DB-down fallbacks.
+- **V1 admin event form** (`app/admin/page.js`) — base64 file upload replaced by
+  an image-URL field + audience selector; surfaces the route's friendly error.
+  (Full RBAC-gated admin panel remains Session 9.)
+- **`queries` collection disposition (DL-038)** — the lone backed-up doc is junk
+  test data with no V1 consumer → **not migrated** (retained in the backup); no
+  `contact_message` module built (it would be a standalone table, not CMS content;
+  speculative without a real form). Closes #20.
+- **Concurrency / load** — event writes are DB-serialized (the
+  `content_item_slug_uq` / one-published partial uniques), so simultaneous
+  creates/publishes can't corrupt; reads are stateless Server Components over the
+  pooled Neon connection. A live test fires 5 concurrent same-slug creates and
+  asserts exactly one wins (the rest get a friendly 409).
+- **Tests** — **171 static** (was 152): `events.test.mjs` (import plan, the
+  `splitEventsByDate` split, base64 classifier, audience gating, event/announcement
+  handlers + windowed registry). Plus **10 live-DB** (`events.db.test.mjs`,
+  `RUN_DB_TESTS=1`, self-healing throwaway 2087-88 year): publish→visible-in-window
+  / expire / future-open, `PUBLISH_WINDOW` (event + announcement), past/upcoming
+  split, pinned-first, importer idempotency, audience gating, media inventory
+  (URL + base64 placeholder), partial-run resume, archive vs live window (DL-032) +
+  by-slug, and concurrent same-slug creation. All prior live suites still green.
+  **No new migration** (the schema already modeled events/announcements in Session 2).
+- **Adversarial review** — a 64-agent, 8-lens workflow (CMS fidelity, visibility/
+  window, importer, API route, pages/UI, tests, RBAC/audit, correctness) with
+  per-finding 2-verifier adversarial verification; 28 findings → **23 confirmed →
+  12 fixed, 1 accepted** (audience disclosure, orphan-media-on-failure, RBAC empty
+  scope, off-host image render-crash, base64-bypass, audience validation, media
+  audit attribution, importer archived-resume guard, broken admin form, GET
+  logging, archive/by-slug coverage; accepted: importer can't distinguish a
+  deliberately-unpublished draft from an interrupted one). The two "undated 1970
+  badge" findings were rejected (already guarded).
+- **Production build** — `next build` compiles cleanly; `/events`, `/past-events`,
+  `/announcements`, `/api/events` are correctly server-rendered-on-demand.
+- **Docs** — `DECISION_LOG.md` DL-037..DL-040; `KNOWN_ISSUES.md` #3/#5/#16/#20
+  resolved + a new accepted importer-resume edge; `DEVELOPER_GUIDE.md` events
+  section; `Token_Usage.md` Session-6 row.
+
+---
+
 ## Milestone history
 
 *(Each completed milestone adds a dated, versioned entry here describing what

@@ -64,11 +64,12 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (130 static tests; DB smoke + CMS + year-engine live tests self-skip) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year engine; slow — remote Neon latency, may need one re-run on a cold compute) |
+| `npm test` | Run the Vitest suite (152 static tests; DB smoke + CMS + year-engine + org live tests self-skip) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year engine + org; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
-| `npm run db:seed` | Seed the database (idempotent) |
+| `npm run db:seed` | Seed the database (idempotent: year, RBAC, org types/positions, content types, bootstrap users) |
+| `npm run db:import:org` | Import the V1 org content (4 councils / 30 clubs / 6 hostels / 5 messes + people + appointments) into the current year — idempotent, resumable, ~15 min on Neon. Flags: `-- --draft` (don't publish), `-- --no-media` (skip media rows). |
 | `npm run db:studio` | Prisma Studio (DB browser) |
 | `npx eslint .` | Lint (config: `eslint.config.mjs`) |
 
@@ -191,6 +192,121 @@ await lockYear(sourceYearId, { userId: user.id });          // make the old year
 - **Locked years are read-only by the DB.** `lockYear` flips
   `academic_year.status='locked'`; the `lock_guard` trigger then rejects writes to
   that year's rows → friendly `YEAR_LOCKED`. The current year cannot be locked.
+
+## Organization Model (Session 5)
+
+Councils, clubs, hostels and messes are generic `org_unit` rows; the people who
+staff them are `appointment`s of a `person` into a `position`. Services live in
+`lib/org/`.
+
+```js
+import { createOrgUnit, publishOrgUnit } from "@/lib/org/units.mjs";
+import { upsertPerson } from "@/lib/org/people.mjs";
+import { createAppointment } from "@/lib/org/appointments.mjs";
+import { importOrgData } from "@/lib/org/import.mjs";
+import { getPublicOrgUnit, getPublicOrgStructure } from "@/lib/org/public.mjs";
+
+// Create a club under its council (a NEW lineage is minted automatically):
+const { unit } = await createOrgUnit(
+  { academicYearId, typeKey: "club", parentId: councilUnitId, slug: "coding-club", name: "Coding Club", status: "published" },
+  { userId: user.id }
+);
+// Appoint a person (year derived from the unit; type/cardinality DB-guarded):
+const { person } = await upsertPerson({ fullName: "Dr. X", personType: "faculty" }, { userId: user.id });
+await createAppointment({ orgUnitId: unit.id, positionId: picPositionId, personId: person.id, status: "published" }, { userId: user.id });
+// Public read for a data-driven page:
+const view = await getPublicOrgUnit("coding-club");        // unit + profile + roster + children
+```
+
+- **Lineage is identity (DL-007).** `createOrgUnit` mints ONE `org_unit_lineage`
+  row per genuinely new logical unit (never a bare uuid); pass an existing
+  `lineageKey` to add a per-year instance. The Transition Wizard reuses it.
+- **DB guards are honored, never re-implemented (DL-029).** `org_unit_hierarchy_guard`
+  (same-year parent + allowed child type → `ORG_HIERARCHY`), the composite
+  `(org_unit_id, academic_year_id)` FK (the appointment service derives the year
+  FROM the unit), `appointment_type_guard` (auto-fills `org_unit_type_id` + the
+  `is_singleton` flag; wrong type → `APPOINTMENT_TYPE`), and both cardinality guards
+  (singleton partial unique + deferred count trigger → `APPOINTMENT_CARDINALITY`;
+  duplicate → `APPOINTMENT_DUPLICATE`). Leave `org_unit_type_id` NULL on create.
+- **People are deduped by cleaned name (case-insensitive; DL-034).** V1 role
+  mailboxes are NOT stored on the UNIQUE `person.email`; `upsertPerson` drops a
+  colliding email. It authorizes at the appointment's scope (gate
+  `appointment.create`); org-unit ops gate on `org_unit.*`.
+- **The importer** (`importOrgData` / `npm run db:import:org`) is idempotent by
+  natural key (unit by year+slug, content by type+year+unit, appointment by
+  year+unit+position+person, person by name) and **resumable** — a found-but-draft
+  entity is re-published, so a partial run self-heals. Pass `{ plan }` to import a
+  custom subset (the live test does this). It is NOT one big transaction (DL-031).
+- **Public pages are data-driven.** `lib/org/public.mjs` applies the public rule
+  (published + current/selected year + not-archived) to BOTH the unit and its bound
+  profile content; one `<OrgUnitPage>` (`app/components/OrgUnitPage.jsx`) renders any
+  unit type, served by `app/org/[type]/[slug]` (+ the `/org/[type]` list).
+- **Raw-SQL trigger fixes are forward migrations.** Session 5 added
+  `20260628130000_fix_appointment_singleton_guard` (`CREATE OR REPLACE` of
+  `appointment_type_guard` so `is_singleton` is never NULL for unlimited positions)
+  — never edit the init migration in place (DL-027/DL-036).
+
+## Events & Announcements (Session 6)
+
+Events and Announcements are **just CMS content** — there is no separate events
+service. To create/edit/publish one, call the Session-3 CMS service directly with
+the right `content_type`:
+
+```js
+import { createDraft, publish } from "./lib/cms/content.mjs";
+
+// An event (year-scoped, NOT org-bound). The publish_from/publish_until window is
+// enforced by the DB CHECK → a friendly PUBLISH_WINDOW error if from > until.
+const { item } = await createDraft({
+  contentType: "event",
+  academicYearId,                 // required — events are year-scoped
+  slug: "tech-talk-2026",
+  title: "Tech Talk 2026",
+  payload: { body: "…", eventDate: new Date("2026-09-15"), audience: "public",
+             publishFrom: null, publishUntil: null, coverMediaId: null },
+}, actor);
+await publish(item.id, {}, actor);
+
+// An announcement (pinned-first on the public page; body is required).
+await createDraft({
+  contentType: "announcement", academicYearId, slug: "hostel-notice",
+  title: "Hostel Notice", pinned: true,
+  payload: { body: "…", audience: "students" },
+}, actor);
+```
+
+**Public reads** — `lib/events/public.mjs` (anonymous, no auth):
+
+- `listPublicEvents()` → shaped events for the current year (windowed,
+  public-audience). Pair with the **pure** `splitEventsByDate(events)` →
+  `{ upcoming, past }` for the pages (this is the tested fix for the old
+  `/past-events` contract bug).
+- `listPublicAnnouncements()` → pinned-first (DL-010).
+- `listEventsForYear(yearId)` / `listAnnouncementsForYear(yearId)` → a past year's
+  archive (the live window is NOT enforced for a non-current year — DL-032).
+- `getPublicEventBySlug(slug)` / `getPublicAnnouncementBySlug(slug)`.
+- **Audience gating (DL-040):** all readers default to `PUBLIC_AUDIENCES` (`['public']`)
+  so non-public content never reaches anonymous visitors. Pass `{ audiences: [...] }`
+  to widen (the seam for a future role-aware / admin view). `filterByAudience` is pure.
+
+**Data-driven pages** (`force-dynamic`, mobile-first responsive, graceful DB-down):
+`/events`, `/past-events`, `/announcements` → `EventsBoard` (reuses `EventCard`;
+allowlists cover-image hosts so an off-host URL can't crash the render) and
+`AnnouncementCard`.
+
+**The API** — `app/api/events/route.js` is CMS-backed: `GET` returns
+`{ events }` (published, current-year, in-window, public); `POST` is gated by
+`content.create` (scoped to the current year), validates input, **rejects inline
+base64** (upload via the Media tool, Session 7, and pass a URL), creates the cover
+`media_asset` via `prismaBase`, then `createDraft` (+publish). Mongoose is no longer
+in the request path.
+
+**Migrate the V1 events** — `npm run db:import:events` (idempotent; `--draft` /
+`--no-media`). Mirrors `db:import:org`: re-runs create 0; a partial run resumes.
+
+**Concurrency:** event writes are DB-serialized (the `content_item_slug_uq` /
+one-published partial uniques), so simultaneous creates/publishes can't corrupt —
+a loser gets a friendly 409 (`SLUG_TAKEN` / `ONE_PUBLISHED`). No app-level locking.
 
 ## Project map
 

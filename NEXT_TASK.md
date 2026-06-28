@@ -1,66 +1,66 @@
 # Next Task
 
-**As of:** 2026-06-28 · **Session 4 complete → Session 5 is next.**
+**As of:** 2026-06-29 · **Session 6 complete → Session 7 is next.**
 
-## Session 5 — Organization Model (Clubs, Councils, Hostels, Mess)
+## Session 7 — Resources + Media
 
-Stand up the real organization structure as generic `org_unit` rows + `position`
-definitions + `appointment` rosters, and migrate the hardcoded V1 org content into
-the current year — all on the Session-2 schema, the Session-3 CMS service, and the
-Session-4 year engine (`lib/year/*`). **Read first:**
+Build the **Resources** module (per-org-unit PDFs/links) on the existing CMS spine,
+and the **Media** layer: a real `media_asset` upload path (Cloudinary) plus the
+**Admin Media Migration Tool** that moves the ~105 `/public` assets (and the base64
+placeholders left by Session 6) to Cloudinary and updates references. **Read first:**
 [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md),
-[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (capabilities 2 & 4 + `org_unit`,
-`org_unit_lineage`, `position`, `appointment`, `org_unit_type_allowed_child`),
-[docs/DATA_MIGRATION_REPORT.md](docs/DATA_MIGRATION_REPORT.md) (§7 — the V1
-clubs/councils/hostels/mess content to migrate),
-[docs/DECISION_LOG.md](docs/DECISION_LOG.md) (DL-007 lineage, DL-008 composite FK,
-DL-009/021 cardinality, DL-022 hierarchy guard, DL-026 defaults, DL-031 transition),
-[CURRENT_STATUS.md](CURRENT_STATUS.md).
+[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (`resource_payload`, `media_asset`,
+`content_media`, `media_kind`/`storage_provider`/`media_role`),
+[docs/DATA_MIGRATION_REPORT.md](docs/DATA_MIGRATION_REPORT.md) §3 (the `/public`
+assets + the two Cloudinary accounts) and §9 (static→Cloudinary),
+[docs/DECISION_LOG.md](docs/DECISION_LOG.md) (DL-039 base64 placeholders, DL-016
+JSONB policy), [CURRENT_STATUS.md](CURRENT_STATUS.md),
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) (#4 pdfjs version, #5 base64 placeholders to
+reconcile, #17 unused image hosts, #18 `/public` ~74 MB).
 
 ### Ordered tasks
-1. **Org-unit service** (`lib/org/*`) — create / edit / archive `org_unit` rows
-   (year-scoped, self-referential `parent_id`), each tied to an
-   `org_unit_lineage` (create a lineage only for a genuinely new logical unit;
-   never copy a bare uuid — DL-007). Reuse the shared `auditedMutation`
-   (`lib/cms/audited-mutation.mjs`) + `assertActorPermission` gated on
-   `org_unit.*`. Honor (don't re-implement) `org_unit_hierarchy_guard`
-   (same-year + allowed-child-type) and `lock_guard`; surface friendly errors
-   (extend `mapDbError` if a new guard signature appears — `ORG_HIERARCHY` is
-   already mapped).
-2. **Appointment (roster) service** — create / edit / archive `appointment` rows
-   (person-in-position-per-unit-per-year). Honor the composite FK (year
-   agreement), `appointment_type_guard` (position↔unit-type compatibility,
-   auto-fills `org_unit_type_id`/`is_singleton`), and the cardinality guards
-   (singleton partial unique + deferred count trigger). The `person` directory is
-   data; create/link people as needed (respect `person_email_link_guard`).
-3. **Migrate hardcoded V1 org content** (Report §7) — seed/import the 4 councils,
-   ~30 clubs, 6 hostels, 5 messes as `org_unit` + bound `*_profile` content_items
-   (via the CMS service) + appointments for the current year (2025-26). Idempotent
-   importer (upsert by `(academic_year_id, lineage_key)` / slug).
-4. **Data-driven public pages** — one `<OrgUnitPage>` (+ a list page) that renders
-   any unit from `lib/year/public.mjs` + the CMS payload, replacing the 4
-   near-identical V1 Clubs pages (KNOWN_ISSUES #13).
-5. **Tests** — org-unit create/hierarchy-guard rejection, appointment
-   type/cardinality guards (singleton vs multi-holder), the importer (idempotent),
-   and a public org page read. Extend the live DB suite as useful; keep the static
-   suite default-green.
+1. **Resources on Postgres** — drive `content_type='resource'` (org-bound) through
+   the CMS service (the handler/payload already exist: `resource_kind`,
+   `file_media_id`, `external_url`, `description`). A public read layer + a
+   data-driven resources view (per org unit, like the Session-5/6 patterns).
+2. **Media service** (`lib/media/*`) — create/list/curate `media_asset` rows; a
+   Cloudinary upload path (use the env-configured account); resolve a `media_asset`
+   → delivery URL. Honor the audited-mutation pattern; media inventory writes that
+   should NOT flood the audit log use `prismaBase` (as the importers do).
+3. **Admin Media Migration Tool** — idempotent, reversible `/public` → Cloudinary
+   migration that sets `cloudinary_public_id`/`url`/`migrated_at` and **reconciles
+   the Session-6 base64 placeholders** (`BASE64_PLACEHOLDER_URL`, DL-039) and the
+   Session-5 `/public`/external inventory rows. Dry-run + rollback.
+4. **Cover/host follow-ups** — broaden `next.config.mjs` image hosts as needed (the
+   events `EventsBoard` allowlist is intentionally narrow today); fix the pdfjs
+   version mismatch (#4) when the PDF resource view is built.
+5. **Tests** — static (payload/migration-plan logic, URL/host resolution) + live-DB
+   (resource publish→visible; a small idempotent media-migration fixture). Keep the
+   static suite default-green; reuse the self-healing throwaway-year fixture pattern.
 
-### Guard rails (already enforced — rely on them)
-- `org_unit_hierarchy_guard`, the appointment composite FK + `appointment_type_guard`
-  + `appointment_singleton_position_uq` + deferred `appointment_cardinality_guard`,
-  `lock_guard`, and `person_email_link_guard`. Don't re-implement; surface friendly
-  errors via `mapDbError`.
-- The Transition Wizard (`lib/year/transition.mjs`) already copies org_units +
-  appointments forward; Session 5 just creates the *first* year's real data.
+### Guard rails (rely on them; don't re-implement)
+- Resources are CMS content — a CALLER of `lib/cms/content.mjs`, like events
+  (DL-037). Honor DB guards via `mapDbError`; never re-implement them (DL-029).
+- Use `prisma` from `lib/prisma.mjs` (audited); `prismaBase` only to bypass
+  (bulk media inventory). Neon has high per-query latency + auto-suspends — give
+  live tests generous timeouts and re-run once on a cold-compute "Can't reach
+  database server". Prisma CLI reads `.env` not `.env.local` — use the `db:*` scripts.
+- Never `prisma db pull` / `migrate reset`; any raw-SQL change is a NEW forward
+  migration (`CREATE OR REPLACE`), never an init edit (DL-027/DL-036).
 
 ### End-of-session (mandatory)
 Run the END-OF-SESSION checklist in
 [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md): update CURRENT_STATUS,
 NEXT_TASK, TODO, CHANGELOG, DECISION_LOG, KNOWN_ISSUES, Developer Guide,
-Token_Usage; prepare one specific commit; output the Session-6 starter prompt.
+Token_Usage; prepare one specific commit; output the Session-8 starter prompt.
+
+## Operator-owned (run when convenient)
+- **Populate the live current year:** `npm run db:import:org` (~15 min, idempotent;
+  4 councils / 30 clubs / 6 hostels / 5 messes + people + appointments) and
+  `npm run db:import:events` (~1 min; the 3 backed-up events). Both are operator
+  steps like `db:seed` (KNOWN_ISSUES #27).
 
 ## Owner-owned (parallel, anytime)
 - Rotate/revoke the V1 leaked secrets and clean `README.md`
-  ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
-- Consider rotating the Neon password if the sharing channel isn't private
-  (KNOWN_ISSUES #19).
+  ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md));
+  consider rotating the Neon password (#19).
