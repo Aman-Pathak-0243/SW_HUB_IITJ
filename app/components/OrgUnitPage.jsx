@@ -10,6 +10,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { formatTime } from "../../lib/org/normalize.mjs";
+import ResourcesSection from "./ResourcesSection";
 
 function mediaUrl(view, id) {
   return id ? view.media?.[id]?.url ?? null : null;
@@ -57,7 +58,7 @@ export default function OrgUnitPage({ view }) {
     return <div className="max-w-3xl mx-auto px-6 py-24 text-center text-gray-600">This page is not available for the current year.</div>;
   }
 
-  const { unit, profile, roster = [], children = [] } = view;
+  const { unit, profile, roster = [], children = [], resources = [] } = view;
   const payload = profile?.payload ?? {};
   const heroId = payload.heroMediaId || payload.logoMediaId || payload.buildingMediaId || payload.imageMediaId;
   const heroUrl = mediaUrl(view, heroId);
@@ -147,6 +148,9 @@ export default function OrgUnitPage({ view }) {
           </div>
         </Section>
       )}
+
+      {/* Resources (per-unit PDFs / Drive links) */}
+      <ResourcesSection resources={resources} />
 
       {/* Children (a council's clubs) */}
       {children.length > 0 && (

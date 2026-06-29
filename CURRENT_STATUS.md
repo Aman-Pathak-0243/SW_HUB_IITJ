@@ -1,13 +1,134 @@
 # Current Status
 
 **Last updated:** 2026-06-29
-**Session:** 6 of 10 — **COMPLETE** (Events + Announcements)
-**Next session:** 7 — Resources + Media (Resources PDFs/links via the CMS service; MediaAsset + Cloudinary uploads; Admin Media Migration Tool `/public` → Cloudinary)
+**Session:** 8 of 10 — **COMPLETE** (Developer Console)
+**Next session:** 9 — Admin Panel (full RBAC-gated admin UI over CMS / years / orgs / events / announcements / resources / media / users / roles)
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md).
+
+## What is done (Session 8)
+
+- **Developer Console — a read-mostly caller layer (DL-046)** over the Session 2–7
+  plumbing, in `lib/devconsole/`. It adds NO new audit writer / mutation / rollback
+  pipeline; it consumes `audit_log`, `transition_run`, `backup_record` and the
+  existing services. Gated by `authorizeConsole(actor, keys)` — an **any-of**
+  permission gate (additive-union RBAC, developer/`grants_all` short-circuit,
+  `{system:true}` bypass) mirroring `lib/media/migrate.mjs`.
+- **Audit-log viewer (DL-047)** — [lib/devconsole/audit.mjs](lib/devconsole/audit.mjs):
+  `listAuditLog` (filter by actor / entity / action / year / time-range; newest-first
+  **keyset pagination** via the monotonic BIGSERIAL `id`), `getAuditEntry` (full
+  before/after), `getEntityTimeline`, `getAuditStats` (counts by action + entity via
+  `groupBy`). Pure helpers (`normalizeAuditFilters` / `buildAuditWhere` /
+  `shapeAuditEntry` / `compareByCountThenKey`) carry the logic. Gated on the
+  **dedicated `audit.read`** (not the broad `dev.console`); bulk list/timeline rows
+  **data-minimize PII** (ip / user-agent + before/after only in the single-entry
+  view). A date-only `?to=` is treated as the inclusive end-of-day.
+- **Monitoring + status (DL-048)** — [lib/devconsole/status.mjs](lib/devconsole/status.mjs):
+  `checkDatabase` (latency probe + Neon-state label; NEVER throws — a cold/suspended
+  compute is a reported STATE, raw `P1001` host:port redacted), `getMigrationStatus`
+  (a `prisma migrate status`-shaped `diffMigrations` of on-disk migrations vs the
+  `_prisma_migrations` ledger; a ledger-read failure returns a distinct
+  `ledger-unreadable` shape, never "all pending"), `getTransitionStatus` (reuses
+  `listTransitionRuns`), and `getMediaMigrationStatus` (the `/public`→Cloudinary
+  plan as a **pure read** reusing `selectMigrationCandidates` — never routes through
+  the gated mutator). `getSystemStatus` is the one gated aggregator (`dev.console`),
+  degrading each sub-check to `{error}`.
+- **Testing reports + cost (DL-048)** — [lib/devconsole/reports.mjs](lib/devconsole/reports.mjs):
+  a test-suite catalog, `parseTokenUsage`/`summarizeTokenUsage` over
+  `docs/Token_Usage.md`, `estimateBuildCost` (indicative LLM output-token cost) and
+  `estimateInfraCost` (Neon/Cloudinary free-tier headroom) over live `getInfraUsage`
+  (DB size + media inventory). The infra read is isolated so a cold Neon degrades it
+  to `{error}` instead of sinking the status route.
+- **Backups / restore / rollback (DL-046)** — [lib/devconsole/backups.mjs](lib/devconsole/backups.mjs):
+  the `backup_record` ledger (`recordBackup` / `markBackupVerified` / `listBackups`)
+  through the shared `auditedMutation` (one semantic audit row each; `bytes` validated
+  to a friendly 422; returns the JSON-safe shaped row), plus **recovery delegates** —
+  `rollbackMediaMigration` → `lib/media/migrate.mjs#rollbackMigration` (DL-043) and
+  `forceTransitionResync` → `lib/year/transition.mjs#runTransition({force:true})`
+  (DL-031) — gated on `backup.restore`/`dev.console` FIRST, then the underlying
+  service's own gate (defense-in-depth). No new rollback logic.
+- **Surfaces** — gated routes [app/api/dev/status](app/api/dev/status/route.js)
+  (`dev.console`; `Promise.allSettled` so a partial failure still returns the health
+  payload) and [app/api/dev/audit](app/api/dev/audit/route.js) (`audit.read`), plus a
+  read-only CLI [scripts/devconsole.mjs](scripts/devconsole.mjs)
+  (`npm run db:console [-- --audit ...]`). The rich console UI is the Session-9 panel.
+- **Tests** — **258 static** (was 219; `devconsole.test.mjs`, 39: filter/where/shape/
+  comparator/`getAuditStats` ordering via an injected client/migration-diff/transition-
+  summary/token-parse/cost) + **10 new live-DB** (`devconsole.db.test.mjs`): audit
+  reader filters + keyset pagination (full-walk non-overlap) + stats ordering +
+  timeline + entry, the 401/403 console gate, DB/migration/system status, infra/reports
+  + buildCost, the media-plan pure read (no `media.migrate`), the recovery-delegate
+  gate, and the audited backup ledger (+ a `bytes` 422). All prior live suites still
+  green (cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3); **org re-confirmed
+  4/4** this session (Session-7 changes inert). `next build` clean; ESLint clean.
+  **No new migration** (the schema modeled `audit_log`/`transition_run`/`backup_record`
+  in Session 2).
+- **Adversarial review** — a 7-lens, per-finding 2-verifier workflow (43 agents);
+  18 raw findings → **6 confirmed-by-both + 8 single-vote → all legitimate ones
+  addressed**, 4 verifier-rejected as intentional designs. Fixes: status-route
+  cold-Neon resilience (guarded infra read + `allSettled`), `getAuditStats` ordering
+  coverage + shared comparator (killed the dead `summarizeByKey` duplication),
+  end-of-day `?to=`, friendly `bytes` 422, JSON-safe mutator returns, ledger-unreadable
+  shape, error-message redaction, audit PII minimization + `audit.read` gating,
+  pagination full-walk assertion, recovery-delegate + media-plan gate tests.
+
+## What is done (Session 7)
+
+- **Resources on Postgres via the CMS service (DL-041)** — per-org-unit PDFs/Drive
+  links are `content_type='resource'` (org-bound) CMS content driven through the
+  Session-3 service (no new pipeline, like events). [lib/resources/public.mjs](lib/resources/public.mjs)
+  shapes the public records (`listResourcesForUnit`, `listPublicResourcesByUnit`);
+  [lib/org/public.mjs](lib/org/public.mjs)`#getPublicOrgUnit` now returns a
+  `resources` array. **Each resource mints its OWN content lineage** (reusing the
+  unit's would trip `content_item`'s `UNIQUE(content_type, year, lineage_key)` and
+  cap a unit at one resource — caught by the live test).
+- **V1 resources dataset + idempotent importer (DL-041)** —
+  [lib/resources/data.mjs](lib/resources/data.mjs) (3 student-life councils share
+  the Student Club Activities PDF; campus-wide Hostel/Mess PDFs bind to the first
+  unit of their kind, DL-035) + [lib/resources/import.mjs](lib/resources/import.mjs)
+  (`npm run db:import:resources`): idempotent by `(content_type='resource', year,
+  slug)`, resumable (DL-031), SKIPS a resource whose unit is absent (`missingUnit`)
+  — **run `db:import:org` first**.
+- **Data-driven resources view** — new client
+  [ResourcesSection](app/components/ResourcesSection.jsx) renders a `pdf` resource
+  via `PdfSlideshow` (real pages + a Drive button) and a link/drive resource as a
+  card+button (label by actual destination); rendered by the single `<OrgUnitPage>`.
+- **Media service (DL-042)** — [lib/media/service.mjs](lib/media/service.mjs):
+  curated `media_asset` CRUD (`createMediaAsset`/`updateMediaAsset`/`archiveMediaAsset`)
+  via the shared `auditedMutation` (one semantic audit row; authorize FIRST), reads
+  + `shapeAsset`, and the **one** bulk audit-bypassing `findOrCreateInventoryAsset`
+  — the org + events importers were refactored onto it (two drifted copies removed;
+  a base64 dedup bug in the org copy fixed, DL-039).
+  [lib/media/cloudinary.mjs](lib/media/cloudinary.mjs): pure `cloudinaryUrl` /
+  `publicIdFromPath` / `signUploadParams` / `resolveDeliveryUrl` (single delivery-URL
+  resolver — a transformed PDF carries `.pdf`) + the injectable `uploadFileToCloudinary`.
+- **Admin Media Migration Tool (DL-043)** — [lib/media/migrate.mjs](lib/media/migrate.mjs)
+  (`npm run db:migrate:media`): **idempotent + reversible + dry-run-first** `/public`
+  → Cloudinary. `migratePublicAssets` (dry-run default; `--apply`) repoints rows
+  (`cloudinary_public_id`/`url`/`migrated_at`), excludes already-migrated rows (re-run
+  → 0); `rollbackMigration` (`--rollback`) restores `local` + `url ← original_path`.
+  Reconciles the Session-6 base64 placeholders (DL-039; `base64Pending`, or via an
+  optional resolver). Bulk via `prismaBase`; one summary audit row; injectable
+  uploader (fake in tests).
+- **Config follow-ups** — pdfjs pinned to exact `6.0.227` + legacy lib/worker build
+  (#4, DL-044); image hosts narrowed to `res.cloudinary.com` in `next.config.mjs` +
+  `EventsBoard` (#17, DL-045); `env.example` documents `CLOUDINARY_*`.
+- **Tests** — **219 static** (was 171; `media.test.mjs` + `resources.test.mjs`) +
+  **7 new live-DB** (`media.db.test.mjs` ×3, `resources.db.test.mjs` ×4). `media.db`:
+  migrate idempotent + reversible + base64 reconcile; curated CRUD one-audit-row +
+  RBAC 403 + migration-owned-field restriction. `resources.db`: publish→visible +
+  org view + unpublish/archive hides; importer idempotent + `missingUnit`;
+  partial-run resume; shared-file media dedup. All prior live suites still green
+  (cms 8 / year 6 / org 4 / events 10); `next build` clean. **No new migration**
+  (Session-2 schema already modeled `resource_payload`/`media_asset`).
+- **Adversarial review** — a 10-lens, per-finding 2-verifier workflow; **14 confirmed
+  → all addressed** (PDF transformed-URL format, importer dedup unification + base64
+  fix, `base64Pending` count, media auth-before-disclosure, `listPublicResourcesByUnit`
+  unit gate, `ResourceCard` label, dead ternary, + resume/dedup/curated-service/
+  `shapeAsset` tests and scoped test audit cleanup).
 
 ## What is done (Session 6)
 
@@ -190,26 +311,34 @@
 - Run the live events migration into 2025-26: `npm run db:import:events` (idempotent,
   ~1 min; an operator step like `db:seed`/`db:import:org`). The 3 events are tested
   end-to-end; they just haven't been imported into the real current year here.
-- Resources + Media (Cloudinary) → **Session 7 (next)**; Developer Console → Session 8;
-  full RBAC-gated Admin Panel (UI over the CMS/org/events services) → Session 9.
-- Cover-image hosts for events: only Cloudinary/Unsplash are allowlisted in
-  `next.config.mjs`; the Session-7 media work broadens this for curated covers.
+- Run the live resources import into 2025-26: `npm run db:import:resources`
+  (idempotent; run AFTER `db:import:org`; an operator step). Tested end-to-end.
+- **Run the Media Migration** (`/public` → Cloudinary): `npm run db:migrate:media`
+  (dry-run) then `-- --apply` once `CLOUDINARY_*` is set in `.env.local`. Idempotent +
+  reversible; then prune `/public` out-of-band to actually shrink the ~74 MB (#18).
+- Full RBAC-gated **Admin Panel** (the UI over the CMS / org / events / resources /
+  media services AND the Session-8 Developer Console readers) → **Session 9 (next)**;
+  full test gate + deploy hardening → Session 10.
 - Owner-owned: rotate/remove the V1 leaked secrets in `README.md`
   ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
 
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**171 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
-  live smoke + CMS (8) + year-engine (6) + org (4) + events (10) live tests. The remote Neon
-  compute has high per-round-trip latency **and auto-suspends**, so live tests are
-  slow (minutes) and occasionally hit a transient "Can't reach database server" on a
-  cold compute — re-run once if so (not a logic failure). The org live suite is the
-  slowest (the importer makes many sequential audited tx round-trips).
+  green (**258 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
+  media (3) + **developer console (10)** live tests. The remote Neon compute has high per-round-trip latency
+  **and auto-suspends**, so live tests are slow (minutes) and occasionally hit a
+  transient "Can't reach database server" on a cold compute — re-run once if so (not
+  a logic failure). The org live suite is the slowest (the importer makes many
+  sequential audited tx round-trips).
 - Import `prisma` from `lib/prisma.mjs` for all app DB access — it is the
   audit-extended client, so mutations are audited automatically. Use `prismaBase`
   only to bypass audit (audit reader, repair scripts, test cleanup / fixtures, the
-  importer's media-inventory rows).
+  bulk media-inventory rows). **Media:** curated `media_asset` writes go through
+  `lib/media/service.mjs` (audited); bulk inventory through its
+  `findOrCreateInventoryAsset` (the ONE writer the org/events/resources importers
+  share); delivery URLs resolve through `lib/media/cloudinary.mjs#resolveDeliveryUrl`.
 - **Mutation entrypoints:** the CMS service (`lib/cms/content.mjs`) for content;
   the year engine (`lib/year/*`) for years/transitions/locks; the **org services
   (`lib/org/{units,people,appointments}.mjs`)** for structure/roster; the
@@ -218,20 +347,34 @@
   service; org mutations gate on `org_unit.*` / `appointment.*`.
 - **Public read paths:** `lib/cms/visibility.mjs` (current-year content),
   `lib/year/public.mjs` (any selectable year's content), **`lib/org/public.mjs`
-  (org units + profiles + rosters)**, and **`lib/events/public.mjs`
+  (org units + profiles + rosters + `resources`)**, **`lib/events/public.mjs`
   (events + announcements: current-year, archive, by-slug; pure `splitEventsByDate`
-  + `filterByAudience`)**. `resolveCurrentYear` is canonical in
-  `lib/year/context.mjs`. Data-driven pages: `app/org/[type]/...`, `app/events`,
-  `app/past-events`, `app/announcements`. Events/announcements are CMS content, so
-  their MUTATIONS go through `lib/cms/content.mjs` directly (no separate service);
-  `lib/events/import.mjs` is the V1 events migration (`npm run db:import:events`).
+  + `filterByAudience`)**, and **`lib/resources/public.mjs` (`listResourcesForUnit`
+  per unit)**. `resolveCurrentYear` is canonical in `lib/year/context.mjs`.
+  Data-driven pages: `app/org/[type]/...` (now incl. a Resources section),
+  `app/events`, `app/past-events`, `app/announcements`. Events/announcements AND
+  resources are CMS content, so their MUTATIONS go through `lib/cms/content.mjs`
+  directly (no separate service); `lib/events/import.mjs` /
+  `lib/resources/import.mjs` are the V1 migrations
+  (`npm run db:import:events` / `db:import:resources`).
 - The **Transition Wizard** (`lib/year/transition.mjs#runTransition`) carries the
   Session-5 org units + appointments forward into a new year (reusing lineage,
   idempotent/resumable) — no per-session re-migration needed.
+- **Developer Console (`lib/devconsole/*`, Session 8)** is the ops READ layer the
+  Session-9 admin panel renders: `audit.mjs` (audit-log viewer — gate `audit.read`),
+  `status.mjs#getSystemStatus` + `reports.mjs#getDevConsoleReports` (gate
+  `dev.console`), `backups.mjs` (ledger + `rollbackMediaMigration`/
+  `forceTransitionResync` recovery delegates — gate `backup.*`). All authorize via
+  `authorizeConsole(actor, keys)` (any-of). Routes: `GET /api/dev/status`,
+  `GET /api/dev/audit`. CLI: `npm run db:console [-- --audit]`. It adds NO writer —
+  recovery goes through the EXISTING media-migration / transition services.
 - Raw-SQL objects live in migrations and are invisible to Prisma — never
   `prisma db pull` / `migrate reset`. **Session 5 added ONE forward migration**
-  (`20260628130000_fix_appointment_singleton_guard`, a `CREATE OR REPLACE`); add
-  future raw-SQL fixes the same way (DL-027/DL-036), never by rewriting the init.
+  (`20260628130000_fix_appointment_singleton_guard`, a `CREATE OR REPLACE`);
+  Sessions 6, 7 and 8 added **none** (the schema already modeled
+  events/announcements, `resource_payload`/`media_asset`, and
+  `audit_log`/`transition_run`/`backup_record` in Session 2). Add future raw-SQL
+  fixes the same way (DL-027/DL-036), never by rewriting the init.
 
 ## Next action
 

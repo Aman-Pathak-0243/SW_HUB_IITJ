@@ -9,8 +9,10 @@ import EventCard from "./EventCard";
 // render for any other remote host, which would crash the whole page — so we only
 // hand a remote cover to EventCard when its host is allowlisted (local "/public"
 // paths are always fine). Off-host / placeholder covers fall back to EventCard's
-// own no-image card. (Broadens with the Session-7 Cloudinary media work.)
-const ALLOWED_IMAGE_HOSTS = new Set(["res.cloudinary.com", "images.unsplash.com", "source.unsplash.com"]);
+// own no-image card. Kept in sync with next.config.mjs: every media asset (V1
+// Cloudinary + the Session-7 /public→Cloudinary migration) resolves through
+// res.cloudinary.com (KNOWN_ISSUES #17 — the unused unsplash hosts were dropped).
+const ALLOWED_IMAGE_HOSTS = new Set(["res.cloudinary.com"]);
 
 function safeCoverSrc(url) {
   if (!url) return "";

@@ -1,64 +1,78 @@
 # Next Task
 
-**As of:** 2026-06-29 · **Session 6 complete → Session 7 is next.**
+**As of:** 2026-06-29 · **Session 8 complete → Session 9 is next.**
 
-## Session 7 — Resources + Media
+## Session 9 — Admin Panel
 
-Build the **Resources** module (per-org-unit PDFs/links) on the existing CMS spine,
-and the **Media** layer: a real `media_asset` upload path (Cloudinary) plus the
-**Admin Media Migration Tool** that moves the ~105 `/public` assets (and the base64
-placeholders left by Session 6) to Cloudinary and updates references. **Read first:**
-[docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md),
-[docs/SCHEMA_DESIGN.md](docs/SCHEMA_DESIGN.md) (`resource_payload`, `media_asset`,
-`content_media`, `media_kind`/`storage_provider`/`media_role`),
-[docs/DATA_MIGRATION_REPORT.md](docs/DATA_MIGRATION_REPORT.md) §3 (the `/public`
-assets + the two Cloudinary accounts) and §9 (static→Cloudinary),
-[docs/DECISION_LOG.md](docs/DECISION_LOG.md) (DL-039 base64 placeholders, DL-016
-JSONB policy), [CURRENT_STATUS.md](CURRENT_STATUS.md),
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md) (#4 pdfjs version, #5 base64 placeholders to
-reconcile, #17 unused image hosts, #18 `/public` ~74 MB).
+Build the **full RBAC-gated Admin Panel**: the authenticated UI over everything the
+prior sessions built as services — CMS content (draft/publish/version/restore), the
+Academic Year engine (years / transition wizard / lock), the Organization model
+(units / people / appointments), Events + Announcements, Resources, Media, the
+Developer Console (Session 8 readers), and **Users & Roles** (RBAC administration).
+This is the first session whose primary deliverable is UI; it should call the
+EXISTING services + readers, not add new business logic. **Read first:**
+[docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md), [CURRENT_STATUS.md](CURRENT_STATUS.md),
+[TODO.md](TODO.md), [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md),
+[docs/DECISION_LOG.md](docs/DECISION_LOG.md) (esp. DL-019 live RBAC, DL-028 audit,
+DL-046/047/048 dev console), and the service/reader layers in `lib/cms/*`,
+`lib/year/*`, `lib/org/*`, `lib/events/*`, `lib/resources/*`, `lib/media/*`,
+`lib/devconsole/*`.
 
-### Ordered tasks
-1. **Resources on Postgres** — drive `content_type='resource'` (org-bound) through
-   the CMS service (the handler/payload already exist: `resource_kind`,
-   `file_media_id`, `external_url`, `description`). A public read layer + a
-   data-driven resources view (per org unit, like the Session-5/6 patterns).
-2. **Media service** (`lib/media/*`) — create/list/curate `media_asset` rows; a
-   Cloudinary upload path (use the env-configured account); resolve a `media_asset`
-   → delivery URL. Honor the audited-mutation pattern; media inventory writes that
-   should NOT flood the audit log use `prismaBase` (as the importers do).
-3. **Admin Media Migration Tool** — idempotent, reversible `/public` → Cloudinary
-   migration that sets `cloudinary_public_id`/`url`/`migrated_at` and **reconciles
-   the Session-6 base64 placeholders** (`BASE64_PLACEHOLDER_URL`, DL-039) and the
-   Session-5 `/public`/external inventory rows. Dry-run + rollback.
-4. **Cover/host follow-ups** — broaden `next.config.mjs` image hosts as needed (the
-   events `EventsBoard` allowlist is intentionally narrow today); fix the pdfjs
-   version mismatch (#4) when the PDF resource view is built.
-5. **Tests** — static (payload/migration-plan logic, URL/host resolution) + live-DB
-   (resource publish→visible; a small idempotent media-migration fixture). Keep the
-   static suite default-green; reuse the self-healing throwaway-year fixture pattern.
+### Ordered tasks (suggested)
+1. **Admin shell + nav** — an authenticated `/admin` layout gated by
+   `requireUser()`; render nav items per the viewer's effective permissions (call
+   `getEffectivePermissions` once; show only modules the user can touch). Sign-in /
+   sign-out, current-year indicator, developer badge.
+2. **Content modules** — list / create / edit-draft / publish / unpublish / archive /
+   restore + version history & diff for each `content_type` (events, announcements,
+   resources, the org `*_profile` payloads), all through `lib/cms/content.mjs` wrapped
+   in `withAuditContext`. Reuse the generic handler/registry so a new type needs no new
+   screen.
+3. **Org + Year modules** — org-unit / person / appointment CRUD (`lib/org/*`); the
+   Transition Wizard UI + lock/unlock + set-current (`lib/year/*`).
+4. **Media library** — browse / upload (curated `createMediaAsset`) / edit metadata /
+   archive (`lib/media/service.mjs`); surface the migration status from the dev console.
+5. **Users & Roles (NEW service work)** — the one area without a service yet: a
+   `lib/users/*` (or `lib/rbac/admin.mjs`) for create/invite/suspend users and
+   grant/revoke role assignments, audited via `auditedMutation`, gated on
+   `user.*` / `role.*`. This is the main net-new backend of Session 9.
+6. **Developer Console UI** — render the Session-8 readers: status dashboard, the
+   audit-log viewer (filters + pagination + entry drill-down), testing/cost reports,
+   the backup ledger, and the recovery actions (media rollback / transition force).
+7. **Tests** — static (pure view-model / form-validation helpers) + a small live-DB
+   test for any NEW service (users/roles). Keep the static suite default-green; reuse
+   the throwaway-fixture pattern.
 
 ### Guard rails (rely on them; don't re-implement)
-- Resources are CMS content — a CALLER of `lib/cms/content.mjs`, like events
-  (DL-037). Honor DB guards via `mapDbError`; never re-implement them (DL-029).
-- Use `prisma` from `lib/prisma.mjs` (audited); `prismaBase` only to bypass
-  (bulk media inventory). Neon has high per-query latency + auto-suspends — give
-  live tests generous timeouts and re-run once on a cold-compute "Can't reach
-  database server". Prisma CLI reads `.env` not `.env.local` — use the `db:*` scripts.
+- The UI calls EXISTING services/readers; mutations go through `lib/cms/*` /
+  `lib/year/*` / `lib/org/*` / `lib/media/service.mjs` / the new users-roles service —
+  never a new mutation/audit pipeline. Honor DB guards via `mapDbError`.
+- Every route handler / server action calls `requirePermission(...)` (or
+  `requireUser()` + the service gate) FIRST; the dev-console readers already gate
+  themselves (`authorizeConsole`). Developer / `grants_all` short-circuits.
+- Audit every mutation via `withAuditContext({ actorUserId, ip, userAgent }, ...)` so
+  rows are attributed; the Session-8 viewer will show them.
+- Neon has high per-query latency + auto-suspends — generous live-test timeouts,
+  re-run once on a cold-compute "Can't reach database server". Prisma CLI reads `.env`
+  not `.env.local` — use the `db:*` scripts.
 - Never `prisma db pull` / `migrate reset`; any raw-SQL change is a NEW forward
   migration (`CREATE OR REPLACE`), never an init edit (DL-027/DL-036).
 
 ### End-of-session (mandatory)
-Run the END-OF-SESSION checklist in
-[docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md): update CURRENT_STATUS,
-NEXT_TASK, TODO, CHANGELOG, DECISION_LOG, KNOWN_ISSUES, Developer Guide,
-Token_Usage; prepare one specific commit; output the Session-8 starter prompt.
+Run the END-OF-SESSION checklist in [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md):
+update CURRENT_STATUS, NEXT_TASK, TODO, CHANGELOG, DECISION_LOG, KNOWN_ISSUES,
+Developer Guide, Token_Usage; prepare one specific commit; output the Session-10
+starter prompt.
 
 ## Operator-owned (run when convenient)
-- **Populate the live current year:** `npm run db:import:org` (~15 min, idempotent;
-  4 councils / 30 clubs / 6 hostels / 5 messes + people + appointments) and
-  `npm run db:import:events` (~1 min; the 3 backed-up events). Both are operator
-  steps like `db:seed` (KNOWN_ISSUES #27).
+- **Populate the live current year:** `npm run db:import:org` (~15 min) then
+  `npm run db:import:events` (~1 min) then `npm run db:import:resources` (after org;
+  ~1 min). All idempotent operator steps like `db:seed` (KNOWN_ISSUES #27).
+- **Run the Media Migration:** set `CLOUDINARY_*` in `.env.local`, then
+  `npm run db:migrate:media` (dry-run) → `-- --apply`. Idempotent + reversible
+  (`-- --rollback`). After verifying, prune `/public` to shrink the ~74 MB (#18).
+- **Observe it all:** `npm run db:console` (system status + reports) and
+  `npm run db:console -- --audit` (recent audit-log entries) read the live DB.
 
 ## Owner-owned (parallel, anytime)
 - Rotate/revoke the V1 leaked secrets and clean `README.md`

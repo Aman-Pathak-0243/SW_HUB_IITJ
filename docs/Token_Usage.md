@@ -27,15 +27,15 @@ checklist in [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md)).
 | 4 | 2026-06-28 | Academic Year Engine | **866,490** (1 adversarial review workflow: 24 agents — 6 reviewers + 18 verifiers, 191 tool calls, ~418s) | _run `/cost` for exact_ | Implementation (year context/history/transition/lock/public + shared-helper refactor + tests) was sequential in the main loop; the review was the one workflow. 18 confirmed findings → 16 fixed, 2 nits accepted. |
 | 5 | 2026-06-28 | Organization Model | **1,235,502** (1 adversarial review workflow: 25 agents — 6 reviewers + 19 verifiers, 389 tool calls, ~744s) | _run `/cost` for exact_ | Implementation (org-unit/people/appointment services, V1 dataset, idempotent importer, public read layer + data-driven pages, the is_singleton forward migration, static + live tests) was sequential in the main loop; the review was the one workflow. 19 findings → 15 confirmed → 13 fixed, 2 accepted. The live DB suite (slow, idempotent importer) was run ~4× during dev. |
 | 6 | 2026-06-29 | Events + Announcements | **1,661,214** (1 adversarial review workflow: 64 agents — 8 reviewers + 56 verifiers, 558 tool calls, ~941s) | _run `/cost` for exact_ | Implementation (events/announcements read+import libs, CMS-backed `/api/events`, data-driven pages, base64 handling, audience gating, and the review fixes) was sequential in the main loop; the review was the one workflow. 28 findings → 23 confirmed → 12 fixed, 1 accepted. The live events suite (10 tests) was run 3× during dev (one cold-Neon retry). |
-| 7 | — | Resources + Media | — | — | |
-| 8 | — | Developer Console | — | — | |
+| 7 | 2026-06-29 | Resources + Media | **1,878,894** (the adversarial review, run TWICE: the first run's Verify phase crashed on a `parallel()` thunk bug — 38 agents, **996,415**, findings lost; fixed the script + **resumed** so the 10 Review-phase lens agents returned cached and only the corrected Verify phase ran live — 38 agents, **882,479**. Net unique: 10 lenses + 28 per-finding verifiers, 14 confirmed → all addressed) | _run `/cost` for exact_ | Implementation (media service/cloudinary/migration tool, resources lib+importer+view, config fixes, static + live tests, and the review fixes) was sequential in the main loop; the review was the one workflow (re-run once due to the thunk bug). Live suites: media (3) + resources (4) + events (10) all green; org (4) passed earlier in-session then a **Neon outage** ("Can't reach database server") blocked later re-runs (infra, not logic — failures were on unchanged read paths). |
+| 8 | 2026-06-29 | Developer Console | **1,465,840** (1 adversarial review workflow: 43 agents — 7 reviewers + 36 verifiers, 480 tool calls, ~807s) | _run `/cost` for exact_ | Implementation (audit viewer, status/monitoring, reports+cost, backup ledger + recovery delegates, gated routes, CLI, static + live tests, and the review fixes) was sequential in the main loop; the review was the one workflow. 18 findings → 6 confirmed-both + 8 single-vote → all legitimate addressed, 4 rejected. Live suites: dev-console (10) green; org re-confirmed 4/4 (warm Neon, no cold-compute retry needed this session). |
 | 9 | — | Admin Panel | — | — | |
 | 10 | — | Testing + Deployment + Optimization | — | — | |
 
 ## Running total
 
-- **Measured workflow subagent tokens to date:** 5,992,675 (Session 1: 338,732 + Session 2: 912,182 + Session 3: 978,555 + Session 4: 866,490 + Session 5: 1,235,502 + Session 6: 1,661,214)
-- **Estimated cumulative session total:** Session 1 ~0.6M–0.9M *(est.)* + Sessions 2–5 *(run `/cost`)*
+- **Measured workflow subagent tokens to date:** 9,337,409 (Session 1: 338,732 + Session 2: 912,182 + Session 3: 978,555 + Session 4: 866,490 + Session 5: 1,235,502 + Session 6: 1,661,214 + Session 7: 1,878,894 + Session 8: 1,465,840)
+- **Estimated cumulative session total:** Session 1 ~0.6M–0.9M *(est.)* + Sessions 2–8 *(run `/cost`)*
 
 ## Session 1 breakdown (detail)
 
