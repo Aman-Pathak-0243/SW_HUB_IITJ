@@ -520,6 +520,75 @@ update protocol in [README.md](README.md)).
 - **Docs** — `DECISION_LOG.md` DL-046..DL-048; `DEVELOPER_GUIDE.md` Developer Console
   section + `db:console` command; `Token_Usage.md` Session-8 row.
 
+### Added/Changed — Session 9: Admin Panel · 2026-06-29
+
+- **Users & Roles — the ONE net-new backend (DL-049)** — `lib/users/admin.mjs`:
+  create/invite/update/suspend users, set passwords (argon2id), role CRUD, and
+  grant/revoke role assignments. Authorizes FIRST (`user.*` / `role.*`), one
+  semantic `audit_log` row per op via the shared `auditedMutation` (using the
+  `grant_role` / `revoke_role` actions), JSON-safe shaped returns (never the raw
+  row / `passwordHash`), and DB uniques honored via friendly mapped errors.
+  **Privilege-escalation guards:** only a developer can create/set `is_developer`
+  OR grant a `grants_all`/system role (developer/super_admin); new roles can't be
+  `grants_all`; system roles are modification-protected except their description;
+  no self-lockout. (`lib/cms/errors.mjs` gained `ROLE_ASSIGNMENT_DUPLICATE` /
+  `ROLE_KEY_TAKEN` / `EMAIL_TAKEN` matchers.)
+- **One registry-driven, audited mutation endpoint (DL-050)** — every admin write
+  posts `{ action, args }` to `POST /api/admin/action`, which `requireUser()`s then
+  delegates via `lib/admin/handlers.mjs#dispatchAdminAction` (a per-action registry:
+  `permission` → institute-wide gate at the boundary; `scoped` → content/org ops
+  authorized at the item's true year/lineage scope by the service; `console` →
+  `authorizeConsole`). Every run executes inside `withAuditContext` so rows are
+  attributed; the client IP is validated with `net.isIP` before the `inet` column;
+  errors map through `mapDbError`. NO new mutation/audit/visibility pipeline — it
+  calls the Session 3–8 services.
+- **The RBAC-gated admin UI (DL-051)** — Next 16 Server Components gated by
+  `lib/admin/server.mjs` (`loadAdminContext`/`loadModuleContext`, never throw) over
+  a permission-filtered nav (`lib/admin/nav.mjs#buildAdminNav` — the viewer sees only
+  modules they can touch). An admin shell (`app/admin/layout.jsx` + `AdminShell` +
+  sign-in/denied states + `admin.css` design system) and a dashboard, plus module
+  screens for **Content** (list / create / edit-draft / publish / unpublish / archive
+  / restore + version history & a client-side revision DIFF, generic over every
+  `content_type` via the DL-011 registry — incl. collecting a type's required payload
+  fields on create), **Organization** (units + people + appointments, honoring the
+  hierarchy/type/cardinality guards), **Academic Years** (years + set-current +
+  lock/unlock + the Transition Wizard), **Media** (browse/register/edit-metadata/
+  archive + migration-status banner), **Users & Roles** (the new service: users tab
+  with grant/revoke, roles tab with a permission-matrix editor), and the **Developer
+  Console** (renders the Session-8 readers: status, reports, the audit viewer with
+  filters + keyset pagination + entry drill-down, backup ledger + a safe media
+  rollback dry-run). Reads are server-side; mutations refetch via `router.refresh()`.
+- **Pure, client-safe helpers** — `lib/admin/{nav,view-models,forms}.mjs` are
+  prisma-free (so they import into Client Components AND unit-test without a DB);
+  `lib/admin/{server,reads}.mjs` are server-only. Form validators MIRROR the service
+  validators. `lib/cms/content-types.mjs` gained `getContentTypeFieldSpec` (the
+  registry-driven editor's field source). The V1 `app/admin/page.js` (events form)
+  and the dead `app/admin/page2.js` were removed (superseded by the panel).
+- **Login & access guide** — `docs/ADMIN_PANEL_GUIDE.md`: where to go (`/admin`),
+  how to sign in (Google / credentials), the seeded roles and what each can see/do,
+  bootstrap accounts, and how to grant access.
+- **Tests** — **285 static** (was 258; `admin.test.mjs`, 27: nav model / view-models
+  incl. `diffViews` / form validators / users-service pure helpers / the action-
+  registry integrity) + **6 new live-DB** (`users.db.test.mjs`): create/list/dup-email,
+  update + status + self-lockout, role CRUD + system-role protection + unknown-perm
+  422, grant idempotency + revoke + re-grant + a `grant_role` audit row, the 401/403
+  RBAC gate, and the DL-049 developer-only guards (flag + both grant paths). `next
+  build` clean (all `/admin/*` server-rendered on demand); ESLint clean. **No new
+  migration** (Session-2 schema already modeled user/role/role_assignment).
+- **Adversarial review** — a 7-lens workflow (RBAC/authz, users-service correctness,
+  client-server boundary, reads/views/forms, reuse/no-new-pipeline, UI edge-cases,
+  security/disclosure) with per-finding 2-verifier verification (45 agents); **19
+  findings → 12 confirmed-by-both + 1 single-vote → all 13 addressed**, 6 rejected as
+  intentional. Fixes incl. a **CRITICAL** privilege-escalation (grantRole could assign
+  the `grants_all` developer/system role with only `role.assign` — now developer-only),
+  the empty-required-payload create failure, the missing role-revoke UI, the
+  `createUser` hash-leak (caught by the live test), the role-audit before/after shape +
+  the `role.read` coupling in create/update (the `roleView` refactor), `humanBytes(null)`,
+  stricter IP validation, and several UI nits.
+- **Docs** — `DECISION_LOG.md` DL-049..DL-051; `ADMIN_PANEL_GUIDE.md` (new);
+  `DEVELOPER_GUIDE.md` Admin Panel section; `Token_Usage.md` Session-9 row;
+  `KNOWN_ISSUES.md` #10 partially closed (dead admin pages removed).
+
 ---
 
 ## Milestone history

@@ -1,13 +1,64 @@
 # Current Status
 
 **Last updated:** 2026-06-29
-**Session:** 8 of 10 — **COMPLETE** (Developer Console)
-**Next session:** 9 — Admin Panel (full RBAC-gated admin UI over CMS / years / orgs / events / announcements / resources / media / users / roles)
+**Session:** 9 of 10 — **COMPLETE** (Admin Panel)
+**Next session:** 10 — Testing + Deployment + Optimization (full test gate, CWV/perf, responsive/cross-browser, deploy hardening, handover)
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md).
+> **To use the panel:** [docs/ADMIN_PANEL_GUIDE.md](docs/ADMIN_PANEL_GUIDE.md)
+> (login, roles, URLs).
+
+## What is done (Session 9)
+
+- **Users & Roles — the ONE net-new backend (DL-049)** — [lib/users/admin.mjs](lib/users/admin.mjs):
+  create/invite/update/suspend users + set passwords (argon2id), role CRUD, and
+  grant/revoke role assignments. Authorizes FIRST (`user.*` / `role.*`), writes one
+  semantic `audit_log` row per op via the shared `auditedMutation` (`grant_role` /
+  `revoke_role` actions), returns JSON-safe shaped rows (never the raw row /
+  `passwordHash`), and honors the DB uniques via friendly mapped errors. **Four
+  privilege-escalation guards:** only a developer can create/set `is_developer` OR
+  grant a `grants_all`/system role (the review found the latter as a CRITICAL — the
+  flag was guarded, the equivalent role-grant was not); new roles can't be
+  `grants_all`; system roles are modification-protected except `description`; no
+  self-lockout.
+- **One registry-driven, audited mutation endpoint (DL-050)** — every admin write
+  posts `{ action, args }` to [app/api/admin/action](app/api/admin/action/route.js),
+  which `requireUser()`s then delegates via
+  [lib/admin/handlers.mjs](lib/admin/handlers.mjs)`#dispatchAdminAction` (a per-action
+  registry: `permission` → institute-wide gate; `scoped` → content/org ops authorized
+  at the item's year/lineage scope BY the service; `console` → `authorizeConsole`).
+  Runs inside `withAuditContext` (attributed rows; IP via `net.isIP`). NO new
+  mutation/audit/visibility pipeline — it calls the Session 3–8 services.
+- **The RBAC-gated admin UI (DL-051)** — Next 16 Server Components gated by
+  [lib/admin/server.mjs](lib/admin/server.mjs) over a permission-filtered nav
+  ([lib/admin/nav.mjs](lib/admin/nav.mjs)). Shell + dashboard + modules: **Content**
+  (full CMS lifecycle + version diff, generic over every `content_type`),
+  **Organization** (units/people/appointments), **Academic Years** (years + lock +
+  Transition Wizard + set-current), **Media** (library + migration status), **Users &
+  Roles** (the new service: grant/revoke + permission-matrix role editor), **Developer
+  Console** (renders the Session-8 readers: status, reports, audit viewer with
+  filters/pagination/drill-down, backup ledger + media-rollback dry-run). Reads are
+  server-side; mutations refetch via `router.refresh()`.
+- **Pure, client-safe helpers** — `lib/admin/{nav,view-models,forms}.mjs` are
+  prisma-free (client-importable + DB-free unit tests); `{server,reads}.mjs` are
+  server-only. Form validators mirror the service validators.
+  `lib/cms/content-types.mjs` gained `getContentTypeFieldSpec` (the registry-driven
+  editor). V1 `app/admin/page.js` + dead `page2.js` removed (superseded).
+- **Tests** — **285 static** (was 258; `admin.test.mjs`, 27) + **6 new live-DB**
+  (`users.db.test.mjs`): user CRUD + dup-email, status + self-lockout, role CRUD +
+  system-role protection + unknown-perm 422, grant idempotency + revoke + re-grant +
+  a `grant_role` audit row, the 401/403 gate, and the DL-049 developer-only guards
+  (flag + both grant paths). `next build` + ESLint clean; **no new migration**. All
+  prior live suites unaffected (this session added no service changes to them).
+- **Adversarial review** — a 7-lens, per-finding 2-verifier workflow (45 agents);
+  **19 findings → 12 confirmed-both + 1 single-vote → all 13 addressed** (incl. the
+  CRITICAL grant-escalation, the empty-required-payload create, the missing
+  role-revoke UI, the `createUser` hash-leak, the role-audit shape + `role.read`
+  coupling, `humanBytes(null)`, stricter IP validation, UI nits), 6 rejected as
+  intentional designs.
 
 ## What is done (Session 8)
 
@@ -316,18 +367,19 @@
 - **Run the Media Migration** (`/public` → Cloudinary): `npm run db:migrate:media`
   (dry-run) then `-- --apply` once `CLOUDINARY_*` is set in `.env.local`. Idempotent +
   reversible; then prune `/public` out-of-band to actually shrink the ~74 MB (#18).
-- Full RBAC-gated **Admin Panel** (the UI over the CMS / org / events / resources /
-  media services AND the Session-8 Developer Console readers) → **Session 9 (next)**;
-  full test gate + deploy hardening → Session 10.
+- ✅ Full RBAC-gated **Admin Panel** (the UI over CMS / org / years / events /
+  resources / media + the Session-8 Developer Console readers + the NEW users/roles
+  service) → **DONE in Session 9**. Remaining: full test gate + CWV/perf +
+  responsive/cross-browser + deploy hardening + handover → **Session 10 (next)**.
 - Owner-owned: rotate/remove the V1 leaked secrets in `README.md`
   ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
 
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**258 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  green (**285 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
   live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
-  media (3) + **developer console (10)** live tests. The remote Neon compute has high per-round-trip latency
+  media (3) + developer console (10) + **users/roles (6)** live tests. The remote Neon compute has high per-round-trip latency
   **and auto-suspends**, so live tests are slow (minutes) and occasionally hit a
   transient "Can't reach database server" on a cold compute — re-run once if so (not
   a logic failure). The org live suite is the slowest (the importer makes many
@@ -368,10 +420,19 @@
   `authorizeConsole(actor, keys)` (any-of). Routes: `GET /api/dev/status`,
   `GET /api/dev/audit`. CLI: `npm run db:console [-- --audit]`. It adds NO writer —
   recovery goes through the EXISTING media-migration / transition services.
+- **Admin Panel (`/admin`, Session 9)** is the authenticated UI over ALL of the
+  above. Every mutation posts to the ONE gated route `POST /api/admin/action`
+  (`lib/admin/handlers.mjs` registry → existing services, wrapped in
+  `withAuditContext`); reads are gated Server Components (`lib/admin/server.mjs` +
+  `lib/admin/reads.mjs`) refreshed via `router.refresh()`. The ONLY net-new backend
+  is `lib/users/admin.mjs` (users/roles/grants — gated `user.*`/`role.*`, audited,
+  with the DL-049 escalation guards). Pure client-safe helpers:
+  `lib/admin/{nav,view-models,forms}.mjs`. Login/roles/URLs:
+  [docs/ADMIN_PANEL_GUIDE.md](docs/ADMIN_PANEL_GUIDE.md).
 - Raw-SQL objects live in migrations and are invisible to Prisma — never
   `prisma db pull` / `migrate reset`. **Session 5 added ONE forward migration**
   (`20260628130000_fix_appointment_singleton_guard`, a `CREATE OR REPLACE`);
-  Sessions 6, 7 and 8 added **none** (the schema already modeled
+  Sessions 6, 7, 8 and 9 added **none** (the schema already modeled
   events/announcements, `resource_payload`/`media_asset`, and
   `audit_log`/`transition_run`/`backup_record` in Session 2). Add future raw-SQL
   fixes the same way (DL-027/DL-036), never by rewriting the init.

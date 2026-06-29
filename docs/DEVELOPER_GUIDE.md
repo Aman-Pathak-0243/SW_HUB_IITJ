@@ -410,6 +410,58 @@ const recovery = await rollbackMediaMigration({ dryRun: true }, actor); // deleg
   (`audit.read`), and the CLI `npm run db:console [-- --audit]`. The rich console UI
   is the Session-9 admin panel — these are the backend it renders.
 
+## Admin Panel (Session 9)
+
+The authenticated, RBAC-gated UI at **`/admin`** over everything the prior sessions
+built. **It adds NO new mutation/audit/visibility pipeline** — it calls the existing
+services. End-user guide (login / roles / URLs): [ADMIN_PANEL_GUIDE.md](ADMIN_PANEL_GUIDE.md).
+
+- **One mutation endpoint.** Every admin write posts `{ action, args }` to
+  `POST /api/admin/action`. The route `requireUser()`s (auth + live active check) then
+  calls `lib/admin/handlers.mjs#dispatchAdminAction`. To add an operation, add a row to
+  the `ADMIN_ACTIONS` registry — `{ permission?, scoped?, console?, run(args, actor) }`:
+  - `permission: 'x.y'` → institute-wide; the dispatcher asserts it at global scope.
+  - `scoped: true` → content/org/appointment; the route only authenticates, the
+    SERVICE authorizes at the item's true `(year, lineage)` scope (it already does).
+  - `console: true` → self-gates via `authorizeConsole` (backups).
+  Every `run` executes inside `withAuditContext({actorUserId, ip, userAgent})`, so the
+  one semantic audit row each service writes is attributed. Errors map via `mapDbError`.
+- **Reads are gated Server Components.** Pages call `loadModuleContext(moduleKey)`
+  (`lib/admin/server.mjs`) — it returns `unauthenticated|inactive|no-access|ok` and
+  never throws — then render readers from `lib/admin/reads.mjs` (each asserts its
+  module read permission). After a mutation the client calls `router.refresh()`; there
+  is no read API. Revision diffs are computed client-side via the pure
+  `lib/admin/view-models.mjs#diffViews`.
+- **Pure helpers are client-safe.** `lib/admin/{nav,view-models,forms}.mjs` import NO
+  prisma/server-only code (so they bundle into Client Components AND unit-test without
+  a DB — `tests/admin.test.mjs`). `nav.mjs#buildAdminNav(resolved)` filters the sidebar
+  to modules the viewer can touch. `forms.mjs` validators MIRROR the service validators
+  (show inline errors pre-POST; the service stays the authority). `server.mjs`/`reads.mjs`
+  ARE server-only (they import prisma — a client bundle would fail).
+- **Generic content editor.** The content module edits any `content_type` with no
+  per-type screen: it renders scalar payload inputs from
+  `lib/cms/content-types.mjs#getContentTypeFieldSpec` and collects a type's REQUIRED
+  payload fields on create. (Normalized list children — mission points, meal timings —
+  are still edited via the importer/API.)
+
+### Users & Roles — the one net-new backend (`lib/users/admin.mjs`)
+
+Manages `app_user` / `role` / `role_assignment`. Same conventions as every service
+(authorize first, one semantic audit row via `auditedMutation` using the
+`grant_role`/`revoke_role` actions, friendly mapped errors, JSON-safe SHAPED returns —
+never the raw row / `passwordHash`). **Privilege-escalation guards (DL-049) — keep them:**
+
+- Only a **developer** (`app_user.is_developer`) can create/set `is_developer` OR
+  grant a `grants_all`/`is_system` role (developer/super_admin). A `grants_all`
+  super_admin has every *permission* but is not a developer, so `role.assign` alone
+  cannot mint the unrestricted bypass (this was the review's CRITICAL finding —
+  guarding the flag but not the equivalent grant).
+- New roles can't be `grants_all`; system roles are modification-protected except
+  `description`; you can't suspend your own account.
+
+Internal `roleView(id)` (ungated) backs `getRole`/`createRole`/`updateRole`'s return +
+audit before/after, so create/update don't require the actor to ALSO hold `role.read`.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick
@@ -442,6 +494,16 @@ orientation:
 - `lib/media/` — Media (Session 7): `cloudinary.mjs` (pure URL/signature/uploader),
   `service.mjs` (audited `media_asset` CRUD + bulk inventory helper),
   `migrate.mjs` (idempotent + reversible `/public`→Cloudinary migration tool).
+- `lib/devconsole/` — Developer Console readers (Session 8): `authorize.mjs`
+  (any-of `authorizeConsole`), `audit.mjs`, `status.mjs`, `reports.mjs`, `backups.mjs`.
+- `lib/users/admin.mjs` — Users & Roles service (Session 9): the one net-new backend
+  (users/roles/grants, audited, escalation-guarded).
+- `lib/admin/` — Admin Panel support (Session 9): `nav.mjs` / `view-models.mjs` /
+  `forms.mjs` (PURE, client-safe, unit-tested), `handlers.mjs` (the mutation action
+  registry + dispatcher), `server.mjs` + `reads.mjs` (server-only gated context/reads).
+- `app/admin/` — the RBAC-gated panel: `layout.jsx` (auth + shell), `page.jsx`
+  (dashboard), per-module `page.jsx` + `*Client.jsx`, `_components/` (shell + shared
+  client toolkit), `admin.css`. `app/api/admin/action/route.js` — the one mutation route.
 - `scripts/` — operator entry points: `import-org.mjs`, `import-events.mjs`,
   `import-resources.mjs`, `migrate-media.mjs`, backup tools.
 - `tests/` — Vitest suite (`*.test.mjs`); `vitest.config.mjs`.

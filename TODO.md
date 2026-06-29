@@ -84,12 +84,21 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: 258 static (`devconsole.test.mjs`, 39) + 10 live-DB (`devconsole.db.test.mjs`); org re-confirmed 4/4; `next build` + ESLint clean; no new migration
 - [x] Adversarial review (7 lenses, per-finding 2-verifier, 43 agents); 18 → 6 confirmed-both + 8 single-vote → all legitimate addressed, 4 rejected
 
-## Session 9 — Admin Panel ⬜ (next)
-- [ ] RBAC-gated admin shell + per-permission nav; modules for all content/structure/events/resources/media + the Session-8 dev-console readers
-- [ ] NEW users-&-roles service (`lib/users/*` or `lib/rbac/admin.mjs`): create/invite/suspend users, grant/revoke role assignments (audited, gated `user.*`/`role.*`)
+## Session 9 — Admin Panel ✅
+- [x] NEW users-&-roles service (`lib/users/admin.mjs`, DL-049): create/invite/update/suspend users + set passwords, role CRUD, grant/revoke assignments; audited (`grant_role`/`revoke_role`); gated `user.*`/`role.*`; escalation guards (developer-only flag AND grant; system-role protection; no self-lockout)
+- [x] One registry-driven, audited mutation endpoint (DL-050): `POST /api/admin/action` → `lib/admin/handlers.mjs` (per-action `permission`/`scoped`/`console` gate) → existing services inside `withAuditContext`; `net.isIP` IP validation; `mapDbError`
+- [x] RBAC-gated admin shell + per-permission nav (DL-051): `lib/admin/server.mjs`/`nav.mjs`, `app/admin/layout.jsx` + shell + sign-in/denied + `admin.css`; dashboard
+- [x] Module UIs: Content (full CMS lifecycle + version diff, generic over content types), Organization (units/people/appointments), Academic Years (years/lock/wizard/set-current), Media (library + migration status), Users & Roles (grant/revoke + permission-matrix editor), Developer Console (status/reports/audit viewer/backup ledger/recovery)
+- [x] Pure client-safe helpers `lib/admin/{nav,view-models,forms}.mjs` (DB-free, unit-tested); `getContentTypeFieldSpec` for the registry-driven editor; removed V1 `app/admin/page.js` + dead `page2.js`
+- [x] Login & access guide `docs/ADMIN_PANEL_GUIDE.md` (URLs / sign-in / roles / bootstrap)
+- [x] Tests: 285 static (`admin.test.mjs`, 27) + 6 live-DB (`users.db.test.mjs`); `next build` + ESLint clean; no new migration
+- [x] Adversarial review (7 lenses, per-finding 2-verifier, 45 agents); 19 → 12 confirmed-both + 1 single-vote → all 13 addressed (incl. CRITICAL grant-escalation), 6 rejected
 
-## Session 10 — Testing + Deployment + Optimization ⬜
-- [ ] Full test gate; CWV/perf; responsive/cross-browser; deploy hardening; handover
+## Session 10 — Testing + Deployment + Optimization ⬜ (next, FINAL)
+- [ ] Full test gate (static 285 + all live suites) + a CI workflow for the static suite
+- [ ] CWV/perf on public pages; responsive/cross-browser (incl. admin mobile sidebar toggle); brand/font cleanup (#11/#12)
+- [ ] Deploy hardening (env checklist, headers, rate-limit/CSRF on the mutation routes, NFT tracing decision)
+- [ ] Prune V1 leftovers (#10/#13) + `/public` after media migration (#18); operator runbook + final handover
 
 ## Owner-owned (out-of-band)
 - [ ] Rotate/remove V1 leaked secrets in `README.md` (KNOWN_ISSUES #1)
