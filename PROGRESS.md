@@ -3,6 +3,37 @@
 Milestone-by-milestone completion record. A new entry is appended when a
 milestone completes (with tests + docs). Most recent first.
 
+> **Note:** the detailed per-session history (Sessions 2–10) lives in
+> [docs/CHANGELOG.md](docs/CHANGELOG.md) and [CURRENT_STATUS.md](CURRENT_STATUS.md);
+> this file holds the analysis-phase milestones + the completion summary below.
+
+---
+
+## Sessions 1–10 — V2 build ✅ COMPLETE
+**Date:** 2026-06-29
+
+**All 10 sessions of the original plan are complete** — the IIT Jammu Student
+Affairs Portal V2 is feature-complete and ready to deploy:
+
+1. Analysis + Documentation + Architecture · 2. Database + Prisma + RBAC + Auth ·
+3. CMS Foundation · 4. Academic Year Engine · 5. Organization Model ·
+6. Events + Announcements · 7. Resources + Media · 8. Developer Console ·
+9. Admin Panel · 10. **Testing + Deployment + Optimization + Handover**.
+
+**Session 10 delivered:** the full test gate (307 static + 344 live, green on warm
+Neon) + a CI workflow; public-page CWV (Cloudinary `f_auto,q_auto`, `next/image`
+sizes, font consolidation #12, brand-blue #11); the admin mobile sidebar; deploy
+hardening (security headers, CSRF + rate-limit on the write routes, NFT #32
+decision); the V1 prune (#10/#13 + Header `/org` cutover); and the operator runbook
++ full docs sweep. Reviewed by a 13-agent adversarial workflow (1 confirmed finding,
+fixed). `next build` + ESLint clean; no new migration.
+
+**Follow-up:** a **Session 11** is queued for two operator-requested NEW features
+(student event-participation login + a "Wall of Fame") — see
+[NEXT_TASK.md](NEXT_TASK.md).
+
+**Deploy / run it:** [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md).
+
 ---
 
 ## Session 1 — Analysis + Documentation + Architecture ✅ COMPLETE

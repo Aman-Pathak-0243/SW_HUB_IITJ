@@ -22,7 +22,7 @@ function PersonCard({ member }) {
     <div className="flex items-center gap-4 bg-blue-50 rounded-xl p-4">
       {member.person.photoUrl ? (
         <div className="relative w-14 h-14 rounded-full overflow-hidden shrink-0 bg-gray-100">
-          <Image src={member.person.photoUrl} alt={member.person.name ?? ""} fill className="object-cover" />
+          <Image src={member.person.photoUrl} alt={member.person.name ?? ""} fill sizes="56px" className="object-cover" />
         </div>
       ) : (
         <div className="w-14 h-14 rounded-full shrink-0 bg-[#003f87]/10 flex items-center justify-center text-[#003f87] font-bold">
@@ -72,7 +72,7 @@ export default function OrgUnitPage({ view }) {
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center gap-8">
           {heroUrl && (
             <div className="relative w-40 h-40 rounded-2xl overflow-hidden bg-white shadow shrink-0">
-              <Image src={heroUrl} alt={unit.name} fill className="object-contain p-2" />
+              <Image src={heroUrl} alt={unit.name} fill sizes="160px" priority className="object-contain p-2" />
             </div>
           )}
           <div>

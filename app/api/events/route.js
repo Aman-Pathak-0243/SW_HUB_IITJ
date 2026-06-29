@@ -7,6 +7,14 @@ import { createDraft, publish as publishContent } from "../../../lib/cms/content
 import { requireCurrentYear } from "../../../lib/year/context.mjs";
 import { classifyMedia, slugify } from "../../../lib/org/normalize.mjs";
 import { mapDbError } from "../../../lib/cms/errors.mjs";
+import { isIP } from "node:net";
+import { assertSameOrigin, assertWithinRateLimit, eventsWriteLimiter, rateLimitKey } from "../../../lib/http/guard.mjs";
+
+function clientIp(req) {
+  const xff = req.headers.get("x-forwarded-for");
+  const candidate = (xff ? xff.split(",")[0] : req.headers.get("x-real-ip") || "").trim();
+  return candidate && isIP(candidate) !== 0 ? candidate : null;
+}
 
 // V2 events API — fully CMS-backed on PostgreSQL/Prisma (Session 6), REPLACING
 // the V1 Mongo/Mongoose write path (DATA_MIGRATION_REPORT: Mongoose retired;
@@ -36,12 +44,29 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  // 0) CSRF defense-in-depth: reject a cross-origin browser POST up front.
+  try {
+    assertSameOrigin(req);
+  } catch (e) {
+    return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
+  }
+
   // 1) Authenticate (live account-status re-check; 401/403).
   let user;
   try {
     user = await requireUser();
   } catch (e) {
     return NextResponse.json({ error: e.message, code: e.code ?? "UNAUTHENTICATED" }, { status: e.status ?? 401 });
+  }
+
+  // Best-effort rate limit on the write path (per account, else per IP).
+  try {
+    assertWithinRateLimit(eventsWriteLimiter, rateLimitKey("events.write", { userId: user.id, ip: clientIp(req) }));
+  } catch (e) {
+    return NextResponse.json(
+      { error: e.message, code: e.code },
+      { status: e.status, headers: { "Retry-After": String(e.retryAfterSeconds ?? 60) } }
+    );
   }
 
   // 2) Validate caller input BEFORE any write (friendly 422; no DB round-trip).

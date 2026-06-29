@@ -1,7 +1,22 @@
 @import "tailwindcss";
 
+/* Single source of truth for the brand colour (KNOWN_ISSUES #11). The public site
+   previously mixed #003087 and #003f87 interchangeably; #003f87 is now canonical
+   everywhere (Header/EventCard/admin aligned in Session 10). Inline Tailwind
+   arbitrary values (text-[#003f87]) match this value. */
+:root {
+  --brand-blue: #003f87;
+  --brand-saffron: #ff6b00;
+}
+
+/* Default body type is the consolidated Outfit (next/font, KNOWN_ISSUES #12), with
+   a system fallback so text paints immediately while the webfont loads (swap). */
+body {
+  font-family: var(--font-outfit), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
 h1{
-  color: #003f87;
+  color: var(--brand-blue);
 }
 
 @keyframes fadeIn {

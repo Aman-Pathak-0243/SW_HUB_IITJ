@@ -84,13 +84,38 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: 258 static (`devconsole.test.mjs`, 39) + 10 live-DB (`devconsole.db.test.mjs`); org re-confirmed 4/4; `next build` + ESLint clean; no new migration
 - [x] Adversarial review (7 lenses, per-finding 2-verifier, 43 agents); 18 → 6 confirmed-both + 8 single-vote → all legitimate addressed, 4 rejected
 
-## Session 9 — Admin Panel ⬜ (next)
-- [ ] RBAC-gated admin shell + per-permission nav; modules for all content/structure/events/resources/media + the Session-8 dev-console readers
-- [ ] NEW users-&-roles service (`lib/users/*` or `lib/rbac/admin.mjs`): create/invite/suspend users, grant/revoke role assignments (audited, gated `user.*`/`role.*`)
+## Session 9 — Admin Panel ✅
+- [x] NEW users-&-roles service (`lib/users/admin.mjs`, DL-049): create/invite/update/suspend users + set passwords, role CRUD, grant/revoke assignments; audited (`grant_role`/`revoke_role`); gated `user.*`/`role.*`; escalation guards (developer-only flag AND grant; system-role protection; no self-lockout)
+- [x] One registry-driven, audited mutation endpoint (DL-050): `POST /api/admin/action` → `lib/admin/handlers.mjs` (per-action `permission`/`scoped`/`console` gate) → existing services inside `withAuditContext`; `net.isIP` IP validation; `mapDbError`
+- [x] RBAC-gated admin shell + per-permission nav (DL-051): `lib/admin/server.mjs`/`nav.mjs`, `app/admin/layout.jsx` + shell + sign-in/denied + `admin.css`; dashboard
+- [x] Module UIs: Content (full CMS lifecycle + version diff, generic over content types), Organization (units/people/appointments), Academic Years (years/lock/wizard/set-current), Media (library + migration status), Users & Roles (grant/revoke + permission-matrix editor), Developer Console (status/reports/audit viewer/backup ledger/recovery)
+- [x] Pure client-safe helpers `lib/admin/{nav,view-models,forms}.mjs` (DB-free, unit-tested); `getContentTypeFieldSpec` for the registry-driven editor; removed V1 `app/admin/page.js` + dead `page2.js`
+- [x] Login & access guide `docs/ADMIN_PANEL_GUIDE.md` (URLs / sign-in / roles / bootstrap)
+- [x] Tests: 285 static (`admin.test.mjs`, 27) + 6 live-DB (`users.db.test.mjs`); `next build` + ESLint clean; no new migration
+- [x] Adversarial review (7 lenses, per-finding 2-verifier, 45 agents); 19 → 12 confirmed-both + 1 single-vote → all 13 addressed (incl. CRITICAL grant-escalation), 6 rejected
 
-## Session 10 — Testing + Deployment + Optimization ⬜
-- [ ] Full test gate; CWV/perf; responsive/cross-browser; deploy hardening; handover
+## Session 10 — Testing + Deployment + Optimization + Handover ✅ (FINAL of the original plan)
+- [x] Full test gate: **307 static** + **344 with live** (smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 / devconsole 10 / users 6) green on warm Neon
+- [x] CI workflow (`.github/workflows/ci.yml`): static suite + `npm run lint` + build on push/PR; live-DB nightly/manual + secret-gated (DL-052); added `npm run lint` (Next 16 dropped `next lint`) + `backups/**` ignore
+- [x] Public CWV (DL-053): Cloudinary `f_auto,q_auto` (`cloudinaryAutoUrl`) + `next/image` `sizes` + AVIF/WebP; font consolidation to one `next/font` load (#12); brand-blue unified to `#003f87` (#11)
+- [x] Responsive: admin mobile sidebar toggle wired (`AdminShell` + `admin.css`)
+- [x] Deploy hardening (DL-054/055): security headers; CSRF same-origin + per-process rate limiter (`lib/http/guard.mjs`) on `POST /api/admin/action` + `/api/events`; NFT #32 decided (accept + `outputFileTracingIncludes`)
+- [x] Prune V1 leftovers (DL-056): removed `app/page1.js` (#10) + the four `app/Clubs/*` (#13) with Header nav cutover to `/org/councils/<slug>`; `/public` left for the operator (#18, runbook §3.1)
+- [x] Handover: `docs/OPERATIONS_RUNBOOK.md` + refreshed DEPLOYMENT.md/docs/README.md + final docs sweep
+- [x] Adversarial review (5 dimensions, 13 agents, 2 verifiers/finding): 1 confirmed (CI `if`-scope bug, fixed) + 3 rejected (2 tidied anyway); `next build` + ESLint clean; no new migration
+- [x] New static tests: `tests/security.test.mjs` (16) + `cloudinaryAutoUrl` (6)
+
+## Session 11 — Student Event-Participation Login + "Wall of Fame" ⬜ (NEW features, queued — DL-057)
+- [ ] Public student/participant login (default `student` role) + a public "Sign in" entry point distinct from `/admin`
+- [ ] Event participation/RSVP: standalone `event_registration` table (FK event + app_user, status, partial-unique dedup, optional capacity/waitlist), audited service + register/cancel/my-registrations UI + admin "Registrations" tab
+- [ ] "Wall of Fame": new `content_type='achievement'` (+ payload table + handler + seed) with hybrid blocks (markdown / markdown+image / banner / link), data-driven `/wall-of-fame` page + admin editor; full CMS lifecycle for free
+- [ ] Migration(s) + seed rows; grow static + live tests; adversarial review; full handoff
+- See [NEXT_TASK.md](NEXT_TASK.md) for the complete Session-11 prompt.
+
+## Operator-owned (out-of-band — see OPERATIONS_RUNBOOK.md)
+- [ ] Run `db:import:org` → `db:import:events` → `db:import:resources` against 2025-26 (#27)
+- [ ] Run the media migration (`db:migrate:media -- --apply`) + safe `/public` prune (#18)
 
 ## Owner-owned (out-of-band)
-- [ ] Rotate/remove V1 leaked secrets in `README.md` (KNOWN_ISSUES #1)
+- [ ] Rotate/remove V1 leaked secrets in `README.md` (KNOWN_ISSUES #1); then drop the `.gitleaks.toml` by-SHA allowlist
 - [ ] Consider rotating Neon password if the sharing channel isn't private (#19)

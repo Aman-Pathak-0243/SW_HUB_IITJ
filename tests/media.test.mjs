@@ -12,6 +12,7 @@ import {
   signUploadParams,
   resolveDeliveryUrl,
   cloudNameFromUrl,
+  cloudinaryAutoUrl,
   getCloudinaryConfig,
   canUpload,
   CLOUDINARY_DELIVERY_HOST,
@@ -125,6 +126,35 @@ describe("resolveDeliveryUrl", () => {
   it("cloudNameFromUrl extracts the account from a cloudinary url", () => {
     expect(cloudNameFromUrl("https://res.cloudinary.com/dabviijid/image/upload/v1/x.pdf")).toBe("dabviijid");
     expect(cloudNameFromUrl("/local.png")).toBeNull();
+  });
+});
+
+describe("cloudinaryAutoUrl (Session-10 CWV: f_auto,q_auto injection)", () => {
+  it("injects f_auto,q_auto right after /upload/ for a plain cloudinary delivery url", () => {
+    expect(cloudinaryAutoUrl("https://res.cloudinary.com/demo/image/upload/v1774/x.jpg")).toBe(
+      "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/v1774/x.jpg"
+    );
+  });
+  it("is idempotent — does not double-apply when f_auto is already present", () => {
+    const already = "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto/v1774/x.jpg";
+    expect(cloudinaryAutoUrl(already)).toBe(already);
+  });
+  it("leaves an existing (different) transformation untouched", () => {
+    const withW = "https://res.cloudinary.com/demo/image/upload/w_400/v1/x.jpg";
+    expect(cloudinaryAutoUrl(withW)).toBe(withW);
+  });
+  it("passes a non-cloudinary url through unchanged (/public path, Drive link)", () => {
+    expect(cloudinaryAutoUrl("/hero1.jpg")).toBe("/hero1.jpg");
+    expect(cloudinaryAutoUrl("https://drive.google.com/file/d/abc/view")).toBe("https://drive.google.com/file/d/abc/view");
+  });
+  it("handles null/empty without throwing", () => {
+    expect(cloudinaryAutoUrl(null)).toBeNull();
+    expect(cloudinaryAutoUrl("")).toBe("");
+  });
+  it("accepts a custom transformation", () => {
+    expect(cloudinaryAutoUrl("https://res.cloudinary.com/demo/image/upload/v1/x.jpg", "f_auto,q_auto,w_800")).toBe(
+      "https://res.cloudinary.com/demo/image/upload/f_auto,q_auto,w_800/v1/x.jpg"
+    );
   });
 });
 

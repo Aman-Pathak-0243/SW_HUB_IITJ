@@ -5,17 +5,6 @@ import Image from "next/image";
 import { FiMenu, FiX } from "react-icons/fi";
 import { usePathname } from "next/navigation";
 
-const councilConfig = {
-  "/Clubs/Academic": {
-    logo: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774034302/WhatsApp_Image_2026-03-20_at_22.28.16_ba88mk.jpg",
-    label: "Academic Council",
-  },
-  "/Clubs/Cultural": {
-    logo: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774034435/IMG_7874_yknzvz.png",
-    label: "Cultural Council",
-  },
-};
-
 const WavingFlag = () => {
   return (
     <div style={{ display: "flex", alignItems: "flex-start" }}>
@@ -59,21 +48,22 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
 
-  const activeCouncil = councilConfig[pathname] ?? null;
-  const isCouncilPage = pathname === "/Clubs/Academic" || pathname === "/Clubs/Cultural";
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Council links now point at the data-driven /org/councils/<slug> pages (the
+  // Session-5 <OrgUnitPage>), replacing the removed static /Clubs/* pages
+  // (KNOWN_ISSUES #13 route cutover). Slugs match lib/org/data/councils.mjs; the
+  // pages render the live current year, so they populate once db:import:org has run.
   const navItems = [
     { label: "Home",             href: "/" },
-    { label: "General Council",  href: "/Clubs/General" },
-    { label: "Academic Council", href: "/Clubs/Academic" },
-    { label: "Cultural Council", href: "/Clubs/Cultural" },
-    { label: "Sports Council",   href: "/Clubs/Sports" },
+    { label: "General Council",  href: "/org/councils/general-affairs-council" },
+    { label: "Academic Council", href: "/org/councils/academic-council" },
+    { label: "Cultural Council", href: "/org/councils/cultural-council" },
+    { label: "Sports Council",   href: "/org/councils/sports-council" },
     { label: "Hostels",          href: "/hostels" },
     { label: "Messes",           href: "/messes" },
     { label: "Flagship Events",  href: "/Flagship-events" },
@@ -85,10 +75,8 @@ const Header = () => {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@300;400;500;600&display=swap');
-
         :root {
-          --iitj-blue:       #003087;
+          --iitj-blue:       #003f87;
           --iitj-blue-dark:  #001f5c;
           --iitj-blue-mid:   #00419e;
           --iitj-saffron:    #FF6B00;
@@ -101,7 +89,7 @@ const Header = () => {
         .sac-header * { box-sizing: border-box; margin: 0; padding: 0; }
 
         .sac-header {
-          font-family: 'Outfit', sans-serif;
+          font-family: var(--font-outfit), 'Outfit', sans-serif;
           position: sticky; top: 0; z-index: 100;
           background: var(--iitj-white);
           transition: box-shadow 0.4s ease;
@@ -142,7 +130,7 @@ const Header = () => {
         .logo-wrap { display:flex; align-items:center; justify-content:center; width:95px; height:95px; flex-shrink:0; }
         .brand-text-block { display:flex; flex-direction:column; align-items:center; gap:6px; }
         .brand-title {
-          font-family:'Cormorant Garamond',serif;
+          font-family:var(--font-cormorant),'Cormorant Garamond',serif;
           font-size:1.3rem; font-weight:700; letter-spacing:0.22em;
           color:var(--iitj-blue); text-align:center; line-height:1; white-space:nowrap;
         }
@@ -271,7 +259,7 @@ const Header = () => {
           .mob-logo-wrap { width:58px; height:58px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
           .mob-brand-text { display:flex; flex-direction:column; align-items:center; gap:3px; }
           .mob-brand-title {
-            font-family:'Cormorant Garamond',serif; font-size:0.95rem; font-weight:700;
+            font-family:var(--font-cormorant),'Cormorant Garamond',serif; font-size:0.95rem; font-weight:700;
             letter-spacing:0.14em; color:var(--iitj-blue); text-align:center; line-height:1.15; white-space:nowrap;
           }
           .mob-brand-sub {
@@ -305,24 +293,15 @@ const Header = () => {
         {/* ══ DESKTOP ══ */}
         <div className="header-top">
 
-          {/* LEFT SLOT: IIT Jammu logo on all pages except Academic/Cultural, IIT Jammu logo on council pages */}
+          {/* LEFT SLOT: IIT Jammu logo */}
           <div className="left-slot">
             <div className="slot-inner visible">
-              {!isCouncilPage ? (
-                <Link href="https://www.iitjammu.ac.in/" target="_blank" rel="noopener noreferrer" className="iit-logo-link">
-                  <Image
-                    src="https://res.cloudinary.com/dabviijid/image/upload/v1765904866/fpaupa6aw4eid7vza2h4.png"
-                    alt="IIT Jammu Logo" width={180} height={100} priority
-                  />
-                </Link>
-              ) : (
-                <Link href="https://www.iitjammu.ac.in/" target="_blank" rel="noopener noreferrer" className="iit-logo-link">
-                  <Image
-                    src="https://res.cloudinary.com/dabviijid/image/upload/v1765904866/fpaupa6aw4eid7vza2h4.png"
-                    alt="IIT Jammu Logo" width={180} height={100} priority
-                  />
-                </Link>
-              )}
+              <Link href="https://www.iitjammu.ac.in/" target="_blank" rel="noopener noreferrer" className="iit-logo-link">
+                <Image
+                  src="https://res.cloudinary.com/dabviijid/image/upload/v1765904866/fpaupa6aw4eid7vza2h4.png"
+                  alt="IIT Jammu Logo" width={180} height={100} priority
+                />
+              </Link>
             </div>
           </div>
 
@@ -352,19 +331,10 @@ const Header = () => {
             </div>
           </div>
 
-          {/* RIGHT SLOT: Flag on all pages except Academic/Cultural, council logo on council pages */}
+          {/* RIGHT SLOT: waving national flag */}
           <div className="right-slot">
             <div className="slot-inner visible">
-              {!isCouncilPage ? (
-                <WavingFlag />
-              ) : activeCouncil ? (
-                <div className="logo-col">
-                  <div className="logo-wrap">
-                    <Image src={activeCouncil.logo} alt={`${activeCouncil.label} Logo`} width={110} height={110}/>
-                  </div>
-                  <span className="logo-label">{activeCouncil.label}</span>
-                </div>
-              ) : null}
+              <WavingFlag />
             </div>
           </div>
         </div>
@@ -373,40 +343,21 @@ const Header = () => {
         <div className="mobile-header">
           <div className="mob-top-bar">
 
-            {/* Mobile LEFT: IIT Jammu logo (all pages) */}
+            {/* Mobile LEFT: IIT Jammu logo */}
             <div className="mob-left">
-              {!isCouncilPage ? (
-                <Link href="https://www.iitjammu.ac.in/" target="_blank" rel="noopener noreferrer">
-                  <Image
-                    src="https://res.cloudinary.com/dabviijid/image/upload/v1765904866/fpaupa6aw4eid7vza2h4.png"
-                    alt="IIT Jammu Logo" width={120} height={66} priority
-                  />
-                </Link>
-              ) : (
-                <Link href="https://www.iitjammu.ac.in/" target="_blank" rel="noopener noreferrer">
-                  <Image
-                    src="https://res.cloudinary.com/dabviijid/image/upload/v1765904866/fpaupa6aw4eid7vza2h4.png"
-                    alt="IIT Jammu Logo" width={120} height={66} priority
-                  />
-                </Link>
-              )}
+              <Link href="https://www.iitjammu.ac.in/" target="_blank" rel="noopener noreferrer">
+                <Image
+                  src="https://res.cloudinary.com/dabviijid/image/upload/v1765904866/fpaupa6aw4eid7vza2h4.png"
+                  alt="IIT Jammu Logo" width={120} height={66} priority
+                />
+              </Link>
             </div>
 
-            {/* Mobile RIGHT: Flag (all except council) or council logo ring */}
+            {/* Mobile RIGHT: waving national flag */}
             <div className="mob-right">
-              {!isCouncilPage ? (
-                <div className="mob-flag-wrap" style={{ transform: "scale(0.72)", transformOrigin: "right center" }}>
-                  <WavingFlag />
-                </div>
-              ) : activeCouncil ? (
-                <div className="mob-council-ring">
-                  <Image
-                    src={activeCouncil.logo} alt={`${activeCouncil.label} Logo`}
-                    width={72} height={72}
-                    style={{ objectFit:"cover", borderRadius:"50%", width:"100%", height:"100%" }}
-                  />
-                </div>
-              ) : null}
+              <div className="mob-flag-wrap" style={{ transform: "scale(0.72)", transformOrigin: "right center" }}>
+                <WavingFlag />
+              </div>
             </div>
 
             <button className="mobile-menu-btn mob-hamburger" onClick={() => setIsMobileMenuOpen(o => !o)} aria-label="Toggle menu">

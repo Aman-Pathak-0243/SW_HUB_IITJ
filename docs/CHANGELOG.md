@@ -520,6 +520,144 @@ update protocol in [README.md](README.md)).
 - **Docs** — `DECISION_LOG.md` DL-046..DL-048; `DEVELOPER_GUIDE.md` Developer Console
   section + `db:console` command; `Token_Usage.md` Session-8 row.
 
+### Added/Changed — Session 10: Testing + Deployment + Optimization + Handover · 2026-06-29
+
+The final build session — harden, prove, and ship (no new features). The product is
+feature-complete across Sessions 1–9.
+
+**Test gate (DL-052)**
+- Full suite green on a warm Neon: **307 static** (was 285) + the complete live-DB
+  run (**344 total**: + smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 /
+  media 3 / devconsole 10 / users 6). New static tests: `tests/security.test.mjs`
+  (16, the CSRF/rate-limit decision functions) + 6 `cloudinaryAutoUrl` cases.
+- **CI** — `.github/workflows/ci.yml`: `static-tests` (npm ci → prisma generate →
+  `npm test` → `npm run lint` → `npm run build`) on every push/PR; `live-db-tests`
+  nightly / manual, secret-gated (secrets hoisted to job-level `env` so the
+  step `if` is in scope — review-fixed). Added `npm run lint` (`eslint .`, since
+  Next 16 removed `next lint`) and `backups/**` to the ESLint ignores.
+
+**Performance / CWV on public pages (DL-053)**
+- `lib/media/cloudinary.mjs#cloudinaryAutoUrl` — pure, idempotent injection of
+  `f_auto,q_auto` into Cloudinary delivery URLs; applied in `lib/org/public.mjs`
+  (image assets only) + `lib/events/public.mjs` covers. `next/image` `sizes` on every
+  `fill` image (EventCard / OrgUnitPage hero + photos); `images.formats` AVIF/WebP.
+- **Fonts (#12)** — all fonts now load once via `next/font/google` in `app/layout.js`
+  (Geist, Geist Mono, Cormorant Garamond 400/600/700, Outfit) as CSS variables; the
+  render-blocking per-component `@import url(fonts.googleapis…)` in Header/EventCard
+  removed; Header/EventCard/admin.css/Footer consume `var(--font-*)`.
+- **Brand blue (#11)** — `#003f87` is now the single canonical value (the stray
+  `#003087` in EventCard/Header/`--adm-blue` aligned).
+
+**Responsive (DL-051 follow-up)**
+- Admin mobile sidebar toggle wired (`AdminShell.jsx` + `admin.css`): the `☰` button
+  shows below 880px, slides the sidebar in over a tap-to-close backdrop.
+
+**Deploy hardening (DL-054 / DL-055)**
+- Security headers in `next.config.mjs#headers()` (nosniff, X-Frame-Options
+  SAMEORIGIN, Referrer-Policy, Permissions-Policy, HSTS). CSP deferred (needs a
+  nonce pipeline) — documented.
+- `lib/http/guard.mjs` (NEW) — a same-origin (CSRF) check + a best-effort
+  per-process rate limiter, wired into `POST /api/admin/action` (60/min/account) and
+  `POST /api/events` (20/min) with friendly 403/429 + `Retry-After`.
+- NFT over-tracing (#32) — accepted as benign; `outputFileTracingIncludes` bundles
+  the dev-console fs reads (`prisma/migrations/**`, `docs/Token_Usage.md`).
+
+**Prune + route cutover (DL-056)**
+- Removed dead `app/page1.js` (#10) and the four static `app/Clubs/*` (#13); cut the
+  Header council nav over to the data-driven `/org/councils/<slug>` pages and removed
+  the dead `councilConfig`/`isCouncilPage` logic. `/public` NOT pruned (#18 stays
+  operator-pending — migration not run + hardcoded hero refs remain; runbook §3.1).
+
+**Handover**
+- `docs/OPERATIONS_RUNBOOK.md` (NEW) — the operator entry point (env checklist,
+  setup, imports, media migration, deploy, admins, observe/recover, troubleshooting).
+- Refreshed `docs/DEPLOYMENT.md` (V2 reality + hardening summary) and `docs/README.md`
+  (status → all 10 sessions complete; runbook + admin-guide links).
+
+**Deferred to Session 11 (DL-057)**
+- A late operator request for two **net-new features** — a student/participant
+  **login + event participation/RSVP** flow, and a **"Wall of Fame"** achievements
+  module (hybrid markdown / images / banners) — is deferred to a new **Session 11**
+  (Session 10 is harden-only). Today the only auth surface is the staff `/admin`
+  sign-in; there is no public event-registration. Full Session-11 prompt in the
+  handoff / `NEXT_TASK.md`.
+
+**Review** — a 5-dimension adversarial workflow (13 agents, per-finding 2 verifiers):
+4 raw findings → **1 confirmed-both** (the CI live-db `if`-scope bug — fixed) + 3
+rejected; 2 of the rejected (the `Origin: null` defense-in-depth gap and the Footer
+Cormorant weight-400 gap) were tidied anyway as cheap, correct improvements.
+
+---
+
+### Added/Changed — Session 9: Admin Panel · 2026-06-29
+
+- **Users & Roles — the ONE net-new backend (DL-049)** — `lib/users/admin.mjs`:
+  create/invite/update/suspend users, set passwords (argon2id), role CRUD, and
+  grant/revoke role assignments. Authorizes FIRST (`user.*` / `role.*`), one
+  semantic `audit_log` row per op via the shared `auditedMutation` (using the
+  `grant_role` / `revoke_role` actions), JSON-safe shaped returns (never the raw
+  row / `passwordHash`), and DB uniques honored via friendly mapped errors.
+  **Privilege-escalation guards:** only a developer can create/set `is_developer`
+  OR grant a `grants_all`/system role (developer/super_admin); new roles can't be
+  `grants_all`; system roles are modification-protected except their description;
+  no self-lockout. (`lib/cms/errors.mjs` gained `ROLE_ASSIGNMENT_DUPLICATE` /
+  `ROLE_KEY_TAKEN` / `EMAIL_TAKEN` matchers.)
+- **One registry-driven, audited mutation endpoint (DL-050)** — every admin write
+  posts `{ action, args }` to `POST /api/admin/action`, which `requireUser()`s then
+  delegates via `lib/admin/handlers.mjs#dispatchAdminAction` (a per-action registry:
+  `permission` → institute-wide gate at the boundary; `scoped` → content/org ops
+  authorized at the item's true year/lineage scope by the service; `console` →
+  `authorizeConsole`). Every run executes inside `withAuditContext` so rows are
+  attributed; the client IP is validated with `net.isIP` before the `inet` column;
+  errors map through `mapDbError`. NO new mutation/audit/visibility pipeline — it
+  calls the Session 3–8 services.
+- **The RBAC-gated admin UI (DL-051)** — Next 16 Server Components gated by
+  `lib/admin/server.mjs` (`loadAdminContext`/`loadModuleContext`, never throw) over
+  a permission-filtered nav (`lib/admin/nav.mjs#buildAdminNav` — the viewer sees only
+  modules they can touch). An admin shell (`app/admin/layout.jsx` + `AdminShell` +
+  sign-in/denied states + `admin.css` design system) and a dashboard, plus module
+  screens for **Content** (list / create / edit-draft / publish / unpublish / archive
+  / restore + version history & a client-side revision DIFF, generic over every
+  `content_type` via the DL-011 registry — incl. collecting a type's required payload
+  fields on create), **Organization** (units + people + appointments, honoring the
+  hierarchy/type/cardinality guards), **Academic Years** (years + set-current +
+  lock/unlock + the Transition Wizard), **Media** (browse/register/edit-metadata/
+  archive + migration-status banner), **Users & Roles** (the new service: users tab
+  with grant/revoke, roles tab with a permission-matrix editor), and the **Developer
+  Console** (renders the Session-8 readers: status, reports, the audit viewer with
+  filters + keyset pagination + entry drill-down, backup ledger + a safe media
+  rollback dry-run). Reads are server-side; mutations refetch via `router.refresh()`.
+- **Pure, client-safe helpers** — `lib/admin/{nav,view-models,forms}.mjs` are
+  prisma-free (so they import into Client Components AND unit-test without a DB);
+  `lib/admin/{server,reads}.mjs` are server-only. Form validators MIRROR the service
+  validators. `lib/cms/content-types.mjs` gained `getContentTypeFieldSpec` (the
+  registry-driven editor's field source). The V1 `app/admin/page.js` (events form)
+  and the dead `app/admin/page2.js` were removed (superseded by the panel).
+- **Login & access guide** — `docs/ADMIN_PANEL_GUIDE.md`: where to go (`/admin`),
+  how to sign in (Google / credentials), the seeded roles and what each can see/do,
+  bootstrap accounts, and how to grant access.
+- **Tests** — **285 static** (was 258; `admin.test.mjs`, 27: nav model / view-models
+  incl. `diffViews` / form validators / users-service pure helpers / the action-
+  registry integrity) + **6 new live-DB** (`users.db.test.mjs`): create/list/dup-email,
+  update + status + self-lockout, role CRUD + system-role protection + unknown-perm
+  422, grant idempotency + revoke + re-grant + a `grant_role` audit row, the 401/403
+  RBAC gate, and the DL-049 developer-only guards (flag + both grant paths). `next
+  build` clean (all `/admin/*` server-rendered on demand); ESLint clean. **No new
+  migration** (Session-2 schema already modeled user/role/role_assignment).
+- **Adversarial review** — a 7-lens workflow (RBAC/authz, users-service correctness,
+  client-server boundary, reads/views/forms, reuse/no-new-pipeline, UI edge-cases,
+  security/disclosure) with per-finding 2-verifier verification (45 agents); **19
+  findings → 12 confirmed-by-both + 1 single-vote → all 13 addressed**, 6 rejected as
+  intentional. Fixes incl. a **CRITICAL** privilege-escalation (grantRole could assign
+  the `grants_all` developer/system role with only `role.assign` — now developer-only),
+  the empty-required-payload create failure, the missing role-revoke UI, the
+  `createUser` hash-leak (caught by the live test), the role-audit before/after shape +
+  the `role.read` coupling in create/update (the `roleView` refactor), `humanBytes(null)`,
+  stricter IP validation, and several UI nits.
+- **Docs** — `DECISION_LOG.md` DL-049..DL-051; `ADMIN_PANEL_GUIDE.md` (new);
+  `DEVELOPER_GUIDE.md` Admin Panel section; `Token_Usage.md` Session-9 row;
+  `KNOWN_ISSUES.md` #10 partially closed (dead admin pages removed).
+
 ---
 
 ## Milestone history
