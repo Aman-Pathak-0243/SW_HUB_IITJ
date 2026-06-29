@@ -64,8 +64,9 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (258 static tests; DB smoke + CMS + year-engine + org + events + resources + media + dev-console live tests self-skip) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year + org + events + resources + media + dev-console; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
+| `npm test` | Run the Vitest suite (**307 static tests**; the live DB suites self-skip without `RUN_DB_TESTS`) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (**344 total**: smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 / dev-console 10 / users 6; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
+| `npm run lint` | ESLint (`eslint .`; Next 16 removed `next lint`). Config: `eslint.config.mjs` (`backups/**` ignored). |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
 | `npm run db:seed` | Seed the database (idempotent: year, RBAC, org types/positions, content types, bootstrap users) |
@@ -75,7 +76,6 @@ npm run dev             # http://localhost:3000
 | `npm run db:migrate:media` | Admin Media Migration Tool (`/public` → Cloudinary). **DRY-RUN by default.** Flags: `-- --apply` (upload; needs `CLOUDINARY_*` in `.env.local`), `-- --rollback` (dry-run rollback), `-- --rollback --apply` (restore migrated assets to `/public`). Idempotent + reversible. |
 | `npm run db:console` | Developer Console — read-only system status + testing/cost reports (JSON). Flags: `-- --audit` (recent audit-log entries + stats), `-- --action=publish`, `-- --entityType=…`, `-- --take=N`. Runs as the seeded developer. |
 | `npm run db:studio` | Prisma Studio (DB browser) |
-| `npx eslint .` | Lint (config: `eslint.config.mjs`) |
 
 > **Never run `prisma db pull`** — the migration's raw-SQL objects (partial/
 > NULLS-NOT-DISTINCT uniques, triggers, GIN/BRIN, CHECKs) are invisible to Prisma
@@ -461,6 +461,31 @@ never the raw row / `passwordHash`). **Privilege-escalation guards (DL-049) — 
 
 Internal `roleView(id)` (ungated) backs `getRole`/`createRole`/`updateRole`'s return +
 audit before/after, so create/update don't require the actor to ALSO hold `role.read`.
+
+## Hardening & deploy (Session 10)
+
+- **CI** — `.github/workflows/ci.yml`: static suite + `npm run lint` + `npm run
+  build` on every push/PR; a secret-gated `live-db-tests` job runs the Neon suite
+  nightly / on manual dispatch (mirrors the local `RUN_DB_TESTS=1` opt-in). Operator
+  procedure: [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md).
+- **Write-route guards** — `lib/http/guard.mjs`: `assertSameOrigin(req)` (CSRF —
+  rejects a cross-origin / opaque-`null` browser Origin/Referer; allows a genuinely
+  header-less non-browser client) and `makeRateLimiter`/`assertWithinRateLimit` (a
+  per-process fixed-window limiter, friendly 429 + `Retry-After`). Both are wired
+  into `POST /api/admin/action` (60/min/account) and `POST /api/events` (20/min).
+  `assertSameOrigin` allows the `NEXTAUTH_URL` host, so set it to the real origin.
+  **Any new public write route should wrap both.** Pure parts: `tests/security.test.mjs`.
+- **Security headers** — `next.config.mjs#headers()` (nosniff / X-Frame-Options /
+  Referrer-Policy / Permissions-Policy / HSTS). CSP is deferred (needs a nonce
+  pipeline — KNOWN_ISSUES #33).
+- **CWV** — `lib/media/cloudinary.mjs#cloudinaryAutoUrl(url)` injects `f_auto,q_auto`
+  into Cloudinary IMAGE URLs (used in `lib/org/public.mjs` + `lib/events/public.mjs`;
+  never on PDFs). Set `sizes` on every `next/image fill`.
+- **Fonts** — load fonts ONLY via `next/font/google` in `app/layout.js` (exposed as
+  `--font-*` CSS variables); never re-introduce a `@import url(fonts.googleapis…)`.
+  Brand blue is `#003f87` (`--brand-blue` in `globals.css`).
+- **NFT (#32)** — dev-console fs reads are bundled via `outputFileTracingIncludes`;
+  the build's NFT over-trace note is benign (accepted, DL-055).
 
 ## Project map
 

@@ -14,10 +14,8 @@ const EventCard = ({ event }) => {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Outfit:wght@300;400;500;600&display=swap');
-
         .event-card {
-          font-family: 'Outfit', sans-serif;
+          font-family: var(--font-outfit), 'Outfit', sans-serif;
           background: #ffffff;
           border-radius: 20px;
           overflow: hidden;
@@ -36,7 +34,7 @@ const EventCard = ({ event }) => {
         /* Top saffron accent line */
         .event-card-accent {
           height: 3px;
-          background: linear-gradient(90deg, #003087, #FF6B00 60%, #FF9933);
+          background: linear-gradient(90deg, #003f87, #FF6B00 60%, #FF9933);
           flex-shrink: 0;
         }
 
@@ -96,7 +94,7 @@ const EventCard = ({ event }) => {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #001f5c, #003087);
+          background: linear-gradient(135deg, #001f5c, #003f87);
           color: #fff;
           border-radius: 10px;
           padding: 6px 10px;
@@ -125,10 +123,10 @@ const EventCard = ({ event }) => {
 
         /* Title */
         .event-card-title {
-          font-family: 'Cormorant Garamond', serif;
+          font-family: var(--font-cormorant), 'Cormorant Garamond', serif;
           font-size: 1.25rem;
           font-weight: 700;
-          color: #003087;
+          color: #003f87;
           letter-spacing: 0.02em;
           line-height: 1.2;
         }
@@ -188,7 +186,13 @@ const EventCard = ({ event }) => {
         {/* Image or placeholder */}
         {image ? (
           <div className="event-card-img">
-            <Image src={image} alt={title} fill className="object-cover" />
+            <Image
+              src={image}
+              alt={title}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover"
+            />
           </div>
         ) : (
           <div className="event-card-placeholder">🎓</div>

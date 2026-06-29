@@ -1,15 +1,49 @@
 # Current Status
 
 **Last updated:** 2026-06-29
-**Session:** 9 of 10 — **COMPLETE** (Admin Panel)
-**Next session:** 10 — Testing + Deployment + Optimization (full test gate, CWV/perf, responsive/cross-browser, deploy hardening, handover)
+**Session:** 10 of 10 — **COMPLETE** (Testing + Deployment + Optimization + Handover)
+**Project status:** ✅ **ALL 10 SESSIONS COMPLETE — feature-complete & ready to deploy.**
+**Follow-up:** A **Session 11** is queued for two operator-requested NEW features
+(student/event-participation login + a "Wall of Fame") — these were out of scope for
+the harden-only Session 10 (DL-057). Prompt in [NEXT_TASK.md](NEXT_TASK.md).
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), [docs/CHANGELOG.md](docs/CHANGELOG.md).
+> **To deploy/operate:** [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md).
 > **To use the panel:** [docs/ADMIN_PANEL_GUIDE.md](docs/ADMIN_PANEL_GUIDE.md)
 > (login, roles, URLs).
+
+## What is done (Session 10 — FINAL)
+
+- **Full test gate (DL-052)** — **307 static** + the complete live-DB run (**344
+  total**: smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 /
+  devconsole 10 / users 6) green on a warm Neon (no cold-compute retry needed).
+  New: `tests/security.test.mjs` (16) + 6 `cloudinaryAutoUrl` cases. **CI**
+  (`.github/workflows/ci.yml`): static suite + `npm run lint` (eslint; Next 16
+  dropped `next lint`) + build on push/PR; live-DB nightly/manual, secret-gated.
+- **Public CWV (DL-053)** — `cloudinaryAutoUrl` injects `f_auto,q_auto` into
+  Cloudinary image URLs (org/events read layers; PDFs untouched); `next/image`
+  `sizes` on every `fill` image; AVIF/WebP. **Fonts (#12)** consolidated to one
+  `next/font` load (CSS variables; the per-component `@import` removed). **Brand
+  blue (#11)** unified to `#003f87`.
+- **Responsive** — admin mobile sidebar toggle wired (`☰` < 880px, slide-in over a
+  tap-to-close backdrop).
+- **Deploy hardening (DL-054/055)** — security headers (`next.config.mjs#headers`),
+  a same-origin CSRF check + per-process rate limiter (`lib/http/guard.mjs`) on
+  `POST /api/admin/action` + `/api/events`, and the NFT #32 decision (accept +
+  `outputFileTracingIncludes`). CSP deferred (#33), rate-limit is per-process (#34).
+- **Prune + cutover (DL-056)** — removed `app/page1.js` (#10) and the four static
+  `app/Clubs/*` (#13); Header council nav cut over to `/org/councils/<slug>`.
+  `/public` NOT pruned (#18 operator-pending — see runbook §3.1).
+- **Handover** — `docs/OPERATIONS_RUNBOOK.md` (deploy/setup/imports/admins/recover);
+  refreshed DEPLOYMENT.md + docs/README.md; this status, NEXT_TASK, TODO, CHANGELOG,
+  DECISION_LOG (DL-052–057), KNOWN_ISSUES, Token_Usage all updated.
+- **Review** — 5-dimension adversarial workflow (13 agents, 2 verifiers/finding):
+  4 findings → 1 confirmed (CI live-db `if`-scope bug, **fixed**) + 3 rejected; 2
+  rejected nits (Origin:null, Footer Cormorant weight) tidied anyway. `next build` +
+  ESLint clean; **no new migration**.
 
 ## What is done (Session 9)
 
@@ -354,25 +388,26 @@
 - **Adversarial review workflow** (30 agents, 5 lenses, per-finding verification):
   24 confirmed findings (1 major + minor/nit) all addressed and re-verified.
 
-## What is NOT done yet (next sessions)
+## What is NOT done (all DEVELOPMENT is complete — these are OPERATOR / OWNER / Session-11 items)
 
-- **Run the full live org import** into 2025-26: `npm run db:import:org` (idempotent,
-  ~15 min on Neon — an OPERATOR step like `db:seed`, KNOWN_ISSUES #27). The importer
-  is tested end-to-end; it just hasn't been run against the real current year here.
-- Run the live events migration into 2025-26: `npm run db:import:events` (idempotent,
-  ~1 min; an operator step like `db:seed`/`db:import:org`). The 3 events are tested
-  end-to-end; they just haven't been imported into the real current year here.
-- Run the live resources import into 2025-26: `npm run db:import:resources`
-  (idempotent; run AFTER `db:import:org`; an operator step). Tested end-to-end.
-- **Run the Media Migration** (`/public` → Cloudinary): `npm run db:migrate:media`
-  (dry-run) then `-- --apply` once `CLOUDINARY_*` is set in `.env.local`. Idempotent +
-  reversible; then prune `/public` out-of-band to actually shrink the ~74 MB (#18).
-- ✅ Full RBAC-gated **Admin Panel** (the UI over CMS / org / years / events /
-  resources / media + the Session-8 Developer Console readers + the NEW users/roles
-  service) → **DONE in Session 9**. Remaining: full test gate + CWV/perf +
-  responsive/cross-browser + deploy hardening + handover → **Session 10 (next)**.
-- Owner-owned: rotate/remove the V1 leaked secrets in `README.md`
-  ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)).
+**Operator steps (run at/after deploy — all idempotent, tested end-to-end):**
+- `npm run db:import:org` (~15 min) → `db:import:events` → `db:import:resources` to
+  populate the live 2025-26 year (#27). Until org runs, `/org/*` pages show an empty
+  state (expected). Full procedure: **OPERATIONS_RUNBOOK.md §3**.
+- Media migration `/public` → Cloudinary: `npm run db:migrate:media` (dry-run) →
+  `-- --apply`, then the safe `/public` prune (#18; runbook §3.1).
+
+**Owner steps (out-of-band):**
+- Rotate/remove the V1 leaked secrets in the root `README.md` and purge history
+  ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)); then
+  drop the `.gitleaks.toml` by-SHA allowlist (#1/#19).
+
+**Session 11 (NEW features the operator requested — DL-057):**
+- A student/participant **login + event participation/RSVP** flow (today the only
+  auth is the staff `/admin` sign-in; there is no public event registration).
+- A **"Wall of Fame"** achievements module (hybrid markdown / images / banners) — a
+  capability-9 CMS content type + admin editor + public page.
+- Full prompt in [NEXT_TASK.md](NEXT_TASK.md).
 
 ## Key facts for the next session
 

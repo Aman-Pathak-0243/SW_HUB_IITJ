@@ -1,9 +1,11 @@
-/* Admin Panel design system (Session 9). Brand: deep blue #003087 + orange accent
-   #FF6B00 (consistent with the V1 admin styling). Scoped under .adm-* class names
-   so it never collides with the public site's globals. */
+/* Admin Panel design system (Session 9). Brand: deep blue #003f87 + orange accent
+   #FF6B00. Scoped under .adm-* class names so it never collides with the public
+   site's globals. (Session 10: --adm-blue aligned to #003f87 — the single canonical
+   brand blue across the whole project, KNOWN_ISSUES #11 — and typography now reuses
+   the next/font variables loaded once in app/layout.js, KNOWN_ISSUES #12.) */
 
 .adm-root {
-  --adm-blue: #003087;
+  --adm-blue: #003f87;
   --adm-blue-dark: #001f5c;
   --adm-blue-light: #00419e;
   --adm-accent: #ff6b00;
@@ -21,7 +23,7 @@
   --adm-danger-bg: #fef2f2;
   --adm-info: #1d4ed8;
   --adm-info-bg: #eff6ff;
-  font-family: "Outfit", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-outfit), "Outfit", system-ui, -apple-system, sans-serif;
   color: var(--adm-text);
   background: var(--adm-bg);
   min-height: 100vh;
@@ -149,7 +151,7 @@
 .adm-kv dt { color: var(--adm-muted); font-weight: 600; }
 .adm-kv dd { color: var(--adm-text); word-break: break-word; }
 .adm-pill-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.adm-code { font-family: "Geist Mono", ui-monospace, monospace; font-size: 0.78rem; background: #f3f4f6; padding: 1px 6px; border-radius: 5px; }
+.adm-code { font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace; font-size: 0.78rem; background: #f3f4f6; padding: 1px 6px; border-radius: 5px; }
 .adm-banner { padding: 12px 16px; border-radius: 10px; font-size: 0.82rem; margin-bottom: 16px; }
 .adm-banner.warn { background: var(--adm-warn-bg); color: var(--adm-warn); border: 1px solid rgba(180,83,9,0.2); }
 .adm-banner.info { background: var(--adm-info-bg); color: var(--adm-info); }
@@ -158,9 +160,17 @@
 .adm-denied-card h1 { font-size: 1.3rem; color: var(--adm-blue); margin-bottom: 8px; }
 .adm-denied-card p { font-size: 0.85rem; color: var(--adm-muted); margin-bottom: 22px; }
 
+/* Mobile sidebar toggle (Session 10): hidden on wide viewports where the sidebar
+   is always visible; shown only below the breakpoint, where the sidebar slides in
+   over a dimmed backdrop. */
+.adm-mobile-toggle { display: none; font-size: 1.1rem; line-height: 1; padding: 6px 12px; }
+.adm-backdrop { display: none; }
+
 @media (max-width: 880px) {
-  .adm-sidebar { position: fixed; z-index: 50; transform: translateX(-100%); transition: transform 0.2s; }
+  .adm-sidebar { position: fixed; z-index: 50; transform: translateX(-100%); transition: transform 0.2s; box-shadow: 4px 0 24px rgba(0,31,92,0.25); }
   .adm-sidebar.open { transform: translateX(0); }
   .adm-content { padding: 18px; }
   .adm-kv { grid-template-columns: 1fr; }
+  .adm-mobile-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .adm-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,31,92,0.4); z-index: 40; }
 }

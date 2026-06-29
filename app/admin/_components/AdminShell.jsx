@@ -27,6 +27,9 @@ export default function AdminShell({ nav = [], user, currentYearLabel, children 
   return (
     <ToastProvider>
       <div className="adm-shell">
+        {/* Mobile backdrop — tapping it closes the slide-in sidebar (only visible
+            when open on a narrow viewport; CSS hides it ≥ the breakpoint). */}
+        {open && <div className="adm-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />}
         <aside className={`adm-sidebar ${open ? "open" : ""}`}>
           <div className="adm-brand">
             <h1>Student Affairs</h1>
@@ -45,7 +48,12 @@ export default function AdminShell({ nav = [], user, currentYearLabel, children 
 
         <div className="adm-main">
           <header className="adm-topbar">
-            <button className="adm-btn ghost sm" style={{ display: "none" }} onClick={() => setOpen((o) => !o)} data-mobile-toggle>
+            <button
+              className="adm-btn ghost sm adm-mobile-toggle"
+              onClick={() => setOpen((o) => !o)}
+              aria-label={open ? "Close menu" : "Open menu"}
+              aria-expanded={open}
+            >
               ☰
             </button>
             <div className="adm-topbar-meta">

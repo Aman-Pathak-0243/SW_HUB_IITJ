@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { requireUser } from "../../../../lib/auth/session.mjs";
 import { dispatchAdminAction } from "../../../../lib/admin/handlers.mjs";
 import { mapDbError } from "../../../../lib/cms/errors.mjs";
+import { assertSameOrigin, assertWithinRateLimit, adminActionLimiter, rateLimitKey } from "../../../../lib/http/guard.mjs";
 
 // Admin Panel — the ONE mutation endpoint (Session 9). Every admin write posts
 // `{ action, args }` here; the dispatcher (lib/admin/handlers.mjs) authorizes the
@@ -24,11 +25,29 @@ function clientIp(req) {
 }
 
 export async function POST(req) {
+  // CSRF defense-in-depth: reject a cross-origin browser POST before doing any
+  // work (NextAuth's SameSite=Lax cookie is the first line; this is the second).
+  try {
+    assertSameOrigin(req);
+  } catch (e) {
+    return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
+  }
+
   let user;
   try {
     user = await requireUser(); // authentication + live active-account check (401/403)
   } catch (e) {
     return NextResponse.json({ error: e.message, code: e.code }, { status: e.status ?? 401 });
+  }
+
+  // Best-effort per-account rate limit (coarse abuse dampener; see lib/http/guard).
+  try {
+    assertWithinRateLimit(adminActionLimiter, rateLimitKey("admin.action", { userId: user.id, ip: clientIp(req) }));
+  } catch (e) {
+    return NextResponse.json(
+      { error: e.message, code: e.code },
+      { status: e.status, headers: { "Retry-After": String(e.retryAfterSeconds ?? 60) } }
+    );
   }
 
   let body;

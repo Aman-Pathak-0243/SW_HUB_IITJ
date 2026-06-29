@@ -3,7 +3,7 @@ import Image from 'next/image';
 
 const Footer = () => {
   return (
-    <footer className="text-gray-300 mt-2" style={{ backgroundColor: '#003f87', fontFamily: "'Georgia', serif" }}>
+    <footer className="text-gray-300 mt-2" style={{ backgroundColor: '#003f87', fontFamily: "var(--font-cormorant), 'Georgia', serif" }}>
 
       {/* Top accent line — matches the orange from header */}
       <div style={{ height: '3px', background: 'linear-gradient(90deg, #e07b00, #f5a623, #e07b00)' }} />

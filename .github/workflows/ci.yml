@@ -1,0 +1,74 @@
+name: CI
+
+# Session 10 — continuous integration.
+# The STATIC test suite (no database) runs on every push and pull request: it is
+# fast, deterministic, and green without any secret. The LIVE-DB suite (Neon)
+# stays opt-in — it runs nightly on a schedule (and on manual dispatch) ONLY when
+# a DATABASE_URL secret is configured, because Neon has high per-query latency,
+# auto-suspends, and must not gate ordinary PRs. See docs/TESTING_STRATEGY.md.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  schedule:
+    - cron: "0 3 * * *" # nightly 03:00 UTC — live-db job (skipped without the secret)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-tests:
+    name: Static tests + lint + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Static test suite (no DB)
+        run: npm test
+      - name: Lint
+        run: npm run lint
+      # `next build` needs a DATABASE_URL string to instantiate the Prisma client
+      # at import time, but never connects during build — a dummy URL is enough.
+      - name: Production build
+        run: npm run build
+        env:
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?sslmode=disable"
+          DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci?sslmode=disable"
+          NEXTAUTH_SECRET: "ci-build-only-not-a-real-secret"
+          NEXTAUTH_URL: "http://localhost:3000"
+
+  live-db-tests:
+    name: Live-DB suite (Neon, nightly / manual)
+    runs-on: ubuntu-latest
+    # Only on schedule or manual dispatch — never on push/PR.
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    # Hoist the secrets to JOB-level env so the secret-presence check is in scope
+    # for the step's own `if:` (a step's own `env:` block is NOT available to that
+    # step's `if`, which would make the gate always-false and silently skip the
+    # suite — Session-10 review finding).
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Live-DB test suite
+        # Runs only when the DATABASE_URL secret is actually configured.
+        if: ${{ env.DATABASE_URL != '' }}
+        run: npm test
+        env:
+          RUN_DB_TESTS: "1"

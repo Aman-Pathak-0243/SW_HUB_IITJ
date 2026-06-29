@@ -5,17 +5,19 @@ Affairs Portal. It documents the project **exactly as it exists today** (the
 "as-is" state, extracted from the repository) and lays out the **target design**
 and **milestone plan** for Portal V2.0.
 
-> **Status:** V2 is built across **10 sessions** — see
-> [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md). **Session 1 (Analysis +
-> Documentation + Architecture) is complete.** No application code has been
-> changed yet; Session 1 added docs, the verified backup, security scanning, and
-> the **verified PostgreSQL schema design**.
+> **Status:** V2 was built across **10 sessions** — see
+> [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md). **All 10 are complete** (DB/RBAC/auth,
+> CMS, academic-year engine, org model, events/announcements, resources/media,
+> developer console, admin panel, and the Session-10 testing/deploy/optimization +
+> handover). The product is **feature-complete and ready to deploy.**
 >
 > **Database:** V2 uses **PostgreSQL (Neon) + Prisma** (V1 used MongoDB/Mongoose).
-> The target data model is in [SCHEMA_DESIGN.md](SCHEMA_DESIGN.md).
+> The data model is in [SCHEMA_DESIGN.md](SCHEMA_DESIGN.md).
 >
-> **Start here if you are a new session:** read [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md),
-> then `CURRENT_STATUS.md` / `NEXT_TASK.md` / `TODO.md`.
+> **To deploy / operate it:** [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) (env,
+> setup, imports, deploy, admins, recovery). **To use the admin panel:**
+> [ADMIN_PANEL_GUIDE.md](ADMIN_PANEL_GUIDE.md). **New session?** read
+> [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md), then `CURRENT_STATUS.md`.
 
 ---
 
@@ -55,8 +57,10 @@ and **milestone plan** for Portal V2.0.
 | Document | What it covers |
 |---|---|
 | [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md) | **The 10-session model + start/end-of-session checklists (read first)** |
+| [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) | **Operator runbook — deploy, env, setup, imports, admins, recover (Session 10)** |
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | How to set up, run, and extend the project |
-| [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | How administrators will manage the portal |
+| [ADMIN_PANEL_GUIDE.md](ADMIN_PANEL_GUIDE.md) | Admin panel login / roles / per-module URLs (Session 9) |
+| [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | How administrators will manage the portal (early notes) |
 | [DECISION_LOG.md](DECISION_LOG.md) | **Detailed decision log (Decision/Alternatives/Why/Trade-offs/Future impact)** |
 | [ARCHITECTURAL_DECISIONS.md](ARCHITECTURAL_DECISIONS.md) | Lightweight ADR index (see DECISION_LOG for detail) |
 | [Token_Usage.md](Token_Usage.md) | Per-session token usage log (updated every session) |

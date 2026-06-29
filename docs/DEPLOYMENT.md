@@ -1,8 +1,12 @@
-# Deployment (As-Is)
+# Deployment
 
-This documents how the project is built and run **today**, based on
-`package.json`, `README.md`, and config files. Some details (server, domain) are
-only partially evidenced; those are marked accordingly.
+> **For the full operator procedure (env checklist, setup, imports, deploy,
+> admins, recovery, troubleshooting) use [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md).**
+> This file is the lighter background note on build/run + the V1→V2 deployment
+> evolution. Session 10 added the production hardening summarized at the bottom.
+
+This documents how the project is built and run, based on `package.json`,
+`README.md`, and config files.
 
 ## Build & run scripts (`package.json`)
 
@@ -38,33 +42,32 @@ on a server where the repo is cloned to `~/IIT-JAMMU-STUDENT-WELFARE`.
 ## Configuration
 
 ### `next.config.mjs`
-- `images.remotePatterns`: allows `res.cloudinary.com`, `images.unsplash.com`,
-  `source.unsplash.com` (only Cloudinary is actually used).
+- `images.remotePatterns`: `res.cloudinary.com` only (the unused unsplash hosts
+  were removed — KNOWN_ISSUES #17); `images.formats`: AVIF/WebP.
+- `headers()`: the security headers (see the hardening section below).
+- `outputFileTracingIncludes`: bundles the dev-console fs reads (#32).
 - `turbopack.resolveAlias`: aliases `canvas` → `./empty-module.js` (a stub) so
   pdf.js (which optionally pulls in the Node `canvas` package) bundles cleanly in
   the browser build.
 
 ### Environment variables (required at runtime)
-From `env.example`:
-```
-MONGODB_URI=          # MongoDB connection string
-GOOGLE_CLIENT_ID=     # Google OAuth
-GOOGLE_CLIENT_SECRET= # Google OAuth
-NEXTAUTH_SECRET=      # NextAuth JWT signing
-NEXTAUTH_URL=         # e.g. http://localhost:3000 (set to prod URL in prod)
-```
-No `.env` is committed (correct). The deploy host must provide these.
+The full V2 list (DB, auth, Cloudinary, bootstrap) with notes is in
+[OPERATIONS_RUNBOOK.md §1](OPERATIONS_RUNBOOK.md) and `env.example`. In brief:
+`DATABASE_URL` + `DIRECT_URL` (Neon), `NEXTAUTH_SECRET` + `NEXTAUTH_URL`,
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, `CLOUDINARY_*`, and the
+`BOOTSTRAP_*` seed vars. MongoDB is retired from the request path (Mongoose remains
+only for the read-only backup script). No `.env` is committed; the host provides these.
 
 ## External dependencies (must be reachable in prod)
 
-- **MongoDB** instance (via `MONGODB_URI`).
+- **PostgreSQL on Neon** (via `DATABASE_URL` pooled + `DIRECT_URL` direct).
 - **Google OAuth** consent screen / credentials (for `/admin` login).
-- **Cloudinary** (image + PDF delivery for most media).
+- **Cloudinary** (image + PDF delivery for media).
+- ~~MongoDB~~ — retired from the request path (V2 is fully on Postgres); Mongoose
+  remains only for the read-only `scripts/export-events.mjs` backup tool.
 
 ## What is NOT present
 
-- **No CI/CD** pipeline committed (no `.github/workflows`, no Vercel/Netlify
-  config). Deploys are manual via the PM2 steps above.
 - **No Dockerfile / container** config.
 - **No reverse-proxy / Nginx** config in the repo (likely lives on the server,
   outside version control).
@@ -82,11 +85,35 @@ No `.env` is committed (correct). The deploy host must provide these.
   topology; confirm with the operator (Aman Pathak, per the footer credits) and
   expand this doc once verified.
 
-## Proposed V2 deployment direction (not yet implemented)
+## V2 deployment hardening (Session 10 — implemented)
 
-- Add a CI pipeline (lint + test + build) gating merges.
-- Add a `/api/health` endpoint and structured logging.
-- Document a reproducible deploy (PM2 ecosystem file or container), plus a
-  rollback procedure and backup-before-deploy step.
-- Provide infra/cost estimation in the Developer Console (VM/DB/storage/media)
-  with links to provider pricing.
+- **CI pipeline** — `.github/workflows/ci.yml`: static test suite + `npm run lint`
+  (eslint) + `next build` on every push/PR; the live-DB suite runs nightly / on
+  manual dispatch only when a `DATABASE_URL` secret exists. (`next lint` was
+  removed in Next 16, so lint is the ESLint CLI via `npm run lint`.)
+- **Security headers** — `next.config.mjs#headers()` sets `X-Content-Type-Options`,
+  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy`, and HSTS
+  on all routes. A strict Content-Security-Policy is deferred (the public
+  components inject inline `<style>`; a CSP needs a nonce pipeline) — the one
+  remaining hardening item.
+- **CSRF + rate limiting** — `lib/http/guard.mjs`: a same-origin check and a
+  best-effort in-memory rate limiter on `POST /api/admin/action` (60/min/account)
+  and `POST /api/events` (20/min). The limiter is **per-process** — front it with a
+  shared store (Upstash/Redis) for a hard global limit in a multi-instance deploy.
+- **Serverless tracing** — `outputFileTracingIncludes` bundles the dev-console fs
+  reads (`prisma/migrations/**`, `docs/Token_Usage.md`); those readers also degrade
+  to `{ error }` if a file is missing (DL-048). The benign Turbopack NFT over-trace
+  note is accepted (KNOWN_ISSUES #32).
+- **Status/observability** — the Developer Console (`/admin/console`) provides DB
+  health, migration diff, transition history, media-plan, audit viewer, backup
+  ledger, and cost/infra estimates (Sessions 8–9).
+- **Image/CWV** — Cloudinary `f_auto,q_auto` on public-page images +
+  `next/image` `sizes` + AVIF/WebP negotiation.
+
+### Still open (owner / future)
+
+- Rotate + purge the V1 leaked `README.md` secrets; then drop the `.gitleaks.toml`
+  by-SHA allowlist (KNOWN_ISSUES #1/#19).
+- Prune `/public` after a verified media migration + repointing the hardcoded V1
+  hero paths (KNOWN_ISSUES #18 — see the runbook §3.1).
+- A reverse-proxy / container / PM2 ecosystem file and a CSP nonce pipeline.

@@ -94,12 +94,28 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Tests: 285 static (`admin.test.mjs`, 27) + 6 live-DB (`users.db.test.mjs`); `next build` + ESLint clean; no new migration
 - [x] Adversarial review (7 lenses, per-finding 2-verifier, 45 agents); 19 → 12 confirmed-both + 1 single-vote → all 13 addressed (incl. CRITICAL grant-escalation), 6 rejected
 
-## Session 10 — Testing + Deployment + Optimization ⬜ (next, FINAL)
-- [ ] Full test gate (static 285 + all live suites) + a CI workflow for the static suite
-- [ ] CWV/perf on public pages; responsive/cross-browser (incl. admin mobile sidebar toggle); brand/font cleanup (#11/#12)
-- [ ] Deploy hardening (env checklist, headers, rate-limit/CSRF on the mutation routes, NFT tracing decision)
-- [ ] Prune V1 leftovers (#10/#13) + `/public` after media migration (#18); operator runbook + final handover
+## Session 10 — Testing + Deployment + Optimization + Handover ✅ (FINAL of the original plan)
+- [x] Full test gate: **307 static** + **344 with live** (smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 / devconsole 10 / users 6) green on warm Neon
+- [x] CI workflow (`.github/workflows/ci.yml`): static suite + `npm run lint` + build on push/PR; live-DB nightly/manual + secret-gated (DL-052); added `npm run lint` (Next 16 dropped `next lint`) + `backups/**` ignore
+- [x] Public CWV (DL-053): Cloudinary `f_auto,q_auto` (`cloudinaryAutoUrl`) + `next/image` `sizes` + AVIF/WebP; font consolidation to one `next/font` load (#12); brand-blue unified to `#003f87` (#11)
+- [x] Responsive: admin mobile sidebar toggle wired (`AdminShell` + `admin.css`)
+- [x] Deploy hardening (DL-054/055): security headers; CSRF same-origin + per-process rate limiter (`lib/http/guard.mjs`) on `POST /api/admin/action` + `/api/events`; NFT #32 decided (accept + `outputFileTracingIncludes`)
+- [x] Prune V1 leftovers (DL-056): removed `app/page1.js` (#10) + the four `app/Clubs/*` (#13) with Header nav cutover to `/org/councils/<slug>`; `/public` left for the operator (#18, runbook §3.1)
+- [x] Handover: `docs/OPERATIONS_RUNBOOK.md` + refreshed DEPLOYMENT.md/docs/README.md + final docs sweep
+- [x] Adversarial review (5 dimensions, 13 agents, 2 verifiers/finding): 1 confirmed (CI `if`-scope bug, fixed) + 3 rejected (2 tidied anyway); `next build` + ESLint clean; no new migration
+- [x] New static tests: `tests/security.test.mjs` (16) + `cloudinaryAutoUrl` (6)
+
+## Session 11 — Student Event-Participation Login + "Wall of Fame" ⬜ (NEW features, queued — DL-057)
+- [ ] Public student/participant login (default `student` role) + a public "Sign in" entry point distinct from `/admin`
+- [ ] Event participation/RSVP: standalone `event_registration` table (FK event + app_user, status, partial-unique dedup, optional capacity/waitlist), audited service + register/cancel/my-registrations UI + admin "Registrations" tab
+- [ ] "Wall of Fame": new `content_type='achievement'` (+ payload table + handler + seed) with hybrid blocks (markdown / markdown+image / banner / link), data-driven `/wall-of-fame` page + admin editor; full CMS lifecycle for free
+- [ ] Migration(s) + seed rows; grow static + live tests; adversarial review; full handoff
+- See [NEXT_TASK.md](NEXT_TASK.md) for the complete Session-11 prompt.
+
+## Operator-owned (out-of-band — see OPERATIONS_RUNBOOK.md)
+- [ ] Run `db:import:org` → `db:import:events` → `db:import:resources` against 2025-26 (#27)
+- [ ] Run the media migration (`db:migrate:media -- --apply`) + safe `/public` prune (#18)
 
 ## Owner-owned (out-of-band)
-- [ ] Rotate/remove V1 leaked secrets in `README.md` (KNOWN_ISSUES #1)
+- [ ] Rotate/remove V1 leaked secrets in `README.md` (KNOWN_ISSUES #1); then drop the `.gitleaks.toml` by-SHA allowlist
 - [ ] Consider rotating Neon password if the sharing channel isn't private (#19)

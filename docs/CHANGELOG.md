@@ -520,6 +520,75 @@ update protocol in [README.md](README.md)).
 - **Docs** — `DECISION_LOG.md` DL-046..DL-048; `DEVELOPER_GUIDE.md` Developer Console
   section + `db:console` command; `Token_Usage.md` Session-8 row.
 
+### Added/Changed — Session 10: Testing + Deployment + Optimization + Handover · 2026-06-29
+
+The final build session — harden, prove, and ship (no new features). The product is
+feature-complete across Sessions 1–9.
+
+**Test gate (DL-052)**
+- Full suite green on a warm Neon: **307 static** (was 285) + the complete live-DB
+  run (**344 total**: + smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 /
+  media 3 / devconsole 10 / users 6). New static tests: `tests/security.test.mjs`
+  (16, the CSRF/rate-limit decision functions) + 6 `cloudinaryAutoUrl` cases.
+- **CI** — `.github/workflows/ci.yml`: `static-tests` (npm ci → prisma generate →
+  `npm test` → `npm run lint` → `npm run build`) on every push/PR; `live-db-tests`
+  nightly / manual, secret-gated (secrets hoisted to job-level `env` so the
+  step `if` is in scope — review-fixed). Added `npm run lint` (`eslint .`, since
+  Next 16 removed `next lint`) and `backups/**` to the ESLint ignores.
+
+**Performance / CWV on public pages (DL-053)**
+- `lib/media/cloudinary.mjs#cloudinaryAutoUrl` — pure, idempotent injection of
+  `f_auto,q_auto` into Cloudinary delivery URLs; applied in `lib/org/public.mjs`
+  (image assets only) + `lib/events/public.mjs` covers. `next/image` `sizes` on every
+  `fill` image (EventCard / OrgUnitPage hero + photos); `images.formats` AVIF/WebP.
+- **Fonts (#12)** — all fonts now load once via `next/font/google` in `app/layout.js`
+  (Geist, Geist Mono, Cormorant Garamond 400/600/700, Outfit) as CSS variables; the
+  render-blocking per-component `@import url(fonts.googleapis…)` in Header/EventCard
+  removed; Header/EventCard/admin.css/Footer consume `var(--font-*)`.
+- **Brand blue (#11)** — `#003f87` is now the single canonical value (the stray
+  `#003087` in EventCard/Header/`--adm-blue` aligned).
+
+**Responsive (DL-051 follow-up)**
+- Admin mobile sidebar toggle wired (`AdminShell.jsx` + `admin.css`): the `☰` button
+  shows below 880px, slides the sidebar in over a tap-to-close backdrop.
+
+**Deploy hardening (DL-054 / DL-055)**
+- Security headers in `next.config.mjs#headers()` (nosniff, X-Frame-Options
+  SAMEORIGIN, Referrer-Policy, Permissions-Policy, HSTS). CSP deferred (needs a
+  nonce pipeline) — documented.
+- `lib/http/guard.mjs` (NEW) — a same-origin (CSRF) check + a best-effort
+  per-process rate limiter, wired into `POST /api/admin/action` (60/min/account) and
+  `POST /api/events` (20/min) with friendly 403/429 + `Retry-After`.
+- NFT over-tracing (#32) — accepted as benign; `outputFileTracingIncludes` bundles
+  the dev-console fs reads (`prisma/migrations/**`, `docs/Token_Usage.md`).
+
+**Prune + route cutover (DL-056)**
+- Removed dead `app/page1.js` (#10) and the four static `app/Clubs/*` (#13); cut the
+  Header council nav over to the data-driven `/org/councils/<slug>` pages and removed
+  the dead `councilConfig`/`isCouncilPage` logic. `/public` NOT pruned (#18 stays
+  operator-pending — migration not run + hardcoded hero refs remain; runbook §3.1).
+
+**Handover**
+- `docs/OPERATIONS_RUNBOOK.md` (NEW) — the operator entry point (env checklist,
+  setup, imports, media migration, deploy, admins, observe/recover, troubleshooting).
+- Refreshed `docs/DEPLOYMENT.md` (V2 reality + hardening summary) and `docs/README.md`
+  (status → all 10 sessions complete; runbook + admin-guide links).
+
+**Deferred to Session 11 (DL-057)**
+- A late operator request for two **net-new features** — a student/participant
+  **login + event participation/RSVP** flow, and a **"Wall of Fame"** achievements
+  module (hybrid markdown / images / banners) — is deferred to a new **Session 11**
+  (Session 10 is harden-only). Today the only auth surface is the staff `/admin`
+  sign-in; there is no public event-registration. Full Session-11 prompt in the
+  handoff / `NEXT_TASK.md`.
+
+**Review** — a 5-dimension adversarial workflow (13 agents, per-finding 2 verifiers):
+4 raw findings → **1 confirmed-both** (the CI live-db `if`-scope bug — fixed) + 3
+rejected; 2 of the rejected (the `Origin: null` defense-in-depth gap and the Footer
+Cormorant weight-400 gap) were tidied anyway as cheap, correct improvements.
+
+---
+
 ### Added/Changed — Session 9: Admin Panel · 2026-06-29
 
 - **Users & Roles — the ONE net-new backend (DL-049)** — `lib/users/admin.mjs`:
