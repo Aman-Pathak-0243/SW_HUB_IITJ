@@ -3,9 +3,14 @@
 **Last updated:** 2026-06-29
 **Session:** 10 of 10 — **COMPLETE** (Testing + Deployment + Optimization + Handover)
 **Project status:** ✅ **ALL 10 SESSIONS COMPLETE — feature-complete & ready to deploy.**
-**Follow-up:** A **Session 11** is queued for two operator-requested NEW features
-(student/event-participation login + a "Wall of Fame") — these were out of scope for
-the harden-only Session 10 (DL-057). Prompt in [NEXT_TASK.md](NEXT_TASK.md).
+**Follow-up:** A large operator-requested **Session 11+ member-platform program** is
+queued (multi-session): email+password-only admin-provisioned accounts, RBAC
+categories + per-email overrides, expanded club pages + memberships, a Wall of Fame,
+an advanced centralized Event Playground (rounds/scoring/ranking/registration/
+closure), member profiles, centralized notifications/feedback, and a beefed-up
+developer dashboard (action+usage tracking, per-table backup/thresholds, nodemailer).
+Out of scope for the harden-only Session 10 (DL-057). **Full module-by-module prompt
+in [NEXT_TASK.md](NEXT_TASK.md).**
 **Branch:** `portal-v2`
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
@@ -402,12 +407,16 @@ the harden-only Session 10 (DL-057). Prompt in [NEXT_TASK.md](NEXT_TASK.md).
   ([docs/runbooks/git-history-purge.md](docs/runbooks/git-history-purge.md)); then
   drop the `.gitleaks.toml` by-SHA allowlist (#1/#19).
 
-**Session 11 (NEW features the operator requested — DL-057):**
-- A student/participant **login + event participation/RSVP** flow (today the only
-  auth is the staff `/admin` sign-in; there is no public event registration).
-- A **"Wall of Fame"** achievements module (hybrid markdown / images / banners) — a
-  capability-9 CMS content type + admin editor + public page.
-- Full prompt in [NEXT_TASK.md](NEXT_TASK.md).
+**Session 11+ (NEW features the operator requested — DL-057, a multi-session program):**
+- M0 email+password-only admin-provisioned accounts (bulk CSV, external mail,
+  must-change, admin-mediated forgot/reset) — REMOVES Google OAuth; M1 active/
+  inactive/revoked status + admin/dev dashboards; M2 RBAC categories + per-email
+  grant/deny overrides + email-format smart search; M3 expanded club pages +
+  memberships; M4 Wall of Fame; M5 advanced central Event Playground
+  (rounds/scores/ranking/registration/attendance/closure-report); M6 member
+  profiles; M7 centralized notifications/feedback/announcements; M8 developer
+  dashboard (action+usage tracking, per-table backup/thresholds, nodemailer).
+- **Full module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md).**
 
 ## Key facts for the next session
 

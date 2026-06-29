@@ -65,7 +65,8 @@ and **milestone plan** for Portal V2.0.
 | [ARCHITECTURAL_DECISIONS.md](ARCHITECTURAL_DECISIONS.md) | Lightweight ADR index (see DECISION_LOG for detail) |
 | [Token_Usage.md](Token_Usage.md) | Per-session token usage log (updated every session) |
 | [CHANGELOG.md](CHANGELOG.md) | Human-readable change history |
-| [MILESTONE_PLAN.md](MILESTONE_PLAN.md) | **The V2.0 roadmap — start here for the plan** |
+| [MILESTONE_PLAN.md](MILESTONE_PLAN.md) | **The roadmap — Sessions 1–10 (done) + the Session 11+ program** |
+| [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md) | **Session 11+ durable design — accounts/RBAC/club pages/event playground/dashboards (module-by-module)** |
 
 ### Root-level tracking files (live status, updated every milestone)
 

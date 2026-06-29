@@ -574,13 +574,20 @@ feature-complete across Sessions 1–9.
 - Refreshed `docs/DEPLOYMENT.md` (V2 reality + hardening summary) and `docs/README.md`
   (status → all 10 sessions complete; runbook + admin-guide links).
 
-**Deferred to Session 11 (DL-057)**
-- A late operator request for two **net-new features** — a student/participant
-  **login + event participation/RSVP** flow, and a **"Wall of Fame"** achievements
-  module (hybrid markdown / images / banners) — is deferred to a new **Session 11**
-  (Session 10 is harden-only). Today the only auth surface is the staff `/admin`
-  sign-in; there is no public event-registration. Full Session-11 prompt in the
-  handoff / `NEXT_TASK.md`.
+**Deferred to Session 11+ (DL-057)**
+- A late operator request — which grew into a large **member-platform program** —
+  is deferred to a new multi-session series **Session 11+** (Session 10 is
+  harden-only). Modules: **M0** email+password-only admin-provisioned accounts
+  (removes Google OAuth; bulk CSV, external-mail delivery, must-change, admin-mediated
+  forgot/reset, account requests, user deletion); **M1** active/inactive/revoked
+  status + admin/dev dashboards; **M2** RBAC categories + per-email grant/deny
+  overrides + email-format smart search; **M3** expanded club pages + memberships;
+  **M4** Wall of Fame; **M5** advanced central Event Playground (rounds/scores/
+  ranking/registration/attendance/closure report); **M6** member profiles; **M7**
+  centralized notifications/feedback/announcements; **M8** developer dashboard
+  (action+usage tracking, per-table backup/thresholds, nodemailer). Durable design:
+  [docs/MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); authoritative prompt:
+  `NEXT_TASK.md`.
 
 **Review** — a 5-dimension adversarial workflow (13 agents, per-finding 2 verifiers):
 4 raw findings → **1 confirmed-both** (the CI live-db `if`-scope bug — fixed) + 3

@@ -105,12 +105,20 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Adversarial review (5 dimensions, 13 agents, 2 verifiers/finding): 1 confirmed (CI `if`-scope bug, fixed) + 3 rejected (2 tidied anyway); `next build` + ESLint clean; no new migration
 - [x] New static tests: `tests/security.test.mjs` (16) + `cloudinaryAutoUrl` (6)
 
-## Session 11 — Student Event-Participation Login + "Wall of Fame" ⬜ (NEW features, queued — DL-057)
-- [ ] Public student/participant login (default `student` role) + a public "Sign in" entry point distinct from `/admin`
-- [ ] Event participation/RSVP: standalone `event_registration` table (FK event + app_user, status, partial-unique dedup, optional capacity/waitlist), audited service + register/cancel/my-registrations UI + admin "Registrations" tab
-- [ ] "Wall of Fame": new `content_type='achievement'` (+ payload table + handler + seed) with hybrid blocks (markdown / markdown+image / banner / link), data-driven `/wall-of-fame` page + admin editor; full CMS lifecycle for free
-- [ ] Migration(s) + seed rows; grow static + live tests; adversarial review; full handoff
-- See [NEXT_TASK.md](NEXT_TASK.md) for the complete Session-11 prompt.
+## Session 11+ — Member platform (NEW features, multi-session PROGRAM — DL-057, expanded)
+A large operator-requested program; **one module per session**, built on the spine.
+Suggested order M0 → M2 → M1 → M7/M8 → M3 → M4 → M5 → M6. Full prompt:
+[NEXT_TASK.md](NEXT_TASK.md).
+- [ ] **M0 Auth & accounts** — email+password ONLY (remove Google); admin-provisioned (single + bulk CSV, external mail); `must_change_password`; admin-mediated forgot/reset (request → assign → random password); account-request flow; delete users
+- [ ] **M1 User status** — active / inactive / revoked behaviors + 3 surfaces (public / admin dash / dev dash) + scoped route RBAC
+- [ ] **M2 RBAC categories + overrides** — role "categories" + a `user_permission_override` (grant/deny, **revises DL-026 no-deny**); email-format smart debounced search
+- [ ] **M3 Club pages + memberships** — club detail tabs (overview/past-events/achievements/resources/upcoming/announcements/misc-markdown), custom roles, `club_membership` many-to-many bulk upload
+- [ ] **M4 Wall of Fame** — `content_type='achievement'` hybrid blocks + `/wall-of-fame` + achievement↔user/club mapping
+- [ ] **M5 Event Playground** (largest, ~2 sessions) — any-type events by any stakeholder; organizers/collaborators/eligibility; rounds/scores/attendance/live-ranking; hybrid problem statements; registrations (dedup/capacity/waitlist); category tags; CSV downloads; closure report (markdown + budget + admin review); login-only; performance. **+ an "Events Organized" page** (curated markdown of all organized events + tagged stakeholders/team, edited by admin/staff/dev; every edit audited + surfaced/downloadable in a named M8 dev-dashboard tab)
+- [ ] **M6 Profiles** — member profile + participation/achievement/performance tracking
+- [ ] **M7 Notifications/feedback/announcements** — centralized labelled notifications (unique ids, assignment-tracked); feedback/issues with ref ids; central + club announcements (sync); past/current/upcoming listing
+- [ ] **M8 Dev dashboard** — action/usage tracking (downloadable+purge), per-table size thresholds + per-table backup, resource monitoring (Neon/Cloudinary), nodemailer bulk/rate-limited mail with progress + authorized-sender list
+- [ ] Cross-cutting: audit every cross-stakeholder action; structure data + services for a future AI agent layer
 
 ## Operator-owned (out-of-band — see OPERATIONS_RUNBOOK.md)
 - [ ] Run `db:import:org` → `db:import:events` → `db:import:resources` against 2025-26 (#27)
