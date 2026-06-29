@@ -448,6 +448,78 @@ update protocol in [README.md](README.md)).
   #18 reduced to an operator prune-after-migration; `DEVELOPER_GUIDE.md` Resources &
   Media section; `Token_Usage.md` Session-7 row.
 
+### Added/Changed — Session 8: Developer Console · 2026-06-29
+
+- **Developer Console — a read-mostly caller layer (DL-046)** in `lib/devconsole/`
+  over the Session 2–7 plumbing. It adds NO new audit writer / mutation / rollback
+  pipeline — it consumes `audit_log`, `transition_run`, `backup_record` and the
+  existing services. Authorization is `authorizeConsole(actor, keys)`: an **any-of**
+  permission gate (additive-union RBAC, developer/`grants_all` short-circuit,
+  `{system:true}` bypass), mirroring `lib/media/migrate.mjs#authorizeMigrate`.
+- **Audit-log viewer (DL-047)** — `lib/devconsole/audit.mjs`: `listAuditLog` (filter
+  by actor / entity / action / year / time-range; newest-first **keyset pagination**
+  via the monotonic BIGSERIAL `id`, DL-018), `getAuditEntry` (full before/after),
+  `getEntityTimeline`, `getAuditStats` (counts by action + entity via `groupBy`). Pure,
+  unit-tested helpers (`normalizeAuditFilters`, `buildAuditWhere`, `shapeAuditEntry`,
+  `compareByCountThenKey`, `summarizeByKey`) carry the logic. Gated on the **dedicated
+  `audit.read`** (not the broad `dev.console`); bulk list/timeline rows **data-minimize
+  PII** — `ip_address` / `user_agent` + the before/after JSONB are emitted only in the
+  single-entry detail view; a date-only `?to=` is the inclusive end-of-day.
+- **Monitoring + status (DL-048)** — `lib/devconsole/status.mjs`: `checkDatabase`
+  (latency probe + Neon-state label; NEVER throws — a cold/suspended compute is a
+  reported STATE, raw `P1001` host:port redacted + logged server-side),
+  `getMigrationStatus` (a `prisma migrate status`-shaped `diffMigrations` of on-disk
+  migrations vs the `_prisma_migrations` ledger; a ledger-read failure returns a
+  distinct `ledger-unreadable` shape, never "all pending"), `getTransitionStatus`
+  (reuses `lib/year/transition.mjs#listTransitionRuns`), `getMediaMigrationStatus`
+  (the `/public`→Cloudinary plan as a **pure read** reusing `selectMigrationCandidates`
+  — never invokes the gated mutator). `getSystemStatus` is the gated aggregator
+  (`dev.console`), wrapping each sub-check in `safe()`→`{error}`.
+- **Testing reports + cost (DL-048)** — `lib/devconsole/reports.mjs`: a test-suite
+  catalog, `parseTokenUsage`/`summarizeTokenUsage` over `docs/Token_Usage.md`,
+  `estimateBuildCost` (indicative LLM output-token cost) and `estimateInfraCost`
+  (Neon/Cloudinary free-tier headroom) over `getInfraUsage` (DB size +
+  media inventory). The infra read is isolated so a cold Neon degrades it to
+  `{error}` instead of sinking the status route.
+- **Backups / restore / rollback (DL-046)** — `lib/devconsole/backups.mjs`: the
+  `backup_record` ledger (`recordBackup` / `markBackupVerified` / `listBackups`)
+  through the shared `auditedMutation` (one semantic audit row each; `bytes` validated
+  to a friendly 422; returns the JSON-safe shaped row), plus **recovery delegates** —
+  `rollbackMediaMigration` → `lib/media/migrate.mjs#rollbackMigration` (DL-043) and
+  `forceTransitionResync` → `lib/year/transition.mjs#runTransition({force:true})`
+  (DL-031) — gated on `backup.restore`/`dev.console` FIRST, then the underlying
+  service's own gate (defense-in-depth). No new rollback logic.
+- **Surfaces** — gated routes `GET /api/dev/status` (`dev.console`; `Promise.allSettled`
+  so a partial failure still returns the health payload) and `GET /api/dev/audit`
+  (`audit.read`), plus a read-only CLI `scripts/devconsole.mjs`
+  (`npm run db:console [-- --audit --action=… --take=…]`). The rich console UI is the
+  Session-9 admin panel.
+- **Tests** — **258 static** (was 219): `devconsole.test.mjs` (39) — filter
+  normalization / where-building (incl. end-of-day & cursor), `shapeAuditEntry`
+  PII-minimization, the shared comparator + `getAuditStats` ordering via an injected
+  fake client, `diffMigrations`, `summarizeTransitionRuns`, `classifyLatency`,
+  `parseTokenUsage`, `estimateBuildCost`/`estimateInfraCost`, `shapeBackup`. Plus
+  **10 live-DB** (`devconsole.db.test.mjs`, throwaway 2093-94 year + direct-inserted
+  audit rows): reader filters + keyset pagination (full-walk non-overlap) + stats
+  ordering + timeline + entry, the 401/403 console gate, DB/migration/system status,
+  infra/reports + build-cost, the media-plan pure read (no `media.migrate`), the
+  recovery-delegate gate, and the audited backup ledger (+ a `bytes` 422). All prior
+  live suites still green; **org re-confirmed 4/4** (Session-7 changes inert).
+  `next build` + ESLint clean. **No new migration** (Session-2 schema already modeled
+  `audit_log` / `transition_run` / `backup_record`).
+- **Adversarial review** — a 7-lens workflow (correctness, security/authz, reuse/
+  consistency, read-only/no-new-pipeline, routes/API, tests, edge-cases/Neon) with
+  per-finding 2-verifier adversarial verification (43 agents); **18 raw findings → 6
+  confirmed-by-both + 8 single-vote → all legitimate ones addressed**, 4 rejected as
+  intentional designs. Fixes: status-route cold-Neon resilience (guarded infra read +
+  `Promise.allSettled`), `getAuditStats` ordering coverage + shared comparator (killed
+  the dead `summarizeByKey` duplication), end-of-day `?to=`, friendly `bytes` 422,
+  JSON-safe mutator returns, `ledger-unreadable` shape, error-message redaction, audit
+  PII minimization + `audit.read` gating, pagination full-walk assertion, recovery-
+  delegate + media-plan gate tests.
+- **Docs** — `DECISION_LOG.md` DL-046..DL-048; `DEVELOPER_GUIDE.md` Developer Console
+  section + `db:console` command; `Token_Usage.md` Session-8 row.
+
 ---
 
 ## Milestone history

@@ -64,8 +64,8 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (215 static tests; DB smoke + CMS + year-engine + org + events + resources + media live tests self-skip) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year + org + events + resources + media; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
+| `npm test` | Run the Vitest suite (258 static tests; DB smoke + CMS + year-engine + org + events + resources + media + dev-console live tests self-skip) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (smoke + CMS + year + org + events + resources + media + dev-console; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
 | `npm run db:seed` | Seed the database (idempotent: year, RBAC, org types/positions, content types, bootstrap users) |
@@ -73,6 +73,7 @@ npm run dev             # http://localhost:3000
 | `npm run db:import:events` | Import the 3 backed-up V1 events into the current year — idempotent, resumable, ~1 min. Flags: `-- --draft`, `-- --no-media`. |
 | `npm run db:import:resources` | Import the V1 per-unit resources (infra PDFs / Drive links) — idempotent; **run `db:import:org` first** (resources bind to org units; absent-unit rows are skipped). Flags: `-- --draft`, `-- --no-media`. |
 | `npm run db:migrate:media` | Admin Media Migration Tool (`/public` → Cloudinary). **DRY-RUN by default.** Flags: `-- --apply` (upload; needs `CLOUDINARY_*` in `.env.local`), `-- --rollback` (dry-run rollback), `-- --rollback --apply` (restore migrated assets to `/public`). Idempotent + reversible. |
+| `npm run db:console` | Developer Console — read-only system status + testing/cost reports (JSON). Flags: `-- --audit` (recent audit-log entries + stats), `-- --action=publish`, `-- --entityType=…`, `-- --take=N`. Runs as the seeded developer. |
 | `npm run db:studio` | Prisma Studio (DB browser) |
 | `npx eslint .` | Lint (config: `eslint.config.mjs`) |
 
@@ -365,6 +366,49 @@ Configure the target account in `.env.local`: `CLOUDINARY_CLOUD_NAME` (enough to
 build URLs), plus `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET` for `--apply`
 uploads. Every migrated asset resolves through `res.cloudinary.com` — the only
 host allowlisted in `next.config.mjs` (and `EventsBoard`).
+
+## Developer Console (Session 8)
+
+`lib/devconsole/` is the **read-mostly** ops layer over the Session 2–7 plumbing. It
+adds NO new audit writer / mutation / rollback pipeline — it reads `audit_log`,
+`transition_run`, `backup_record` and DELEGATES recovery to the existing services.
+Every surface is gated by `authorizeConsole(actor, keys)` — an **any-of** check
+(holding any listed key passes; developer/`grants_all` short-circuits; `{system:true}`
+bypasses for the CLI/tests).
+
+```js
+import { listAuditLog, getAuditStats } from "./lib/devconsole/audit.mjs";
+import { getSystemStatus } from "./lib/devconsole/status.mjs";
+import { getDevConsoleReports } from "./lib/devconsole/reports.mjs";
+import { recordBackup, rollbackMediaMigration, forceTransitionResync } from "./lib/devconsole/backups.mjs";
+
+const actor = { userId: user.id };                       // or { system: true } in a script
+const page  = await listAuditLog({ action: "publish", entityType: "content_item", take: 50 }, actor);
+const sys   = await getSystemStatus(actor);              // DB health + migrations + transitions + media plan
+const recovery = await rollbackMediaMigration({ dryRun: true }, actor); // delegates to lib/media/migrate.mjs
+```
+
+- **Audit viewer** (`audit.mjs`, gate `audit.read`): `listAuditLog` (filter by actor /
+  entity / action / year / time-range; newest-first **keyset pagination** via the
+  BIGSERIAL `id` — pass the returned `nextCursor` back as `cursor`), `getAuditEntry`
+  (full before/after), `getEntityTimeline`, `getAuditStats` (counts by action +
+  entity). A date-only `?to=YYYY-MM-DD` means the **inclusive** end of that day. List
+  rows omit `ip`/`user_agent` (PII) — those show only in the single-entry view.
+- **Status** (`status.mjs`, gate `dev.console` on the `getSystemStatus` aggregator):
+  `checkDatabase` never throws (a cold/suspended Neon is a reported STATE);
+  `getMigrationStatus` diffs on-disk migrations vs `_prisma_migrations`;
+  `getMediaMigrationStatus` is a PURE read of the migration plan (reuses
+  `selectMigrationCandidates` — it does NOT call the gated migrate tool).
+- **Reports** (`reports.mjs`, gate `dev.console`): test-suite catalog, token-usage
+  summary from `docs/Token_Usage.md`, indicative build-cost + Neon/Cloudinary
+  free-tier estimate.
+- **Backups** (`backups.mjs`, gate `backup.*`): the `backup_record` ledger
+  (`recordBackup`/`markBackupVerified`/`listBackups`, audited) + the recovery
+  delegates `rollbackMediaMigration` (DL-043) and `forceTransitionResync` (DL-031) —
+  both gated by the console FIRST, then by the underlying service's own permission.
+- **Surfaces:** `GET /api/dev/status` (`dev.console`), `GET /api/dev/audit`
+  (`audit.read`), and the CLI `npm run db:console [-- --audit]`. The rich console UI
+  is the Session-9 admin panel — these are the backend it renders.
 
 ## Project map
 

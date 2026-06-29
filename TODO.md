@@ -74,12 +74,19 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 - [x] Adversarial review (10 lenses, per-finding 2-verifier); 14 confirmed → all addressed
 - [ ] **Operator:** run `npm run db:import:resources` (after `db:import:org`) and the media migration `npm run db:migrate:media -- --apply` against 2025-26 (#27/#18)
 
-## Session 8 — Developer Console ⬜ (next)
-- [ ] Monitoring, logs, audit viewer, testing reports, deploy status
-- [ ] Backup/restore/rollback UI, migration tools, cost estimation
+## Session 8 — Developer Console ✅
+- [x] Read-mostly caller layer `lib/devconsole/*` over Sessions 2–7 plumbing; no new audit writer / mutation / rollback pipeline (DL-046); `authorizeConsole` any-of gate (system bypass, developer short-circuit)
+- [x] Audit-log viewer (`lib/devconsole/audit.mjs`): filter by actor/entity/action/year/time-range, keyset pagination, stats, timeline, entry drill-down; gated on dedicated `audit.read`; PII data-minimized on list rows; date-only `?to=` = inclusive end-of-day (DL-047)
+- [x] Monitoring + status (`lib/devconsole/status.mjs`): DB latency probe (never-throws), `prisma migrate status`-shaped ledger diff, transition history, media-migration plan as a pure read (reuses `selectMigrationCandidates`); resilient `getSystemStatus` aggregator (DL-048)
+- [x] Testing + cost reports (`lib/devconsole/reports.mjs`): suite catalog, `Token_Usage.md` parser, build-cost + Neon/Cloudinary free-tier estimate over live infra usage (isolated read)
+- [x] Backups/restore/rollback (`lib/devconsole/backups.mjs`): `backup_record` ledger via `auditedMutation` (bytes→422; JSON-safe returns) + recovery delegates to media rollback (DL-043) and transition force re-sync (DL-031), gated `backup.*`
+- [x] Gated routes `GET /api/dev/status` (`dev.console`, `Promise.allSettled`) + `GET /api/dev/audit` (`audit.read`); CLI `scripts/devconsole.mjs` (`npm run db:console`)
+- [x] Tests: 258 static (`devconsole.test.mjs`, 39) + 10 live-DB (`devconsole.db.test.mjs`); org re-confirmed 4/4; `next build` + ESLint clean; no new migration
+- [x] Adversarial review (7 lenses, per-finding 2-verifier, 43 agents); 18 → 6 confirmed-both + 8 single-vote → all legitimate addressed, 4 rejected
 
-## Session 9 — Admin Panel ⬜
-- [ ] RBAC-gated modules for all content/structure/users/roles
+## Session 9 — Admin Panel ⬜ (next)
+- [ ] RBAC-gated admin shell + per-permission nav; modules for all content/structure/events/resources/media + the Session-8 dev-console readers
+- [ ] NEW users-&-roles service (`lib/users/*` or `lib/rbac/admin.mjs`): create/invite/suspend users, grant/revoke role assignments (audited, gated `user.*`/`role.*`)
 
 ## Session 10 — Testing + Deployment + Optimization ⬜
 - [ ] Full test gate; CWV/perf; responsive/cross-browser; deploy hardening; handover
