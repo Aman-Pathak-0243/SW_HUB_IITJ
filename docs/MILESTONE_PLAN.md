@@ -1,29 +1,31 @@
 # Portal V2.0 — Milestone Plan (Living Document)
 
 > **This is a living document.** It is updated at the end of every session. The
-> delivery model is **10 sessions** (see [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md)).
-> Each session is implemented in automode/ultracode, ends with docs + tracking
-> updates, and hands off cleanly to the next.
+> original delivery model was **10 sessions** (see
+> [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md)) — **all 10 are now complete.** A new,
+> operator-requested **member-platform program (Session 11+)** extends the plan into
+> an open-ended series; its durable design is in
+> [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md).
 
 **Legend:** ✅ done · ⏳ next · ⬜ pending
 
 | Session | Theme | Status |
 |---|---|---|
 | 1 | Analysis + Documentation + Architecture | ✅ |
-| 2 | Database + Prisma + RBAC + Authentication | ⏳ |
-| 3 | CMS Foundation | ⬜ |
-| 4 | Academic Year Engine | ⬜ |
-| 5 | Organization Model (Clubs, Councils, Hostels, Mess) | ⬜ |
-| 6 | Events + Announcements | ⬜ |
-| 7 | Resources + Media | ⬜ |
-| 8 | Developer Console | ⬜ |
-| 9 | Admin Panel | ⬜ |
-| 10 | Testing + Deployment + Optimization | ⬜ |
+| 2 | Database + Prisma + RBAC + Authentication | ✅ |
+| 3 | CMS Foundation | ✅ |
+| 4 | Academic Year Engine | ✅ |
+| 5 | Organization Model (Clubs, Councils, Hostels, Mess) | ✅ |
+| 6 | Events + Announcements | ✅ |
+| 7 | Resources + Media | ✅ |
+| 8 | Developer Console | ✅ |
+| 9 | Admin Panel | ✅ |
+| 10 | Testing + Deployment + Optimization + Handover | ✅ |
+| **11+** | **Member platform** (auth pivot, RBAC categories+overrides, club pages+memberships, Wall of Fame, Event Playground, profiles, notifications/feedback, dev dashboard) — multi-session | ⏳ next |
 
 Each session must pass the relevant parts of the quality gate
 ([TESTING_STRATEGY.md](TESTING_STRATEGY.md)) and validate responsiveness
-([RESPONSIVE_DESIGN.md](RESPONSIVE_DESIGN.md)) for any UI it ships. Tests are
-written incrementally per session; the formal full-gate sweep is Session 10.
+([RESPONSIVE_DESIGN.md](RESPONSIVE_DESIGN.md)) for any UI it ships.
 
 ---
 
@@ -182,6 +184,45 @@ written incrementally per session; the formal full-gate sweep is Session 10.
   complete; a new maintainer can set up/run/extend from docs alone.
 - **Docs:** TESTING_STRATEGY, PERFORMANCE, RESPONSIVE_DESIGN, DEPLOYMENT,
   CHANGELOG (release), all final pass.
+
+---
+
+## ⏳ Session 11+ — Member Platform (multi-session program)
+
+- **Objective:** Turn the portal into a member platform: admin-provisioned accounts,
+  rich RBAC, club spaces, a Wall of Fame, an advanced event playground, member
+  profiles, centralized notifications/feedback, and a fuller developer dashboard.
+- **Scope (one module ≈ one session; full design in
+  [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md)):**
+  - **M0** Auth pivot — **email+password ONLY** (remove Google), admin-provisioned
+    (single + bulk CSV, external-mail delivery, `must_change_password`,
+    admin-mediated forgot/reset, account-request flow, user deletion).
+  - **M1** User status `active`/`inactive`/`revoked` + public / admin-dash /
+    dev-dash surfaces + scoped route RBAC.
+  - **M2** RBAC role "categories" + a `user_permission_override` (grant/**deny** —
+    revises DL-026) + email-format debounced smart search.
+  - **M3** Club detail pages (overview/past-events/achievements/resources/upcoming/
+    announcements/misc-markdown + custom roles) + `club_membership` bulk upload.
+  - **M4** Wall of Fame (`content_type='achievement'`, hybrid blocks) +
+    achievement↔user/club mapping.
+  - **M5** Centralized **Event Playground** — any event type by any stakeholder;
+    organizers/collaborators/eligibility; rounds + scores + attendance + live
+    ranking; hybrid problem statements; registration (dedup/capacity/waitlist);
+    category tags; CSV downloads; markdown closure report + admin review; login-only;
+    performance-tuned.
+  - **M6** Member profiles + participation/achievement/performance tracking.
+  - **M7** Centralized notifications (unique ref ids, assignment-tracked) + feedback/
+    issues + central & club announcements (sync) + past/current/upcoming listing.
+  - **M8** Developer dashboard — cross-domain action + hidden usage tracking
+    (download + purge), per-table size thresholds + per-table backup, Neon/Cloudinary
+    resource monitoring, nodemailer bulk/rate-limited mail (progress + authorized
+    senders).
+- **Cross-cutting:** every multi-stakeholder/cross-domain action audited; data +
+  service boundaries kept clean for a future AI agent layer.
+- **Depends on:** all of Sessions 1–10.
+- **Acceptance (per module):** migration(s) + seed; static + live tests; adversarial
+  review; responsive + themed UI; docs + decision log updated; clean handoff.
+- **Authoritative prompt:** [`NEXT_TASK.md`](../NEXT_TASK.md).
 
 ---
 
