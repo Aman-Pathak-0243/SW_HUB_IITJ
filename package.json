@@ -18,6 +18,7 @@
     "db:import:resources": "dotenv -e .env.local -- node scripts/import-resources.mjs",
     "db:migrate:media": "dotenv -e .env.local -- node scripts/migrate-media.mjs",
     "db:console": "dotenv -e .env.local -- node scripts/devconsole.mjs",
+    "cli": "dotenv -e .env.local -- node scripts/dev-cli.mjs",
     "db:reset": "dotenv -e .env.local -- prisma migrate reset",
     "db:studio": "dotenv -e .env.local -- prisma studio"
   },

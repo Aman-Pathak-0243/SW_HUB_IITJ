@@ -377,6 +377,10 @@ model RoleAssignment {
   @@index([orgUnitLineageKey])
   @@index([academicYearId])
   @@index([roleId])
+  // The hottest RBAC query (lib/rbac/authorize.mjs) filters by userId + revokedAt
+  // on every permission resolution; userId had NO index (Postgres does not index FK
+  // columns automatically), forcing a seq scan. This composite serves it directly.
+  @@index([userId, revokedAt])
   @@map("role_assignment")
 }
 

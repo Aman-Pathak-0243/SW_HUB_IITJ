@@ -154,15 +154,24 @@ async function main() {
 
   const devEmail = (process.env.BOOTSTRAP_DEVELOPER_EMAIL || "developer@iitjammu.ac.in").trim();
   const devPassword = process.env.BOOTSTRAP_DEVELOPER_PASSWORD;
+  // Hash ONCE and apply to BOTH branches. Previously the `update` branch omitted
+  // passwordHash, so a re-seed of an ALREADY-EXISTING developer left password_hash
+  // NULL forever and the bootstrap developer could never sign in. We only (re)set
+  // the password when BOOTSTRAP_DEVELOPER_PASSWORD is provided, so an unset env
+  // never clobbers a password the developer later chose via the reset flow.
+  const devCredential = devPassword
+    ? { passwordHash: await hashPassword(devPassword), passwordSetAt: new Date(), mustChangePassword: false }
+    : {};
   const developer = await prisma.user.upsert({
     where: { email: devEmail },
-    update: { isDeveloper: true, status: "active" },
+    update: { isDeveloper: true, status: "active", ...devCredential },
     create: {
       email: devEmail,
       name: "Portal Developer",
       isDeveloper: true,
       status: "active",
-      passwordHash: devPassword ? await hashPassword(devPassword) : null,
+      passwordHash: null,
+      ...devCredential,
     },
   });
   await ensureGlobalGrant(developer.id, developerRole.id);
