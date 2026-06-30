@@ -359,7 +359,7 @@ USERS
   user:create         --email= [--name=] [--password=] [--role=<key>] [--developer] [--status=] [--no-must-change]
   user:update         --email=|--id= [--name=] [--developer=true|false]
   user:set-password   --email=|--id= --password= [--no-must-change]
-  user:status         --email=|--id= --status=active|suspended|invited|disabled
+  user:status         --email=|--id= --status=active|inactive|revoked
   user:reset-password --email=|--id=
   user:delete         --email=|--id= --yes        (HARD delete; cascades grants + auth accounts)
   user:import-csv     --file=<path>               (CSV columns: email,name)

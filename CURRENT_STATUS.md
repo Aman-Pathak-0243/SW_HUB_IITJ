@@ -1,13 +1,73 @@
 # Current Status
 
 **Last updated:** 2026-06-30
-**Session:** 11 — **M2 COMPLETE** (RBAC categories + per-email permission overrides +
-email-format smart search), on top of **M0 + the member-platform PLUGIN**. Sessions
-1–10 remain complete (deployable V2).
+**Session:** 11 — **M1 COMPLETE** (user status active/inactive/revoked + the three
+surfaces + scoped route RBAC), on top of the **plugin + M0 + M2**. Sessions 1–10 remain
+complete (deployable V2).
 **Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2. **Next: M1** (user status active/inactive/revoked + the three surfaces +
-scoped route RBAC).
+✅ M2, ✅ M1. **Next: the M7/M8 spine** (centralized notifications/feedback + the
+developer dashboard), then M3 → M4 → M5 → M6.
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M1: user status & access modes)
+
+- **Three access modes (DL-065).** The `UserStatus` enum is forward-migrated from
+  `{active, suspended, invited, disabled}` to **`{active, inactive, revoked}`** via a
+  CREATE-style type swap + `CASE` data backfill (`suspended`/`invited` → `inactive`,
+  `disabled` → `revoked`), **never an init rewrite** (DL-027). **active** = full;
+  **inactive** = can log in + browse + see own achievements but **cannot participate in
+  events**; **revoked** = cannot log in, sees only the public site. Migration
+  `20260630160000_member_platform_m1` applied to Neon via `migrate deploy` (verified: enum
+  labels correct, backfill clean, no drift/reset).
+- **Live enforcement (DL-065, not in the JWT).** The single source of truth is the pure,
+  client-safe [lib/auth/access.mjs](lib/auth/access.mjs) (`USER_STATUSES`/`canLogin`/
+  `canParticipate`/`canViewNormal`/`describeAccess`/`resolveSurface`/`scopeMatches`),
+  re-exported by `lib/users/admin.mjs` + `lib/admin/forms.mjs` (no divergent copy). Login
+  (`authorizeCredentials` + the `signIn` callback) rejects `revoked` and admits `inactive`;
+  [lib/auth/session.mjs](lib/auth/session.mjs) adds **`requireMember()`** (member view —
+  admits active+inactive, rejects revoked + allow-normal-view-off), **`assertCanParticipate()`**
+  (the reusable, active-only capability M5 will gate event participation on), and
+  **`requireScopedPermission()`**; `requireUser()` stays active-only (the back office). The
+  RBAC resolver already returns no permissions for non-active users (unchanged), so
+  inactive/revoked have no back-office access.
+- **Three surfaces + scoped route RBAC (DL-066).** A minimal member view ([app/member](app/member/page.jsx))
+  behind the non-throwing [lib/member/server.mjs](lib/member/server.mjs)#`loadMemberContext`
+  (states `plugin-off`→404, `unauthenticated`, `revoked`, `view-disabled`, `ok`);
+  `resolveSurface` routes a logged-in user to member / admin / developer (gated on active
+  status). Scoped routes (coordinator→own club, secretary→own council, staff→playground/
+  central announcements) **reuse the existing `role_assignment` scope columns + the
+  resolver's `inScope` matching** — no new mechanism; `scopeMatches` restates it purely
+  for client-safe guards/tests.
+- **Per-account "allow normal view" toggle (DL-067).** New
+  `app_user.allow_normal_view boolean DEFAULT true`; set through the audited `updateUser`
+  path + the `user.setAllowNormalView` registry action + a checkbox in the admin Users
+  modal; withholds the member view when off (independent of status).
+- **Performance.** The pending `role_assignment (user_id, revoked_at)` index (added to the
+  schema with the per-request RBAC `React.cache` memo, but un-migrated) shipped as
+  `20260630150000_add_roleassignment_user_index` — the hottest RBAC lookup is no longer a
+  seq scan.
+- **Admin UI.** The Users tab status control is Activate / Deactivate / Revoke; the status
+  filter + create/edit modal use the new vocabulary; `statusTone` maps `inactive`→warn,
+  `revoked`→muted.
+- **Tests.** **393 static** (was 379; +`tests/access.test.mjs` 13 — the access matrix,
+  surface routing, `scopeMatches`↔`inScope` parity, scoped RBAC resolution; +the flipped
+  `authorizeCredentials` test, +a `signIn`-callback test, +`statusTone` inactive/revoked)
+  + **6 new live** (`tests/m1.db.test.mjs`): login per status, participation, non-active→no
+  back-office perms, coordinator→own-lineage-only scoped grant, the allow-normal-view
+  round-trip, self-lockout. The full live suite ran **470/472** on warm Neon — the 2
+  failures were transient `year.db` P2025s from running all DB suites in parallel against
+  one Neon DB (the year suite mutates the shared current-year row); `year.db` re-confirmed
+  **6/6 green in isolation** (M1 doesn't touch the year engine — KNOWN_ISSUES #39).
+  `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (run
+  twice: a nested-`parallel` script bug crashed the first Verify phase; fixed + resumed so
+  the finders returned cached and only Verify re-ran). **4 raw findings → 1 confirmed-by-both
+  (0 refuted) → fixed + 0 single-vote + 3 refuted:** the confirmed one — `loadMemberContext`
+  fed the RAW `is_developer` to `resolveSurface`, so an **inactive developer** was routed to
+  the developer surface and shown a `/admin` link the active-only admin boundary then denied
+  (a dead link; no privilege leak — the boundary fails closed) — fixed by gating the surface
+  developer-input on active status. The 3 refuted (test-coverage nits) — 2 addressed anyway
+  (`signIn` revoked test + `statusTone` assertions).
 
 ## What is done (Session 11 — M2: RBAC categories + per-email overrides + smart search)
 
@@ -527,9 +587,13 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**379 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  green (**393 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
   live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
-  media (3) + developer console (10) + **users/roles (6) + M0 (8) + M2 (7)** live tests.
+  media (3) + developer console (10) + users/roles (6) + M0 (8) + M2 (7) + **M1 (6)**
+  live tests. (The full live suite runs the DB suites in parallel against one Neon DB;
+  the stateful `year.db` suite — it mutates the shared current-year row — can show a
+  transient P2025 under that contention and is re-confirmed green in isolation. M1 does
+  not touch the year engine.)
 - **RBAC (M2):** authorization resolves as developer short-circuit → additive role
   union → `grants_all` short-circuit → per-email overrides (**deny wins**, DL-062).
   Manage overrides via `lib/users/admin.mjs#setUserOverride/removeUserOverride` (gated
@@ -540,6 +604,14 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
   transient "Can't reach database server" on a cold compute — re-run once if so (not
   a logic failure). The org live suite is the slowest (the importer makes many
   sequential audited tx round-trips).
+- **Access modes (M1):** `app_user.status ∈ {active, inactive, revoked}` is the single
+  status field (the pure matrix is `lib/auth/access.mjs`). Gate the BACK OFFICE with
+  `requireUser()`/`requirePermission()` (active-only); gate the MEMBER view with
+  `requireMember()` (admits inactive); gate EVENT PARTICIPATION (M5) with
+  `assertCanParticipate()` (active-only); gate per-unit routes with
+  `requireScopedPermission(key, { orgUnitLineageKey, academicYearId })`. Login is in
+  `lib/auth/options.mjs` (rejects revoked, admits inactive). `app_user.allow_normal_view`
+  withholds the member view independently (DL-067).
 - Import `prisma` from `lib/prisma.mjs` for all app DB access — it is the
   audit-extended client, so mutations are audited automatically. Use `prismaBase`
   only to bypass audit (audit reader, repair scripts, test cleanup / fixtures, the

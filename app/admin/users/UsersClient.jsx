@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Badge, Modal, Field, ConfirmButton, useAdminAction } from "../_components/ui";
 import { hasPerm } from "../../../lib/admin/nav.mjs";
-import { validateUserForm, validateRoleForm, validateOverrideForm, passwordRequirements } from "../../../lib/admin/forms.mjs";
+import { validateUserForm, validateRoleForm, validateOverrideForm, passwordRequirements, USER_STATUSES } from "../../../lib/admin/forms.mjs";
 import { statusTone, formatAssignmentScope } from "../../../lib/admin/view-models.mjs";
 import { filterUsers, userFilterFacets, userEmailIdentity } from "../../../lib/users/search.mjs";
 import { PERMISSIONS } from "../../../lib/rbac/permissions.mjs";
@@ -118,7 +118,7 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper, canOverrid
         </select>
         <select className="adm-select" value={filter.status} onChange={set("status")} aria-label="Status">
           <option value="">Any status</option>
-          {["active", "suspended", "invited", "disabled"].map((s) => <option key={s} value={s}>{s}</option>)}
+          {USER_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         {active && <button className="adm-btn ghost sm" onClick={clear}>Clear</button>}
         <span style={{ marginLeft: "auto", fontSize: "0.8rem", color: "var(--adm-muted)" }}>{filtered.length} of {users.length}</span>
@@ -159,9 +159,13 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper, canOverrid
                       {canUpdate && u.hasPassword && (
                         <ConfirmButton confirm={`Generate a new temporary password for ${u.email}? They will be forced to change it on next login.`} busy={busy} onConfirm={() => forceReset(u)}>Reset pw</ConfirmButton>
                       )}
-                      {canSuspend && u.id !== viewerId && (u.status === "active"
-                        ? <button className="adm-btn danger sm" disabled={busy} onClick={() => setStatus(u, "suspended")}>Suspend</button>
-                        : <button className="adm-btn ghost sm" disabled={busy} onClick={() => setStatus(u, "active")}>Activate</button>)}
+                      {/* M1 (DL-065): active / inactive / revoked. inactive = browse but
+                          no event participation; revoked = no login at all. */}
+                      {canSuspend && u.id !== viewerId && <>
+                        {u.status !== "active" && <button className="adm-btn ghost sm" disabled={busy} onClick={() => setStatus(u, "active")}>Activate</button>}
+                        {u.status !== "inactive" && <button className="adm-btn ghost sm" disabled={busy} onClick={() => setStatus(u, "inactive")}>Deactivate</button>}
+                        {u.status !== "revoked" && <button className="adm-btn danger sm" disabled={busy} onClick={() => setStatus(u, "revoked")}>Revoke</button>}
+                      </>}
                       {canDelete && u.id !== viewerId && (
                         <ConfirmButton className="adm-btn danger sm" confirm={`Permanently delete ${u.email}? This cannot be undone.`} busy={busy} onConfirm={() => del(u)}>Delete</ConfirmButton>
                       )}
@@ -266,7 +270,7 @@ function OverridesModal({ user, onClose, run, busy }) {
 }
 
 function UserModal({ title, user, isCreate, viewerIsDeveloper, canUpdate = true, onClose, run, busy }) {
-  const [form, setForm] = useState({ email: "", name: user?.name ?? "", password: "", isDeveloper: user?.isDeveloper ?? false });
+  const [form, setForm] = useState({ email: "", name: user?.name ?? "", password: "", isDeveloper: user?.isDeveloper ?? false, allowNormalView: user?.allowNormalView ?? true });
   const [errors, setErrors] = useState({});
 
   const submit = async () => {
@@ -277,8 +281,8 @@ function UserModal({ title, user, isCreate, viewerIsDeveloper, canUpdate = true,
       if (isCreate) {
         await run("user.create", { input: v.value }, { success: "User created" });
       } else {
-        if (v.value.name !== undefined || v.value.isDeveloper !== undefined) {
-          await run("user.update", { id: user.id, patch: { name: v.value.name, isDeveloper: v.value.isDeveloper } }, { success: "User updated" });
+        if (v.value.name !== undefined || v.value.isDeveloper !== undefined || v.value.allowNormalView !== undefined) {
+          await run("user.update", { id: user.id, patch: { name: v.value.name, isDeveloper: v.value.isDeveloper, allowNormalView: v.value.allowNormalView } }, { success: "User updated" });
         }
         if (v.value.password) await run("user.setPassword", { id: user.id, password: v.value.password }, { success: "Password set (user must change on next login)" });
       }
@@ -303,6 +307,8 @@ function UserModal({ title, user, isCreate, viewerIsDeveloper, canUpdate = true,
         {viewerIsDeveloper && (
           <label className="adm-check"><input type="checkbox" checked={form.isDeveloper} onChange={(e) => setForm({ ...form, isDeveloper: e.target.checked })} /> Developer (unrestricted access)</label>
         )}
+        {/* M1 (DL-067): per-account member-view toggle. */}
+        <label className="adm-check"><input type="checkbox" checked={form.allowNormalView} onChange={(e) => setForm({ ...form, allowNormalView: e.target.checked })} /> Allow the normal (member) view</label>
       </div>
     </Modal>
   );

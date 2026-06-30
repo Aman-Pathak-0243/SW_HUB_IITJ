@@ -103,7 +103,7 @@ export async function POST(req) {
 - Permissions/roles are DATA (`lib/rbac/permissions.mjs` is the seed + catalog).
   Add a permission → add a row there, re-seed. No code edit to enforce it.
 - Developer (`is_developer` / a `grants_all` role) short-circuits all checks.
-- Permission checks hit the DB live, so revoked roles / suspended accounts take
+- Permission checks hit the DB live, so revoked roles / non-active accounts take
   effect on the next request (sessions are JWT — DL-019).
 - **RBAC "categories" are roles (M2, DL-063).** The seeded stakeholder ladder
   (`normal_user` / `co_coordinator` / `coordinator` / `secretary` / `staff` / `admin`,
@@ -119,6 +119,33 @@ export async function POST(req) {
   reuses `lib/auth/email.mjs#parseInstituteEmail`; `matchesUserFilter` is the one
   predicate behind both the debounced admin filter and `listUsers`'s server criteria
   (`year`/`level`/`branch`/`category`/`status`/`search`).
+
+### Access modes & the three surfaces (M1, DL-065/066/067)
+
+- **Status = `active` / `inactive` / `revoked`.** The single source of truth for the
+  matrix is the PURE, client-safe `lib/auth/access.mjs`:
+  `canLogin` (active+inactive), `canParticipate` (active only), `canViewNormal`
+  (login-able AND `allowNormalView`), `resolveSurface` (developer/admin/member),
+  `scopeMatches` (mirrors `lib/rbac/authorize.mjs#inScope`). `USER_STATUSES` is
+  re-exported by `lib/users/admin.mjs` + `lib/admin/forms.mjs` (no divergent copy).
+- **Boundaries (live, never the JWT — DL-019):**
+  - `requireUser()` — back office; **active only**.
+  - `requireMember()` — the member normal view; **admits active + inactive**, rejects
+    `revoked` (403 `ACCOUNT_REVOKED`) and `allowNormalView=false` (403 `NORMAL_VIEW_DISABLED`).
+  - `assertCanParticipate(memberOrUserId)` — the reusable event-participation capability
+    (active only; M5 gates registration/scoring/attendance on it). Accepts the
+    `requireMember()` result (uses its live `status`) or a userId (reads live).
+  - `requireScopedPermission(key, { orgUnitLineageKey, academicYearId })` — the named
+    seam for per-unit/per-year route gating (coordinator→own club, secretary→own council,
+    staff→playground); it is `requirePermission` with scope, resolved by the existing
+    `inScope` matching (a narrower grant does NOT satisfy a broader/unscoped request).
+  - Login: `authorizeCredentials` + the `signIn` callback reject `revoked`, admit `inactive`.
+- **Member view:** `app/member` behind the non-throwing `lib/member/server.mjs#loadMemberContext`
+  (states `plugin-off` → 404, `unauthenticated`, `revoked`, `view-disabled`, `ok`).
+- **Set status / the member-view toggle:** `lib/users/admin.mjs#setUserStatus`
+  (active/inactive/revoked; no self-lockout) and `updateUser({ allowNormalView })`
+  (audited), exposed as registry actions `user.setStatus` + `user.setAllowNormalView`.
+  From the CLI: `npm run cli -- user:status --email=… --status=active|inactive|revoked`.
 
 ## CMS content lifecycle (Session 3)
 
@@ -471,7 +498,7 @@ never the raw row / `passwordHash`). **Privilege-escalation guards (DL-049) — 
   cannot mint the unrestricted bypass (this was the review's CRITICAL finding —
   guarding the flag but not the equivalent grant).
 - New roles can't be `grants_all`; system roles are modification-protected except
-  `description`; you can't suspend your own account.
+  `description`; you can't set your OWN account to a non-active status (self-lockout).
 
 Internal `roleView(id)` (ungated) backs `getRole`/`createRole`/`updateRole`'s return +
 audit before/after, so create/update don't require the actor to ALSO hold `role.read`.

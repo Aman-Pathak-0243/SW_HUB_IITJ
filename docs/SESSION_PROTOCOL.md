@@ -30,8 +30,10 @@ context and no repeated work.
 > **The original 10-session plan is complete.** A **Session 11+ member-platform
 > program** (multi-session, one module per session — DL-057) is in progress on the
 > existing spine. Shipped so far: the developer-controlled **plugin** control plane,
-> **M0** (auth & account lifecycle), and **M2** (RBAC categories + per-email permission
-> overrides + email-format smart search). **Next: M1** (user status + surfaces).
+> **M0** (auth & account lifecycle), **M2** (RBAC categories + per-email permission
+> overrides + email-format smart search), and **M1** (user status active/inactive/revoked
+> + the three surfaces + scoped route RBAC). **Next: the M7/M8 spine** (notifications/
+> feedback + the developer dashboard), then M3 → M4 → M5 → M6.
 > Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).

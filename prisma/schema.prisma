@@ -31,11 +31,16 @@ enum AcademicYearStatus {
   @@map("academic_year_status")
 }
 
+// Member-platform M1 (Session 11): three access modes (DL-065). active = full;
+// inactive = can log in + browse + see own achievements but CANNOT participate in
+// events; revoked = cannot log in (rejected at authorize/signIn), public site only.
+// Forward-migrated from the legacy active/suspended/invited/disabled set
+// (suspended+invited → inactive, disabled → revoked) via a CREATE-style enum swap
+// + data backfill (never an init rewrite — DL-027).
 enum UserStatus {
   active
-  suspended
-  invited
-  disabled
+  inactive
+  revoked
 
   @@map("user_status")
 }
@@ -176,6 +181,11 @@ model User {
   // when the user changes it. password_set_at records the last credential change.
   mustChangePassword Boolean    @default(false) @map("must_change_password")
   passwordSetAt      DateTime?  @map("password_set_at") @db.Timestamptz
+  // M1 (DL-067): per-account "allow normal (member) view" toggle. When false the
+  // authenticated member surface is withheld even though the account can still log
+  // in (e.g. an account onboarded but not yet cleared for the member experience);
+  // admin/dev-settable + audited. Defaults true so existing accounts are unaffected.
+  allowNormalView    Boolean    @default(true) @map("allow_normal_view")
   lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz

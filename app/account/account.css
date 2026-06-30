@@ -132,3 +132,28 @@
   font-size: 0.9rem;
   line-height: 1.5;
 }
+
+/* ── M1 member (normal) view (DL-065/066) ── */
+.mbr-card { max-width: 480px; }
+.mbr-row { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.mbr-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5a6478;
+  font-weight: 600;
+}
+.mbr-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.mbr-badge.good { background: #e6f4ea; color: #1e7e34; }
+.mbr-badge.warn { background: #fef3cd; color: #8a6d00; }
+.mbr-note { color: #3c4658; font-size: 0.9rem; line-height: 1.5; margin: 0 0 18px; }
+.mbr-surfaces { border-top: 1px solid #eef1f6; padding-top: 16px; margin-top: 4px; }
+.mbr-surfaces .acc-links { margin-top: 6px; }
+.mbr-foot { margin-top: 20px; }

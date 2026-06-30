@@ -1,27 +1,29 @@
 # Next Task
 
-**As of:** 2026-06-30 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0,
-and now M2** (RBAC categories + per-email overrides + smart search). Next session:
-**M1** (user status active/inactive/revoked + the three surfaces + scoped route RBAC),
-built inside the plugin.
+**As of:** 2026-06-30 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
+and now M1** (user status active/inactive/revoked + the three surfaces + scoped route
+RBAC). Next session: **the M7/M8 spine** (centralized notifications/feedback + the
+developer dashboard), built inside the plugin — then M3 → M4 → M5 → M6.
 
-> ### ✅ Session 11 done — M2 (RBAC categories + per-email overrides + smart search)
-> Built inside the `member_platform` plugin, on top of M0. Delivered: six seeded
-> **"category" roles** (normal_user / co_coordinator / coordinator / secretary / staff /
-> admin — `admin` = the catalog minus the developer-only ops; DL-063); a new
-> **`user_permission_override`** table (grant|deny, optional unit/year scope) that
-> extends `resolveEffectivePermissions` to *additive role union THEN overrides, **deny
-> wins*** — **revising DL-026 #8's no-deny rule** while keeping the developer/`grants_all`
-> short-circuit and adding a "can't grant what you don't hold" escalation guard (DL-062,
-> new `permission.override` permission); and an **email-format smart search** — the pure
-> client-safe `lib/users/search.mjs` (reusing `parseInstituteEmail`) behind a **debounced**
-> admin filter (year / level / branch / category / status) and a coarse server
-> pre-filter on `listUsers` (DL-064). Migration `20260630140000_member_platform_m2`
-> (applied); seed now 45 perms / 11 roles. **379 static + 7 live (`m2.db.test.mjs`);**
-> 12-agent review (0 confirmed, 1 single-vote drift fixed). Next: **M1** (then M7/M8 →
-> M3 → M4 → M5 → M6).
+> ### ✅ Session 11 done — M1 (user status & access modes)
+> Built inside the `member_platform` plugin, on top of M0 + M2. Delivered: the
+> `UserStatus` enum forward-migrated to **`active / inactive / revoked`** via a
+> CREATE-style type swap + `CASE` data backfill (suspended/invited→inactive,
+> disabled→revoked; migration `20260630160000_member_platform_m1`, applied to Neon — no
+> init rewrite, DL-027); **live enforcement** (DL-065) at the login/session layer (not
+> the JWT) — login admits inactive / rejects revoked; `requireMember()` (member view,
+> admits inactive) vs active-only `requireUser()` (back office); the reusable active-only
+> `assertCanParticipate()` (the M5 event-participation seam); `requireScopedPermission()`;
+> all driven by the pure, client-safe `lib/auth/access.mjs` (single source of truth).
+> **Three surfaces + scoped route RBAC** (DL-066) reuse the existing `role_assignment`
+> scope columns + the resolver's `inScope` matching (minimal `app/member` view +
+> `loadMemberContext`); a per-account `allow_normal_view` toggle (DL-067); and the pending
+> `role_assignment (user_id, revoked_at)` index migration
+> (`20260630150000_add_roleassignment_user_index`). **393 static + 6 live
+> (`m1.db.test.mjs`);** 6-dimension × 2-verifier review (1 confirmed → fixed: an
+> inactive-developer surface dead-link). Next: **M7/M8 spine** (then M3 → M4 → M5 → M6).
 > **Operator:** after pulling, run `npm run db:migrate` (idempotent — already applied
-> here) then `npm run db:seed` (idempotent) so the new permission + category roles attach.
+> here: the index + the M1 enum/column migrations) then `npm run db:seed` (idempotent).
 
 ---
 

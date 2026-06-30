@@ -14,7 +14,7 @@ const u = (email, over = {}) => ({ email, name: over.name ?? "", status: over.st
 const USERS = [
   u("2023ume0243@iitjammu.ac.in", { roles: [{ key: "coordinator", name: "Coordinator" }] }),
   u("2023ucs0101@iitjammu.ac.in", { roles: [{ key: "normal_user", name: "Normal User" }] }),
-  u("2021pme1001@iitjammu.ac.in", { status: "suspended", roles: [{ key: "staff", name: "Staff" }] }),
+  u("2021pme1001@iitjammu.ac.in", { status: "inactive", roles: [{ key: "staff", name: "Staff" }] }),
   u("2020rma0007@iitjammu.ac.in", { roles: [] }),
   u("warden.egret@iitjammu.ac.in", { name: "Warden", roles: [{ key: "admin", name: "Administrator" }] }),
 ];
@@ -83,7 +83,7 @@ describe("matchesUserFilter", () => {
     expect(filterUsers(USERS, { category: "admin" }).map((x) => x.email)).toEqual(["warden.egret@iitjammu.ac.in"]);
   });
   it("status filter", () => {
-    expect(filterUsers(USERS, { status: "suspended" }).map((x) => x.email)).toEqual(["2021pme1001@iitjammu.ac.in"]);
+    expect(filterUsers(USERS, { status: "inactive" }).map((x) => x.email)).toEqual(["2021pme1001@iitjammu.ac.in"]);
   });
   it("free-text q matches email or name (case-insensitive)", () => {
     expect(filterUsers(USERS, { q: "WARDEN" }).map((x) => x.email)).toEqual(["warden.egret@iitjammu.ac.in"]);

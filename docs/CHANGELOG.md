@@ -24,6 +24,51 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M1 (user status & access modes) · 2026-06-30
+- **Three access modes (DL-065)** — the `UserStatus` enum is forward-migrated from
+  `{active, suspended, invited, disabled}` to **`{active, inactive, revoked}`** via a
+  CREATE-style type swap + `CASE` backfill (`suspended`/`invited` → `inactive`,
+  `disabled` → `revoked`) in `prisma/migrations/20260630160000_member_platform_m1`
+  (the init is never rewritten; applied to Neon via `migrate deploy`). **active** =
+  full; **inactive** = log in + browse + own achievements but **no event participation**;
+  **revoked** = cannot log in, public site only.
+- **Live enforcement (DL-065, not in the JWT)** — `lib/auth/options.mjs`
+  (`authorizeCredentials` + the `signIn` callback) reject `revoked` and admit `inactive`
+  via the pure `canLogin`; `lib/auth/session.mjs` gains **`requireMember()`** (the
+  member-view boundary — admits active+inactive, rejects revoked + allow-normal-view-off),
+  **`assertCanParticipate()`** (the reusable, active-only capability M5 will gate event
+  participation on), and **`requireScopedPermission()`**; `requireUser()` stays
+  active-only (the back office). New pure, client-safe `lib/auth/access.mjs`
+  (`USER_STATUSES`/`canLogin`/`canParticipate`/`canViewNormal`/`describeAccess`/
+  `resolveSurface`/`scopeMatches`) is the single source of truth, re-exported by
+  `lib/users/admin.mjs` + `lib/admin/forms.mjs`.
+- **Three surfaces + scoped routes (DL-066)** — a minimal member view (`app/member`)
+  behind the non-throwing `lib/member/server.mjs#loadMemberContext` (plugin-off → 404;
+  unauthenticated / revoked / view-disabled / ok states); `resolveSurface` routes a
+  logged-in user to member / admin / developer. Scoped route access
+  (coordinator→own club, secretary→own council, staff→playground/announcements) reuses
+  the existing `role_assignment` scope columns + the resolver's `inScope` matching — no
+  new mechanism; `scopeMatches` restates it purely for client-safe guards/tests.
+- **Per-account "allow normal view" toggle (DL-067)** — new
+  `app_user.allow_normal_view boolean DEFAULT true`; set through the audited `updateUser`
+  path + the `user.setAllowNormalView` registry action + a checkbox in the admin Users
+  modal; withholds the member view when off (independent of status).
+- **Performance** — the pending `role_assignment (user_id, revoked_at)` index (added to
+  the schema with the per-request RBAC caching, but un-migrated) shipped as
+  `20260630150000_add_roleassignment_user_index` — the hottest RBAC lookup is no longer a
+  seq scan.
+- **Admin UI** — the Users tab status control is now Activate / Deactivate / Revoke; the
+  status filter + create/edit modal use the new vocabulary; `statusTone` maps
+  `inactive`→warn, `revoked`→muted.
+- **Tests** — **392 static** (was 379; +`tests/access.test.mjs` 13: the access matrix,
+  surface routing, `scopeMatches`↔`inScope` parity, scoped RBAC resolution; the
+  `authorizeCredentials` test flipped to assert inactive-logs-in / revoked-rejected) +
+  **6 new live** (`tests/m1.db.test.mjs`): login per status, participation, non-active →
+  no back-office perms, coordinator → own-lineage-only scoped grant, the allow-normal-view
+  round-trip, self-lockout. All prior live suites still green (full live run **80**).
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow over the
+  M1 diff (see CURRENT_STATUS for the outcome).
+
 ### Added/Changed — Session 11: Member Platform M2 (RBAC categories + per-email overrides + smart search) · 2026-06-30
 - **RBAC "categories" = seeded roles (DL-063)** — six new non-system, non-`grants_all`
   roles in `lib/rbac/permissions.mjs#ROLE_DEFS`: `normal_user` (no back-office perms),

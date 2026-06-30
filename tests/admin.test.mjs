@@ -69,6 +69,8 @@ describe("admin/view-models", () => {
     expect(statusTone("draft")).toBe("info");
     expect(statusTone("archived")).toBe("muted");
     expect(statusTone("review")).toBe("warn");
+    expect(statusTone("inactive")).toBe("warn"); // M1: can browse, no participation
+    expect(statusTone("revoked")).toBe("muted"); // M1: no login
     expect(statusTone("weird")).toBe("neutral");
   });
 
