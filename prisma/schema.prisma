@@ -162,18 +162,23 @@ enum TransitionStatus {
 // ──────────────────────────────────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String     @unique @db.Citext
-  emailVerified DateTime?  @map("email_verified_at") @db.Timestamptz
-  passwordHash  String?    @map("password_hash") // argon2id; NULL when OAuth-only
-  name          String     @map("display_name") // adapter User.name
-  image         String? // adapter User.image (OAuth avatar URL); curated avatar is `avatar`
-  avatarMediaId String?    @map("avatar_media_id") @db.Uuid
-  isDeveloper   Boolean    @default(false) @map("is_developer")
-  status        UserStatus @default(active)
-  lastLoginAt   DateTime?  @map("last_login_at") @db.Timestamptz
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String     @unique @db.Citext
+  emailVerified      DateTime?  @map("email_verified_at") @db.Timestamptz
+  passwordHash       String?    @map("password_hash") // argon2id; NULL when OAuth-only
+  name               String     @map("display_name") // adapter User.name
+  image              String? // adapter User.image (OAuth avatar URL); curated avatar is `avatar`
+  avatarMediaId      String?    @map("avatar_media_id") @db.Uuid
+  isDeveloper        Boolean    @default(false) @map("is_developer")
+  status             UserStatus @default(active)
+  // Member-platform M0 (Session 11): admin-provisioned accounts get an initial
+  // password and must_change_password=true → forced change on first login. Cleared
+  // when the user changes it. password_set_at records the last credential change.
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  passwordSetAt      DateTime?  @map("password_set_at") @db.Timestamptz
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
   avatar   MediaAsset? @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   accounts Account[]
@@ -202,6 +207,9 @@ model User {
   auditLogs              AuditLog[]        @relation("AuditLogActor")
   transitionRunsRun      TransitionRun[]   @relation("TransitionRunRunBy")
   backupRecordsCreated   BackupRecord[]    @relation("BackupRecordCreatedBy")
+  featureFlagsUpdated    FeatureFlag[]     @relation("FeatureFlagUpdatedBy")
+  notificationsAssigned  Notification[]    @relation("NotificationAssignedTo")
+  notificationsResolved  Notification[]    @relation("NotificationResolvedBy")
 
   @@index([status])
   @@map("app_user")
@@ -907,4 +915,68 @@ model BackupRecord {
   @@index([scope, createdAt(sort: Desc)])
   @@index([verified])
   @@map("backup_record")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M0 (plugin control plane + request queue)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Developer-controlled feature flags ("plugins"). The whole Session 11+ member
+// platform is gated behind the `member_platform` flag: when a DEVELOPER turns it
+// on, the member-platform features (email+password-only auth, member pages,
+// account/reset request flows, forced first-login password change) activate;
+// when off, the portal behaves exactly as Sessions 1–10. Toggling is
+// developer-only + audited (lib/platform/flags.mjs). The flag catalog is seeded
+// from PLUGIN_DEFS; re-seeding never resets an operator's chosen `enabled`.
+model FeatureFlag {
+  key         String   @id // 'member_platform' (stable slug)
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  category    String   @default("plugin") // plugin | setting
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById String?  @map("updated_by") @db.Uuid
+
+  updatedBy User? @relation("FeatureFlagUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@map("feature_flag")
+}
+
+// Centralized notification / request queue. M0 introduces it for the
+// admin-mediated account lifecycle (account-creation requests + password-reset
+// requests surfaced on the admin & developer Password Management tabs, with
+// assignment tracking). M7 extends it (more types/labels, threshold alerts,
+// keyset pagination) — same table, no parallel pipeline. `referenceId` is a
+// human, monotonic, unique handle (e.g. AR-00001 / PR-00001) minted from the
+// raw-SQL `notification_ref_seq` sequence by the service; `status` is guarded by
+// a CHECK (open|assigned|resolved|dismissed).
+model Notification {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceId      String    @unique @map("reference_id")
+  type             String // account_request | password_reset (M7 adds more)
+  status           String    @default("open")
+  title            String
+  body             String?
+  subjectEmail     String?   @map("subject_email") @db.Citext
+  entityType       String?   @map("entity_type")
+  entityId         String?   @map("entity_id") @db.Uuid // polymorphic — intentionally not an FK
+  data             Json?     @db.JsonB
+  assignedToUserId String?   @map("assigned_to_user_id") @db.Uuid
+  assignedAt       DateTime? @map("assigned_at") @db.Timestamptz
+  resolvedByUserId String?   @map("resolved_by_user_id") @db.Uuid
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNote   String?   @map("resolution_note")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  assignedTo User? @relation("NotificationAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("NotificationResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([type, status])
+  @@index([subjectEmail])
+  @@index([assignedToUserId])
+  @@map("notification")
 }

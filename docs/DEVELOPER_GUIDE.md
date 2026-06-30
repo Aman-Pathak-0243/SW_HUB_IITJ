@@ -487,6 +487,60 @@ audit before/after, so create/update don't require the actor to ALSO hold `role.
 - **NFT (#32)** — dev-console fs reads are bundled via `outputFileTracingIncludes`;
   the build's NFT over-trace note is benign (accepted, DL-055).
 
+## Member platform — M0: auth, accounts & the PLUGIN (Session 11)
+
+The member platform (Session 11+) ships behind ONE developer-controlled plugin. M0
+delivered the plugin control plane + the email+password auth pivot + the
+admin-mediated account lifecycle.
+
+- **Plugin / feature flags** — `lib/platform/flags.mjs` + the `feature_flag` table.
+  `member_platform` gates the whole program. `isFeatureEnabled(key)` is an ungated,
+  **fail-closed**, 10s-cached read (a DB error ⇒ `false`); `assertFeatureEnabled(key)`
+  404s when off; `setFeatureFlag(key, enabled, actor)` is **developer-only** + audited.
+  Toggle it at **`/admin/plugins`** (DL-058). New optional modules add a `PLUGIN_DEFS`
+  row + seed; re-seeding never resets the operator's `enabled`.
+- **Auth pivot (DL-059)** — Google is rejected at the `signIn` callback when the plugin
+  is on (kept when off); `app_user.must_change_password` forces a first-login change.
+  The root **`middleware.js`** (edge) reads ONLY the JWT and redirects a must-change
+  user to `/account/password`; the decision is the pure `lib/auth/must-change.mjs#shouldForcePasswordChange`.
+  Never read the DB in the middleware (no Prisma on the edge).
+- **Account lifecycle (`lib/users/admin.mjs`, DL-061)** — `createUser` (initial
+  password ⇒ must-change), `importUsersCsv`/`parseUserCsv` (bulk CSV; existing emails
+  skipped), `forcePasswordReset` (generate + must-change; returns the plaintext ONCE),
+  `changeOwnPassword` (self only; verifies current; clears must-change), `deleteUser`
+  (hard delete; no self-delete; developer-delete is developer-only). Passwords obey
+  ONE policy (`lib/auth/password-policy.mjs`, client+server); the CSPRNG generator is
+  the server-only `lib/auth/password-generator.mjs`.
+- **Request queue (`lib/notifications/service.mjs`, DL-060)** — public
+  `createAccountRequest`/`createPasswordResetRequest` (dedup open ones; account
+  existence NOT leaked), gated `listNotifications`/`assignNotification`/`resolveNotification`,
+  and `lib/auth/password-reset.mjs#fulfilResetRequest` (assign → generate → set → resolve).
+  Human ref ids (`AR-/PR-NNNNN`) come from the raw-SQL `notification_ref_seq`. Surfaced
+  at **`/admin/requests`** (Password Management). New permissions: `notification.{read,assign,resolve}`, `user.delete`.
+- **Public routes** — `POST /api/account/{request,forgot,password}` each wrap
+  `assertSameOrigin` + `assertFeatureEnabled` + `accountRequestLimiter`; the forgot
+  route always returns a generic success (no existence leak).
+
+**How to check which plugins / modes are currently enabled:**
+- **UI:** sign in as a developer/admin and open **`/admin/plugins`** (shows each flag's
+  ON/OFF, who changed it, when). The **Developer** chip in the admin topbar means your
+  account has `is_developer`.
+- **CLI/SQL (no UI):**
+  ```bash
+  # list every feature flag + state
+  dotenv -e .env.local -- node -e "import('@prisma/client').then(async({PrismaClient})=>{const p=new PrismaClient();console.table(await p.featureFlag.findMany({select:{key:1,enabled:1,updatedAt:1}}));await p.\$disconnect()})"
+  # who has developer / which roles a user holds
+  dotenv -e .env.local -- node -e "import('@prisma/client').then(async({PrismaClient})=>{const p=new PrismaClient();console.table(await p.user.findMany({where:{isDeveloper:true},select:{email:1,isDeveloper:1}}));await p.\$disconnect()})"
+  ```
+  Or in `npm run db:studio` / psql: `SELECT key, enabled, updated_at FROM feature_flag;`
+  and `SELECT email, is_developer FROM app_user WHERE is_developer;`.
+- "Admin mode" = the roles/permissions a signed-in account holds (RBAC, resolved live
+  per request); see them at `/admin/users` (per user) or via `getEffectivePermissions`.
+
+> **After this migration** run `npm run db:seed` once (idempotent) so the 4 new
+> permissions (`notification.*`, `user.delete`) attach to `super_admin` and the
+> `member_platform` plugin row is registered. The migration itself is schema-only.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

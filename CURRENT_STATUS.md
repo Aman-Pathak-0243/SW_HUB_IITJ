@@ -1,17 +1,75 @@
 # Current Status
 
-**Last updated:** 2026-06-29
-**Session:** 10 of 10 — **COMPLETE** (Testing + Deployment + Optimization + Handover)
-**Project status:** ✅ **ALL 10 SESSIONS COMPLETE — feature-complete & ready to deploy.**
-**Follow-up:** A large operator-requested **Session 11+ member-platform program** is
-queued (multi-session): email+password-only admin-provisioned accounts, RBAC
-categories + per-email overrides, expanded club pages + memberships, a Wall of Fame,
-an advanced centralized Event Playground (rounds/scoring/ranking/registration/
-closure), member profiles, centralized notifications/feedback, and a beefed-up
-developer dashboard (action+usage tracking, per-table backup/thresholds, nodemailer).
-Out of scope for the harden-only Session 10 (DL-057). **Full module-by-module prompt
-in [NEXT_TASK.md](NEXT_TASK.md).**
+**Last updated:** 2026-06-30
+**Session:** 11 — **M0 COMPLETE** (Member Platform: auth & account lifecycle) **+ the
+member-platform PLUGIN control plane**. Sessions 1–10 remain complete (deployable V2).
+**Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 began the multi-session
+member-platform program with **M0 + the plugin**. **Next: M2** (RBAC categories +
+per-email overrides + smart search).
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M0 + the PLUGIN)
+
+- **Member platform = a developer-controlled PLUGIN (DL-058).** New `feature_flag`
+  table + [lib/platform/flags.mjs](lib/platform/flags.mjs): the whole Session 11+
+  program is gated behind the **`member_platform`** flag. A **developer** toggles it
+  at **`/admin/plugins`** (off by default); ON activates the M0 features, OFF keeps
+  the Sessions 1–10 portal exactly as-is (legacy Google sign-in intact). Reads
+  **fail closed** (a DB error ⇒ off; the Google-reject auth check passes `onError:true`
+  so it fails toward *deny*). Toggling is developer-only + audited. Seed registers the
+  flag (re-seed never resets the operator's `enabled`).
+- **M0 auth pivot (DL-059).** Email+password ONLY within the plugin — Google is
+  rejected at the `signIn` callback when on (the provider is also conditional on
+  `GOOGLE_CLIENT_ID`), kept when off. `app_user.must_change_password` (+ `password_set_at`)
+  forces a first-login change: the edge `middleware.js` redirects must-change users to
+  `/account/password` via the pure, tested `lib/auth/must-change.mjs`; the JWT carries
+  the flag (refreshed on `session.update()`); `changeOwnPassword` clears it.
+- **Account lifecycle (DL-061).** [lib/users/admin.mjs](lib/users/admin.mjs) gained
+  `createUser` initial-password+must-change, **bulk CSV** (`parseUserCsv`/`importUsersCsv`,
+  existing emails skipped), `forcePasswordReset` (generates a temporary password, shown
+  ONCE for external delivery), `changeOwnPassword` (self-only, verifies current), and
+  `deleteUser` (hard delete; **DL-049 escalation parity** — no self-delete, and only a
+  developer may delete OR reset-the-password-of a developer). One password POLICY
+  ([lib/auth/password-policy.mjs](lib/auth/password-policy.mjs), client+server); the
+  CSPRNG generator is server-only ([lib/auth/password-generator.mjs](lib/auth/password-generator.mjs)).
+- **Centralized request queue (DL-060).** New `notification` table +
+  [lib/notifications/service.mjs](lib/notifications/service.mjs): public **Request an
+  account** + **Forgot password** forms create rows (human ref ids `AR-/PR-NNNNN` from
+  a DB sequence; **race-free dedup** via a partial-unique backstop; account existence
+  never leaked). Admin/dev **Password Management** tab (`/admin/requests`) — Take
+  (assign, audited) → fulfil (`lib/auth/password-reset.mjs` generates + sets + resolves)
+  or dismiss. New permissions `notification.{read,assign,resolve}` + `user.delete`.
+- **Surfaces.** Public `/login`, `/account/{request,forgot,password}`; gated routes
+  `POST /api/account/{request,forgot,password}` (CSRF + plugin gate + rate-limit);
+  admin `/admin/plugins` + `/admin/requests`; the admin sign-in + Users tab extended
+  (bulk import, delete, reset). Every admin write still posts to the ONE
+  `POST /api/admin/action` registry.
+- **Schema.** Two forward migrations (`20260630120000_member_platform_m0` +
+  `20260630121000_notification_dedup_uq`), applied to Neon; init untouched (DL-027).
+  `FeatureFlag`/`Notification` added to `AUTO_AUDIT_SKIP` (semantic audit only).
+- **Tests.** **346 static** (was 307; +password-policy/generator, flags+cache+onError,
+  CSV parse, must-change helper, email parser, migration) + **8 new live**
+  (`m0.db.test.mjs`): plugin toggle (dev-only) + fail-closed, must-change lifecycle,
+  changeOwnPassword, forceReset, bulk dedup, delete + reset escalation guards, request
+  ref-ids + dedup backstop + read gate, assign→fulfilReset end-to-end. All prior live
+  suites still green (cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 /
+  devconsole 10 / users 6 / smoke 8). `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension, per-finding 2-verifier workflow (12 agents):
+  **3 confirmed (0 refuted) → all 3 fixed + re-verified live**: (CRITICAL) a non-developer
+  super_admin could reset a developer's password and take over the bypass account →
+  guarded in `setUserPassword`; (medium) non-atomic request dedup → DB partial-unique
+  backstop + catch; (medium) Google-reject failed *open* on a Neon error → `onError:true`.
+
+---
+
+## Original handover note (Sessions 1–10)
+
+A large operator-requested **Session 11+ member-platform program** is in progress
+(multi-session): M0 ✅ (this session). Remaining: M2 RBAC categories + per-email
+overrides, M1 status modes, M3 club pages + memberships, M4 Wall of Fame, M5 Event
+Playground, M6 profiles, M7 notifications/feedback, M8 developer dashboard. **Full
+module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
+[docs/MEMBER_PLATFORM_PLAN.md](docs/MEMBER_PLATFORM_PLAN.md).**
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),

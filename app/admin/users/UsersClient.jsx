@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Badge, Modal, Field, useAdminAction } from "../_components/ui";
+import { Badge, Modal, Field, ConfirmButton, useAdminAction } from "../_components/ui";
 import { hasPerm } from "../../../lib/admin/nav.mjs";
-import { validateUserForm, validateRoleForm } from "../../../lib/admin/forms.mjs";
+import { validateUserForm, validateRoleForm, passwordRequirements } from "../../../lib/admin/forms.mjs";
 import { statusTone, formatAssignmentScope } from "../../../lib/admin/view-models.mjs";
 
 export default function UsersClient({ users, roles, catalog, perms, viewerId, viewerIsDeveloper, canReadUsers, canReadRoles }) {
@@ -33,19 +33,32 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null); // user object
   const [granting, setGranting] = useState(null); // user object
+  const [bulk, setBulk] = useState(false);
+  const [generated, setGenerated] = useState(null); // { email, password }
 
   const canCreate = hasPerm(perms, "user.create");
   const canUpdate = hasPerm(perms, "user.update");
   const canSuspend = hasPerm(perms, "user.suspend");
   const canAssign = hasPerm(perms, "role.assign");
+  const canDelete = hasPerm(perms, "user.delete");
 
   const setStatus = (u, status) =>
     run("user.setStatus", { id: u.id, status }, { success: `${u.email} → ${status}` }).catch(() => {});
+  const del = (u) => run("user.delete", { id: u.id }, { success: `Deleted ${u.email}` }).catch(() => {});
+  const forceReset = async (u) => {
+    try {
+      const res = await run("user.forceReset", { id: u.id }, { success: `Reset ${u.email}` });
+      if (res?.generatedPassword) setGenerated({ email: u.email, password: res.generatedPassword });
+    } catch { /* toast shown */ }
+  };
 
   return (
     <>
       {canCreate && (
-        <div className="adm-toolbar"><button className="adm-btn primary" onClick={() => setCreating(true)}>+ New user</button></div>
+        <div className="adm-toolbar">
+          <button className="adm-btn primary" onClick={() => setCreating(true)}>+ New user</button>
+          <button className="adm-btn ghost" onClick={() => setBulk(true)}>Bulk import (CSV)</button>
+        </div>
       )}
       <div className="adm-tablewrap">
         <table className="adm-table">
@@ -53,7 +66,10 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td>{u.email} {u.isDeveloper && <Badge tone="dev">dev</Badge>} {u.id === viewerId && <Badge tone="info">you</Badge>}</td>
+                <td>
+                  {u.email} {u.isDeveloper && <Badge tone="dev">dev</Badge>} {u.id === viewerId && <Badge tone="info">you</Badge>}
+                  {u.mustChangePassword && <Badge tone="warn">must change pw</Badge>}
+                </td>
                 <td>{u.name}</td>
                 <td><div className="adm-pill-row">{(u.roles ?? []).map((r) => <Badge key={r.key} tone="neutral">{r.name}</Badge>)}{(u.roles ?? []).length === 0 && <span style={{ color: "var(--adm-faint)" }}>—</span>}</div></td>
                 <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
@@ -61,9 +77,15 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
                   <div className="adm-actions">
                     {canAssign && <button className="adm-btn ghost sm" onClick={() => setGranting(u)}>Roles</button>}
                     {canUpdate && <button className="adm-btn ghost sm" onClick={() => setEditing(u)}>Edit</button>}
+                    {canUpdate && u.hasPassword && (
+                      <ConfirmButton confirm={`Generate a new temporary password for ${u.email}? They will be forced to change it on next login.`} busy={busy} onConfirm={() => forceReset(u)}>Reset pw</ConfirmButton>
+                    )}
                     {canSuspend && u.id !== viewerId && (u.status === "active"
                       ? <button className="adm-btn danger sm" disabled={busy} onClick={() => setStatus(u, "suspended")}>Suspend</button>
                       : <button className="adm-btn ghost sm" disabled={busy} onClick={() => setStatus(u, "active")}>Activate</button>)}
+                    {canDelete && u.id !== viewerId && (
+                      <ConfirmButton className="adm-btn danger sm" confirm={`Permanently delete ${u.email}? This cannot be undone.`} busy={busy} onConfirm={() => del(u)}>Delete</ConfirmButton>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -76,6 +98,8 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
       {creating && <UserModal title="New user" isCreate viewerIsDeveloper={viewerIsDeveloper} onClose={() => setCreating(false)} run={run} busy={busy} />}
       {editing && <UserModal title={`Edit ${editing.email}`} user={editing} viewerIsDeveloper={viewerIsDeveloper} canUpdate={canUpdate} onClose={() => setEditing(null)} run={run} busy={busy} />}
       {granting && <GrantModal user={granting} roles={roles} canRevoke={hasPerm(perms, "role.revoke")} onClose={() => setGranting(null)} run={run} busy={busy} />}
+      {bulk && <BulkModal onClose={() => setBulk(false)} run={run} busy={busy} />}
+      {generated && <GeneratedPasswordModal email={generated.email} password={generated.password} onClose={() => setGenerated(null)} />}
     </>
   );
 }
@@ -95,7 +119,7 @@ function UserModal({ title, user, isCreate, viewerIsDeveloper, canUpdate = true,
         if (v.value.name !== undefined || v.value.isDeveloper !== undefined) {
           await run("user.update", { id: user.id, patch: { name: v.value.name, isDeveloper: v.value.isDeveloper } }, { success: "User updated" });
         }
-        if (v.value.password) await run("user.setPassword", { id: user.id, password: v.value.password }, { success: "Password set" });
+        if (v.value.password) await run("user.setPassword", { id: user.id, password: v.value.password }, { success: "Password set (user must change on next login)" });
       }
       onClose();
     } catch { /* toast shown by run */ }
@@ -109,12 +133,74 @@ function UserModal({ title, user, isCreate, viewerIsDeveloper, canUpdate = true,
       <div className="adm-form">
         {isCreate && <Field label="Email" error={errors.email}><input className="adm-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>}
         <Field label="Display name" error={errors.name}><input className="adm-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={isCreate ? "(defaults to email)" : ""} /></Field>
-        <Field label={isCreate ? "Password (optional — else Google sign-in)" : "New password (optional)"} error={errors.password}>
+        <Field label={isCreate ? "Initial password (the user must change it on first login)" : "New password (optional; forces a change)"} error={errors.password}>
           <input className="adm-input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
         </Field>
+        <p style={{ fontSize: "0.74rem", color: "var(--adm-muted)", marginTop: -4 }}>
+          Must: {passwordRequirements().join(" · ").toLowerCase()}. Deliver it via the institute's external email.
+        </p>
         {viewerIsDeveloper && (
           <label className="adm-check"><input type="checkbox" checked={form.isDeveloper} onChange={(e) => setForm({ ...form, isDeveloper: e.target.checked })} /> Developer (unrestricted access)</label>
         )}
+      </div>
+    </Modal>
+  );
+}
+
+// Bulk-create accounts from a CSV (email,password[,name] per line). The server
+// parses + creates; we render the per-row outcome (created / skipped / failed).
+function BulkModal({ onClose, run, busy }) {
+  const [csv, setCsv] = useState("");
+  const [result, setResult] = useState(null);
+
+  const submit = async () => {
+    try {
+      const res = await run("user.bulkCreate", { csv }, { success: "Import complete", refresh: true });
+      setResult(res);
+    } catch { /* toast shown */ }
+  };
+
+  return (
+    <Modal title="Bulk import accounts" onClose={onClose} footer={<>
+      <button className="adm-btn ghost" onClick={onClose}>Close</button>
+      <button className="adm-btn primary" onClick={submit} disabled={busy || !csv.trim()}>Import</button>
+    </>}>
+      <div className="adm-form">
+        <p style={{ fontSize: "0.82rem", color: "var(--adm-muted)" }}>
+          One account per line: <span className="adm-code">email,password[,name]</span>. An optional
+          header row is detected. Existing emails are skipped; each new account must change its
+          password on first login. Deliver the passwords via the institute's external email.
+        </p>
+        <Field label="CSV">
+          <textarea className="adm-textarea" rows={8} value={csv} onChange={(e) => setCsv(e.target.value)}
+            placeholder={"email,password\n2023ume0243@iitjammu.ac.in,Welcome#2026\n…"} />
+        </Field>
+        {result && (
+          <div className="adm-banner info" style={{ whiteSpace: "normal" }}>
+            <strong>{result.summary.created}</strong> created · <strong>{result.summary.skipped}</strong> skipped (existing) · <strong>{result.summary.failed}</strong> failed.
+            {result.failed?.length > 0 && (
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                {result.failed.slice(0, 12).map((f, i) => <li key={i} style={{ fontSize: "0.78rem" }}>{f.email ?? "?"}: {f.reason}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function GeneratedPasswordModal({ email, password, onClose }) {
+  return (
+    <Modal title="Temporary password generated" onClose={onClose} footer={<button className="adm-btn primary" onClick={onClose}>Done</button>}>
+      <div className="adm-form">
+        <p className="adm-banner warn">
+          Deliver this to <strong>{email}</strong> via the institute's external email. Shown once,
+          never stored in plaintext; the user must change it on first login.
+        </p>
+        <Field label="Temporary password">
+          <input className="adm-input adm-code" readOnly value={password} onFocus={(e) => e.target.select()} />
+        </Field>
       </div>
     </Modal>
   );

@@ -1,0 +1,134 @@
+/* Member-platform auth pages (M0). Self-contained, themed to the brand blue
+   (#003f87, KNOWN_ISSUES #11) and the consolidated next/font variables (#12). */
+.acc-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 18px;
+  background: linear-gradient(160deg, #f5f7fb 0%, #eef2f8 100%);
+  font-family: var(--font-outfit), system-ui, sans-serif;
+}
+.acc-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0, 32, 80, 0.12);
+  border-top: 4px solid #003f87;
+  padding: 32px 30px;
+}
+.acc-card h1 {
+  font-family: var(--font-cormorant), Georgia, serif;
+  color: #003f87;
+  font-size: 1.7rem;
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+.acc-sub {
+  color: #5a6478;
+  font-size: 0.86rem;
+  margin: 0 0 22px;
+  line-height: 1.4;
+}
+.acc-field {
+  margin-bottom: 14px;
+}
+.acc-field label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #2a3344;
+  margin-bottom: 5px;
+}
+.acc-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #cdd5e0;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  color: #1a2230;
+}
+.acc-input:focus {
+  outline: none;
+  border-color: #003f87;
+  box-shadow: 0 0 0 3px rgba(0, 63, 135, 0.12);
+}
+.acc-btn {
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #003f87;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.acc-btn:hover:not(:disabled) {
+  background: #002f66;
+}
+.acc-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.acc-links {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+.acc-links a {
+  color: #003f87;
+  text-decoration: none;
+}
+.acc-links a:hover {
+  text-decoration: underline;
+}
+.acc-msg {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+.acc-msg.error {
+  background: #fdecec;
+  color: #9b1c1c;
+  border: 1px solid #f5c2c2;
+}
+.acc-msg.success {
+  background: #e9f6ee;
+  color: #1c6b3a;
+  border: 1px solid #b6e0c4;
+}
+.acc-msg.info {
+  background: #eaf1fb;
+  color: #1d4e8f;
+  border: 1px solid #c2d6f0;
+}
+.acc-reqs {
+  margin: 6px 0 14px;
+  padding-left: 18px;
+  font-size: 0.76rem;
+  color: #6a7488;
+}
+.acc-reqs li {
+  margin: 2px 0;
+}
+.acc-field-err {
+  display: block;
+  color: #9b1c1c;
+  font-size: 0.74rem;
+  margin-top: 4px;
+}
+.acc-disabled-note {
+  text-align: center;
+  color: #5a6478;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

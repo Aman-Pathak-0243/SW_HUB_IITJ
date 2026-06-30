@@ -10,6 +10,12 @@ const migrationsDir = join(root, "prisma", "migrations");
 const migrationFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_init"));
 const migration = readFileSync(join(migrationsDir, migrationFolder, "migration.sql"), "utf8");
 
+const m0Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m0"));
+const m0 = m0Folder ? readFileSync(join(migrationsDir, m0Folder, "migration.sql"), "utf8") : "";
+
+const dedupFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_notification_dedup_uq"));
+const dedup = dedupFolder ? readFileSync(join(migrationsDir, dedupFolder, "migration.sql"), "utf8") : "";
+
 const TABLES = [
   "app_user", "auth_account", "verification_token", "academic_year", "role",
   "permission", "role_permission", "org_unit_lineage", "role_assignment",
@@ -132,5 +138,39 @@ describe("init migration: raw-SQL guard objects", () => {
     has(/CREATE TRIGGER org_unit_hierarchy_guard_trg[\s\S]*ON "org_unit"/);
     // cardinality is a DEFERRABLE constraint trigger
     has(/CREATE CONSTRAINT TRIGGER appointment_cardinality_guard_trg[\s\S]*DEFERRABLE INITIALLY DEFERRED/);
+  });
+});
+
+describe("Session 11 / M0 forward migration (member platform)", () => {
+  it("the migration file exists", () => {
+    expect(m0Folder, "missing _member_platform_m0 migration").toBeTruthy();
+  });
+
+  it("adds the forced-change columns to app_user (additive, not a rewrite of init)", () => {
+    expect(m0).toMatch(/ALTER TABLE "app_user"[\s\S]*ADD COLUMN "must_change_password" BOOLEAN NOT NULL DEFAULT false/);
+    expect(m0).toMatch(/ADD COLUMN "password_set_at" TIMESTAMPTZ/);
+  });
+
+  it("creates the feature_flag and notification tables with FKs to app_user", () => {
+    expect(m0).toMatch(/CREATE TABLE "feature_flag"/);
+    expect(m0).toMatch(/CREATE TABLE "notification"/);
+    expect(m0).toMatch(/feature_flag_updated_by_fkey[\s\S]*REFERENCES "app_user"/);
+    expect(m0).toMatch(/notification_assigned_to_user_id_fkey[\s\S]*REFERENCES "app_user"/);
+  });
+
+  it("has the raw-SQL tail: the reference-id sequence + the status CHECK", () => {
+    expect(m0).toMatch(/CREATE SEQUENCE IF NOT EXISTS "notification_ref_seq"/);
+    expect(m0).toMatch(/notification_status_chk[\s\S]*'open', 'assigned', 'resolved', 'dismissed'/);
+  });
+
+  it("the schema declares the two new models via @@map", () => {
+    expect(schema).toContain('@@map("feature_flag")');
+    expect(schema).toContain('@@map("notification")');
+    expect(schema).toMatch(/mustChangePassword\s+Boolean\s+@default\(false\)\s+@map\("must_change_password"\)/);
+  });
+
+  it("the dedup follow-up migration adds the one-open-request-per-(type,email) partial unique", () => {
+    expect(dedupFolder, "missing _notification_dedup_uq migration").toBeTruthy();
+    expect(dedup).toMatch(/CREATE UNIQUE INDEX "notification_one_open_per_email_uq"[\s\S]*WHERE "status" IN \('open', 'assigned'\) AND "subject_email" IS NOT NULL/);
   });
 });

@@ -24,15 +24,22 @@ const ACTIVE = {
   image: null,
   passwordHash: "$argon2id$v=19$m=19456,t=2,p=1$abc$def",
   status: "active",
+  mustChangePassword: false,
 };
 
 beforeEach(() => findUnique.mockReset());
 
 describe("authorizeCredentials (email/password login)", () => {
-  it("returns the user for a valid active credential", async () => {
+  it("returns the user (incl. mustChangePassword) for a valid active credential", async () => {
     findUnique.mockResolvedValue(ACTIVE);
     const u = await authorizeCredentials({ email: "admin@iitjammu.ac.in", password: "correct-password" });
-    expect(u).toEqual({ id: "u1", email: "admin@iitjammu.ac.in", name: "Admin", image: null });
+    expect(u).toEqual({ id: "u1", email: "admin@iitjammu.ac.in", name: "Admin", image: null, mustChangePassword: false });
+  });
+
+  it("surfaces mustChangePassword=true so the JWT/middleware can force a change", async () => {
+    findUnique.mockResolvedValue({ ...ACTIVE, mustChangePassword: true });
+    const u = await authorizeCredentials({ email: "admin@iitjammu.ac.in", password: "correct-password" });
+    expect(u.mustChangePassword).toBe(true);
   });
 
   it("rejects a wrong password", async () => {

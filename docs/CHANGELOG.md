@@ -24,6 +24,44 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M0 (auth & account lifecycle) + the PLUGIN · 2026-06-30
+- **Member-platform PLUGIN (DL-058)** — `feature_flag` table + `lib/platform/flags.mjs`.
+  The whole Session 11+ program is gated behind the developer-toggled `member_platform`
+  flag (`/admin/plugins`; off by default). `isFeatureEnabled` is an ungated, cached,
+  fail-closed read with an `onError` knob (allow/deny callers fail toward deny);
+  `setFeatureFlag` is developer-only + audited. Seeded via `PLUGIN_DEFS` (re-seed
+  preserves `enabled`).
+- **Auth pivot (DL-059)** — email+password only within the plugin (Google rejected at
+  the `signIn` callback when on, kept when off; provider conditional on
+  `GOOGLE_CLIENT_ID`). `app_user.must_change_password` (+ `password_set_at`) + the edge
+  `middleware.js` + the pure `lib/auth/must-change.mjs` force a first-login change; the
+  JWT carries the flag (refreshed on `session.update()`).
+- **Account lifecycle (DL-061)** — `lib/users/admin.mjs`: `createUser` (initial password
+  ⇒ must-change), `parseUserCsv`/`importUsersCsv` (bulk CSV, skip-existing),
+  `forcePasswordReset` (temp password shown once), `changeOwnPassword` (self, verifies
+  current), `deleteUser` (hard delete) — all with DL-049 escalation parity (no
+  self-delete; only a developer may delete/reset a developer). One client+server
+  password policy (`lib/auth/password-policy.mjs`); server-only CSPRNG generator
+  (`lib/auth/password-generator.mjs`); new `user.delete` permission.
+- **Request queue (DL-060)** — `notification` table + `lib/notifications/service.mjs`:
+  public account-creation + forgot-password forms (human ref ids from a DB sequence,
+  race-free dedup via a partial-unique backstop, no account-existence leak); admin/dev
+  Password Management (`/admin/requests`) take/assign (audited) + fulfil
+  (`lib/auth/password-reset.mjs`) / dismiss; `notification.{read,assign,resolve}`.
+- **Surfaces** — `/login`, `/account/{request,forgot,password}`, gated
+  `POST /api/account/{request,forgot,password}` (CSRF + plugin + rate-limit via the
+  reused `lib/http/guard.mjs`), `/admin/plugins`, `/admin/requests`, the credentials
+  admin sign-in, and the extended Users tab (bulk import / delete / reset).
+- **Migrations** — `20260630120000_member_platform_m0` (columns + 2 tables + sequence +
+  status CHECK) and `20260630121000_notification_dedup_uq` (partial unique), both
+  applied; init untouched (DL-027). `FeatureFlag`/`Notification` added to
+  `AUTO_AUDIT_SKIP` (semantic audit only).
+- **Tests** — 346 static (+ M0 pure suites) + 8 live (`m0.db.test.mjs`); all prior live
+  suites green; `next build` + ESLint clean.
+- **Adversarial review** — 6-dimension, 2-verifier workflow (12 agents): 3 confirmed
+  (0 refuted) → all fixed + re-verified (CRITICAL developer-password-reset takeover;
+  notification dedup race; Google-reject fail-open).
+
 ### Added — Milestone 0.5 (Security scanning) · 2026-06-28
 - `.github/workflows/secret-scan.yml` — gitleaks CI on push/PR (full-history scan).
 - `.gitleaks.toml` — gitleaks config (default ruleset + tight allowlist).

@@ -1,7 +1,29 @@
 # Next Task
 
-**As of:** 2026-06-29 · **Sessions 1–10 COMPLETE. The original 10-session V2 is
-feature-complete and ready to deploy.**
+**As of:** 2026-06-30 · Sessions 1–10 complete. **Session 11 shipped Module M0 +
+the plugin control plane.** Next session: **M2** (RBAC categories + per-email
+overrides + email-format smart search), built inside the plugin.
+
+> ### ✅ Session 11 done — M0 (auth & account lifecycle) + the Member-Platform PLUGIN
+> The whole member platform is now gated behind the developer-toggled
+> **`member_platform`** feature flag (`/admin/plugins`; **off by default** — flip it
+> on as a developer to activate Session 11+ features; DL-058). M0 delivered:
+> email+password-only auth within the plugin (Google rejected when on, kept when off,
+> DL-059); `must_change_password` forced first-login change (edge `middleware.js`);
+> admin-provisioned accounts (single + **bulk CSV**, external-mail delivery);
+> admin-mediated forgot/reset via the centralized **`notification`** queue
+> (`/admin/requests` — request → Take/assign → Generate & set → resolve, DL-060);
+> a public **Request an account** / **Forgot password** / **Change password** member
+> surface (`/login`, `/account/*`); and **delete users** + escalation parity (DL-061).
+> Migration `20260630120000_member_platform_m0` (applied); seed adds
+> `notification.{read,assign,resolve}` + `user.delete` + the plugin row. **344 static
+> + 8 live (`m0.db.test.mjs`).** Next: **M2** (then M1 → M7/M8 → M3 → M4 → M5 → M6).
+> **Operator:** after pulling, run `npm run db:migrate` (idempotent — already applied
+> here) then `npm run db:seed` (idempotent) so the new permissions attach.
+
+---
+
+## Original program prompt (still authoritative for the remaining modules)
 
 Remaining work is **operator/owner** (run the imports + media migration; rotate the
 V1 secrets — see [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md)) and a

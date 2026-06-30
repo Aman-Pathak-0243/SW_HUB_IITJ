@@ -35,19 +35,48 @@ a "no access" panel if your roles don't include it):
 | Academic Years (years, transition wizard, lock) | `/admin/years` | `year.*` |
 | Media library | `/admin/media` | `media.*` |
 | Users & Roles | `/admin/users` | `user.*`, `role.*` |
+| Password Management (account/reset requests) | `/admin/requests` | `notification.read` |
+| Plugins (member-platform on/off) | `/admin/plugins` | `dev.console` (toggle: developer) |
 | Developer Console (status, audit, backups) | `/admin/console` | `dev.console`, `audit.read`, `backup.*` |
+
+---
+
+## 1b. The Member Platform PLUGIN (Session 11 / M0)
+
+The Session 11+ member platform is a **developer-controlled plugin**. Open
+**`/admin/plugins`** and toggle **Member Platform** (only a **developer** can flip it;
+admins see the state). **ON** activates email+password-only member sign-in
+(`/login`), the public **Request an account** (`/account/request`) and **Forgot
+password** (`/account/forgot`) forms, the **Password Management** queue
+(`/admin/requests`), and the **forced first-login password change**
+(`/account/password`). **OFF** = the portal behaves exactly as Sessions 1–10 (legacy
+Google sign-in works). Gating fails **closed** (a DB error keeps it off).
+
+**Account lifecycle (when ON):** admins create accounts in **Users & Roles** (single,
+with an initial password, or **Bulk import (CSV)** of `email,password[,name]`) — the
+user must change the password on first login. Initial/reset passwords are delivered
+via the **institute's external email**, never by the app. A user's **Forgot password**
+submission appears in **Password Management**; a stakeholder clicks **Take** (assigns
+it, audited) then **Generate & set** (mints a temporary password shown once — deliver
+it externally). Admins can also **Reset pw** / **Delete** a user from Users & Roles.
 
 ---
 
 ## 2. How to sign in
 
-There are **two ways**, and an account can use either (one account per email):
+**With the member-platform plugin ON (Session 11):** sign in at **`/login`** (or the
+admin gate) with **email + password**. New users use **Request an account**; password
+trouble uses **Forgot password** (admin-mediated — a stakeholder resets it and emails
+you a temporary one you must change). Google is disabled while the plugin is on.
 
-1. **Google** — click **"Sign in with Google"**. If an account already exists for that
-   Google email, you're linked to it; a brand-new Google sign-in creates an `active`
-   account with no roles (an admin then grants you a role).
+**With the plugin OFF (legacy / Sessions 1–10):** an account can use either:
+
+1. **Google** — if an account already exists for that Google email you're linked to it;
+   a brand-new Google sign-in creates an `active` account with no roles.
 2. **Email + password** — for accounts that have a password set. (Set/reset a password
-   from **Users & Roles → Edit user → New password**, min 8 characters.)
+   from **Users & Roles → Edit user → New password**.)
+
+Passwords must meet the policy (≥10 chars, with a lowercase, uppercase and a digit).
 
 Whichever method you use, the account must be **`active`**. A `suspended`, `invited`, or
 `disabled` account is blocked at sign-in and at every protected action (this takes

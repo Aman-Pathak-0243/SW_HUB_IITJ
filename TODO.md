@@ -109,7 +109,8 @@ every session. `[ ]` pending · `[~]` in progress · `[x]` done.
 A large operator-requested program; **one module per session**, built on the spine.
 Suggested order M0 → M2 → M1 → M7/M8 → M3 → M4 → M5 → M6. Full prompt:
 [NEXT_TASK.md](NEXT_TASK.md).
-- [ ] **M0 Auth & accounts** — email+password ONLY (remove Google); admin-provisioned (single + bulk CSV, external mail); `must_change_password`; admin-mediated forgot/reset (request → assign → random password); account-request flow; delete users
+- [x] **Plugin control plane** (Session 11) — `feature_flag` table + `lib/platform/flags.mjs`; the whole member platform is gated behind the developer-toggled `member_platform` flag (fail-closed read; `/admin/plugins` UI; DL-058)
+- [x] **M0 Auth & accounts** (Session 11) — email+password ONLY *within the plugin* (Google rejected when on, kept when off — DL-059); admin-provisioned (single + **bulk CSV**, external mail); `must_change_password` + forced first-login change (edge `middleware.js` + pure helper); admin-mediated forgot/reset (public form → `notification` queue → "Fix"=assign → generate → resolve, DL-060); account-request flow; **delete users** + escalation parity (DL-061). 344 static + 8 live (`m0.db.test.mjs`); migration `20260630120000_member_platform_m0`
 - [ ] **M1 User status** — active / inactive / revoked behaviors + 3 surfaces (public / admin dash / dev dash) + scoped route RBAC
 - [ ] **M2 RBAC categories + overrides** — role "categories" + a `user_permission_override` (grant/deny, **revises DL-026 no-deny**); email-format smart debounced search
 - [ ] **M3 Club pages + memberships** — club detail tabs (overview/past-events/achievements/resources/upcoming/announcements/misc-markdown), custom roles, `club_membership` many-to-many bulk upload

@@ -31,6 +31,17 @@ requirement to concrete schema, services, routes, RBAC impact, and tests on the
 
 **Suggested order:** M0 → M2 → M1 → M7/M8 spine → M3 → M4 → M5 → M6.
 
+## Activation — the member platform is a DEVELOPER-CONTROLLED PLUGIN (DL-058)
+The whole program ships behind ONE feature flag, **`member_platform`** (`feature_flag`
+table + `lib/platform/flags.mjs`). A **developer** turns it on/off at
+**`/admin/plugins`** (or via the service); when OFF the portal behaves exactly as
+Sessions 1–10 (legacy Google sign-in intact), when ON the member-platform features
+activate (email+password-only auth, member pages, account/reset requests, forced
+first-login change). Gating reads **fail closed** (a DB error ⇒ off). Every module
+M0–M8 builds *inside* this plugin. **To check current state:** `/admin/plugins`,
+or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
+`SELECT key, enabled FROM feature_flag;` (see the Developer Guide).
+
 ---
 
 ## M0 — Authentication & account lifecycle (foundation)
@@ -166,7 +177,8 @@ requirement to concrete schema, services, routes, RBAC impact, and tests on the
 ## Status tracker (update as modules land)
 | Module | Theme | Status |
 |---|---|---|
-| M0 | Auth & account lifecycle (email+password only) | ⬜ |
+| — | **Plugin control plane** (`feature_flag` / `member_platform`, developer-toggled, fail-closed) | ✅ (M0) |
+| M0 | Auth & account lifecycle (email+password only) | ✅ Session 11 |
 | M1 | User status (active/inactive/revoked) + surfaces | ⬜ |
 | M2 | RBAC categories + per-email overrides + search | ⬜ |
 | M3 | Club pages + memberships | ⬜ |
