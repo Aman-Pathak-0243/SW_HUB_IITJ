@@ -1,12 +1,60 @@
 # Current Status
 
 **Last updated:** 2026-06-30
-**Session:** 11 — **M0 COMPLETE** (Member Platform: auth & account lifecycle) **+ the
-member-platform PLUGIN control plane**. Sessions 1–10 remain complete (deployable V2).
-**Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 began the multi-session
-member-platform program with **M0 + the plugin**. **Next: M2** (RBAC categories +
-per-email overrides + smart search).
+**Session:** 11 — **M2 COMPLETE** (RBAC categories + per-email permission overrides +
+email-format smart search), on top of **M0 + the member-platform PLUGIN**. Sessions
+1–10 remain complete (deployable V2).
+**Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
+✅ M2. **Next: M1** (user status active/inactive/revoked + the three surfaces +
+scoped route RBAC).
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M2: RBAC categories + per-email overrides + smart search)
+
+- **RBAC "categories" = seeded ROLES (DL-063).** Six new non-system, non-`grants_all`
+  roles added to `ROLE_DEFS` (the category IS the role): `normal_user` (no back-office
+  perms), `co_coordinator` (draft content), `coordinator` (full content + media =
+  editor set), `secretary` (coordinator + org structure), `staff` (central content +
+  `notification.read`), `admin` (the full catalog **minus** the developer-only
+  `dev.console`/`backup.*`/`media.migrate`, computed so it never drifts). `developer`
+  + `super_admin` stay the system bootstrap roles. `CATEGORY_ROLE_KEYS` is the search
+  facet's source of truth. Seed now: **45 permissions** (+`permission.override`),
+  **11 roles**, 161 role_permissions.
+- **Per-email permission OVERRIDES (DL-062) — revises DL-026 #8.** New
+  `user_permission_override` table `(user, permission, mode grant|deny, org-unit-lineage?
+  /year? scope, reason?)`. `resolveEffectivePermissions(user, assignments, scope,
+  overrides)` now does: developer short-circuit → role union → **grants_all
+  short-circuit** → apply overrides (grants add, **deny wins**). The unrestricted
+  bypass (developer/`grants_all`) is never restricted by an override. Service
+  ([lib/users/admin.mjs](lib/users/admin.mjs)#`setUserOverride`/`removeUserOverride`/
+  `listUserOverrides`): authorizes the NEW `permission.override` permission FIRST, one
+  semantic audit row, upserts by `(user, permission, scope)` (a NULLS-NOT-DISTINCT
+  unique = one override per scope), and a NEW escalation guard — a **grant** requires
+  the actor to hold that permission (DL-049 parity); a **deny** doesn't.
+- **Email-format smart search (DL-064).** New pure, client-safe
+  [lib/users/search.mjs](lib/users/search.mjs) (`matchesUserFilter`/`filterUsers`/
+  `userFilterFacets`/`instituteEmailPrefix`) reuses the M0 `parseInstituteEmail`
+  (`<year><level u|p|r><branch><serial>@iitjammu.ac.in`). ONE predicate backs BOTH a
+  **debounced** client filter (Users tab: year/level/branch/category/status + text,
+  with per-row identity badges) AND the server `listUsers` (a coarse DB pre-filter —
+  email-prefix `startsWith` + category join + status — refined by the same pure
+  filter, so no client/server drift). Email stays the unique identifier.
+- **Surfaces.** Users tab gains the debounced filter bar + a **Permission overrides**
+  modal (grant/deny a catalog permission, shows current overrides); two new registry
+  actions `permission.override.{set,remove}` on the ONE `POST /api/admin/action`
+  (gated `permission.override`); `validateOverrideForm` mirrors the server.
+- **Schema.** One forward migration (`20260630140000_member_platform_m2`: the table +
+  5 FKs + a `mode` CHECK + the NULLS-NOT-DISTINCT unique), applied to Neon; init
+  untouched (DL-027). `UserPermissionOverride` registered in `TABLE_BY_MODEL`.
+- **Tests.** **379 static** (was 346; +rbac override resolution, +`user-search.test.mjs`
+  17, +override form/registry/shape) + **7 new live** (`m2.db.test.mjs`): grant adds /
+  deny-wins / remove-restores / scoped / escalation guard / idempotent + DB
+  NULLS-NOT-DISTINCT backstop / gate / smart-search filter. `users.db` (6) re-confirmed
+  green on warm Neon; `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension, per-finding 2-verifier workflow (12 agents):
+  **0 confirmed-by-both, 1 single-vote** (a free-text client/server predicate drift) —
+  fixed (made `q` per-field email-OR-name to match the DB `where.OR`, and made the pure
+  filter the sole authority on the server too) + locked with a no-drift static test.
 
 ## What is done (Session 11 — M0 + the PLUGIN)
 
@@ -479,9 +527,15 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**285 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  green (**379 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
   live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
-  media (3) + developer console (10) + **users/roles (6)** live tests. The remote Neon compute has high per-round-trip latency
+  media (3) + developer console (10) + **users/roles (6) + M0 (8) + M2 (7)** live tests.
+- **RBAC (M2):** authorization resolves as developer short-circuit → additive role
+  union → `grants_all` short-circuit → per-email overrides (**deny wins**, DL-062).
+  Manage overrides via `lib/users/admin.mjs#setUserOverride/removeUserOverride` (gated
+  `permission.override`); the "categories" are the seeded roles in `ROLE_DEFS`
+  (`CATEGORY_ROLE_KEYS`). The smart search/parser is the pure, client-safe
+  `lib/users/search.mjs` (reuses `lib/auth/email.mjs#parseInstituteEmail`). The remote Neon compute has high per-round-trip latency
   **and auto-suspends**, so live tests are slow (minutes) and occasionally hit a
   transient "Can't reach database server" on a cold compute — re-run once if so (not
   a logic failure). The org live suite is the slowest (the importer makes many

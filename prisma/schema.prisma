@@ -210,6 +210,8 @@ model User {
   featureFlagsUpdated    FeatureFlag[]     @relation("FeatureFlagUpdatedBy")
   notificationsAssigned  Notification[]    @relation("NotificationAssignedTo")
   notificationsResolved  Notification[]    @relation("NotificationResolvedBy")
+  permissionOverrides    UserPermissionOverride[] @relation("UserPermissionOverrideUser")
+  permissionOverridesSet UserPermissionOverride[] @relation("UserPermissionOverrideCreatedBy")
 
   @@index([status])
   @@map("app_user")
@@ -272,6 +274,7 @@ model AcademicYear {
   appointments         Appointment[]    @relation("AppointmentYear")
   contentItems         ContentItem[]
   roleAssignments      RoleAssignment[]
+  permissionOverrides  UserPermissionOverride[]
   auditLogs            AuditLog[]
   lineagesFirstSeen    OrgUnitLineage[] @relation("LineageFirstSeenYear")
   transitionRunsSource TransitionRun[]  @relation("TransitionSourceYear")
@@ -316,7 +319,8 @@ model Permission {
   module      String?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  rolePermissions RolePermission[]
+  rolePermissions     RolePermission[]
+  permissionOverrides UserPermissionOverride[]
 
   @@index([module])
   @@map("permission")
@@ -344,8 +348,9 @@ model OrgUnitLineage {
   firstSeenYear AcademicYear? @relation("LineageFirstSeenYear", fields: [firstSeenYearId], references: [id], onDelete: SetNull)
   createdBy     User?         @relation("OrgUnitLineageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  orgUnits        OrgUnit[]
-  roleAssignments RoleAssignment[]
+  orgUnits            OrgUnit[]
+  roleAssignments     RoleAssignment[]
+  permissionOverrides UserPermissionOverride[]
 
   @@index([firstSeenYearId])
   @@map("org_unit_lineage")
@@ -979,4 +984,43 @@ model Notification {
   @@index([subjectEmail])
   @@index([assignedToUserId])
   @@map("notification")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M2 (RBAC: per-email permission overrides)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Per-user (per-email) permission override (M2, DL-062). RBAC "categories" are
+// roles (data) whose default `role_permission` map gives a member their baseline;
+// an override then GRANTS or DENIES a single catalog permission to one specific
+// account, optionally scoped to an org-unit lineage and/or academic year. This is
+// what REVISES DL-026 #8's "no-deny" rule: `resolveEffectivePermissions` now
+// applies the additive role union FIRST, then these overrides — and DENY WINS. A
+// developer / `grants_all` role still short-circuits BEFORE overrides (the
+// unrestricted bypass is never restricted by an override). `mode` is guarded by a
+// CHECK; at most ONE override exists per (user, permission, scope) — a
+// NULLS-NOT-DISTINCT unique closes the null-scope hole, mirroring
+// `role_assignment_unique_active_grant_uq`. Email is the unique identifier the
+// admin search keys on, so an override is "per email" via the user FK.
+model UserPermissionOverride {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  permissionId      String   @map("permission_id") @db.Uuid
+  mode              String // 'grant' | 'deny' (CHECK in raw SQL) — deny wins (DL-062)
+  orgUnitLineageKey String?  @map("org_unit_lineage_key") @db.Uuid
+  academicYearId    String?  @map("academic_year_id") @db.Uuid
+  reason            String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  user           User            @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission     Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  academicYear   AcademicYear?   @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  createdBy      User?           @relation("UserPermissionOverrideCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([permissionId])
+  @@map("user_permission_override")
 }

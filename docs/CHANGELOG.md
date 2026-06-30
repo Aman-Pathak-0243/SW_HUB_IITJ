@@ -24,6 +24,40 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M2 (RBAC categories + per-email overrides + smart search) · 2026-06-30
+- **RBAC "categories" = seeded roles (DL-063)** — six new non-system, non-`grants_all`
+  roles in `lib/rbac/permissions.mjs#ROLE_DEFS`: `normal_user` (no back-office perms),
+  `co_coordinator`, `coordinator`, `secretary`, `staff`, `admin` (the full catalog minus
+  the developer-only `dev.console`/`backup.*`/`media.migrate`, computed so it can't
+  drift). `CATEGORY_ROLE_KEYS` is the search-facet source of truth; `developer`/
+  `super_admin` stay the system bootstrap roles. New permission `permission.override`.
+- **Per-email permission overrides (DL-062, revises DL-026 #8)** — new
+  `user_permission_override` table (`grant|deny`, optional org-unit-lineage / year
+  scope). `lib/rbac/authorize.mjs#resolveEffectivePermissions` extended to a 4th
+  `overrides` arg: developer short-circuit → additive role union → `grants_all`
+  short-circuit → apply overrides (grants add, **deny wins**); the bypass is never
+  restricted. Service `lib/users/admin.mjs#setUserOverride/removeUserOverride/
+  listUserOverrides` (authorize-first on `permission.override`, one semantic audit row,
+  upsert by `(user, permission, scope)`, a grant escalation guard: you can only grant a
+  permission you hold). `UserPermissionOverride` added to `TABLE_BY_MODEL`.
+- **Email-format smart search (DL-064)** — new pure, client-safe `lib/users/search.mjs`
+  (`matchesUserFilter`/`filterUsers`/`userFilterFacets`/`instituteEmailPrefix`/
+  `normalizeLevel`) reusing M0's `parseInstituteEmail`. ONE predicate backs a
+  **debounced** admin filter (Users tab: year/level/branch/category/status + text, with
+  per-row identity badges) AND the server `listUsers` (coarse DB prefix + category join +
+  status, then the same precise filter — no client/server drift).
+- **Surfaces** — Users tab debounced filter bar + a **Permission overrides** modal; two
+  new registry actions `permission.override.{set,remove}` on `POST /api/admin/action`
+  (gated `permission.override`); `validateOverrideForm` mirrors the server; the Users
+  module nav `anyOf` gains `permission.override`.
+- **Migration** — `20260630140000_member_platform_m2` (the table + 5 FKs + a `mode`
+  CHECK + a NULLS-NOT-DISTINCT unique on `(user, permission, scope)`), applied to Neon;
+  init untouched (DL-027). Seed: 45 permissions / 11 roles / 161 role_permissions.
+- **Tests** — **379 static** (was 346) + **7 new live** (`m2.db.test.mjs`); `users.db`
+  re-confirmed; `next build` + ESLint clean. 12-agent adversarial review: 0
+  confirmed-by-both, 1 single-vote (a free-text predicate drift) fixed + locked with a
+  static test.
+
 ### Added/Changed — Session 11: Member Platform M0 (auth & account lifecycle) + the PLUGIN · 2026-06-30
 - **Member-platform PLUGIN (DL-058)** — `feature_flag` table + `lib/platform/flags.mjs`.
   The whole Session 11+ program is gated behind the developer-toggled `member_platform`

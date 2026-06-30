@@ -16,6 +16,7 @@ export default async function UsersPage() {
 
   const canReadUsers = hasPerm(ctx.resolved, "user.read");
   const canReadRoles = hasPerm(ctx.resolved, "role.read");
+  const canOverride = hasPerm(ctx.resolved, "permission.override");
 
   const [users, roles, catalog] = await Promise.all([
     canReadUsers ? listUsers({}, actor) : Promise.resolve([]),
@@ -33,6 +34,7 @@ export default async function UsersPage() {
       viewerIsDeveloper={!!ctx.user.isDeveloper}
       canReadUsers={canReadUsers}
       canReadRoles={canReadRoles}
+      canOverride={canOverride}
     />
   );
 }

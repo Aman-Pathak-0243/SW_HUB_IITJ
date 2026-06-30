@@ -1,40 +1,76 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Badge, Modal, Field, ConfirmButton, useAdminAction } from "../_components/ui";
 import { hasPerm } from "../../../lib/admin/nav.mjs";
-import { validateUserForm, validateRoleForm, passwordRequirements } from "../../../lib/admin/forms.mjs";
+import { validateUserForm, validateRoleForm, validateOverrideForm, passwordRequirements } from "../../../lib/admin/forms.mjs";
 import { statusTone, formatAssignmentScope } from "../../../lib/admin/view-models.mjs";
+import { filterUsers, userFilterFacets, userEmailIdentity } from "../../../lib/users/search.mjs";
+import { PERMISSIONS } from "../../../lib/rbac/permissions.mjs";
 
-export default function UsersClient({ users, roles, catalog, perms, viewerId, viewerIsDeveloper, canReadUsers, canReadRoles }) {
+// Debounce a fast-changing value (the search box) so filtering doesn't re-run on
+// every keystroke (M2 "debounced admin filter").
+function useDebouncedValue(value, delay = 200) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+export default function UsersClient({ users, roles, catalog, perms, viewerId, viewerIsDeveloper, canReadUsers, canReadRoles, canOverride }) {
   const [tab, setTab] = useState(canReadUsers ? "users" : "roles");
   return (
     <>
       <div className="adm-pagehead">
         <p className="adm-eyebrow">RBAC</p>
         <h2>Users &amp; Roles</h2>
-        <p>Accounts, role definitions and the role assignments the authorization engine reads.</p>
+        <p>Accounts, role definitions, the role assignments the authorization engine reads, and per-email permission overrides.</p>
       </div>
       <div className="adm-toolbar">
         {canReadUsers && <button className={`adm-btn ${tab === "users" ? "primary" : "ghost"}`} onClick={() => setTab("users")}>Users ({users.length})</button>}
         {canReadRoles && <button className={`adm-btn ${tab === "roles" ? "primary" : "ghost"}`} onClick={() => setTab("roles")}>Roles ({roles.length})</button>}
       </div>
       {tab === "users" && canReadUsers && (
-        <UsersTab users={users} roles={roles} perms={perms} viewerId={viewerId} viewerIsDeveloper={viewerIsDeveloper} />
+        <UsersTab users={users} roles={roles} perms={perms} viewerId={viewerId} viewerIsDeveloper={viewerIsDeveloper} canOverride={canOverride} />
       )}
       {tab === "roles" && canReadRoles && <RolesTab roles={roles} catalog={catalog} perms={perms} />}
     </>
   );
 }
 
+// Level code → label for the filter dropdown + the per-row identity badge.
+const LEVEL_LABEL = { ug: "UG", pg: "PG", research: "Research" };
+
 // ── Users tab ──
-function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
+function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper, canOverride }) {
   const { run, busy } = useAdminAction();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null); // user object
   const [granting, setGranting] = useState(null); // user object
+  const [overriding, setOverriding] = useState(null); // user object
   const [bulk, setBulk] = useState(false);
   const [generated, setGenerated] = useState(null); // { email, password }
+
+  // ── debounced smart filter (year / level / branch / category / status + text) ──
+  const [filter, setFilter] = useState({ q: "", year: "", level: "", branch: "", category: "", status: "" });
+  const debouncedQ = useDebouncedValue(filter.q, 200);
+  const facets = useMemo(() => userFilterFacets(users), [users]);
+  // Category options come from the full role list (so you can filter by a category
+  // even when no loaded user currently holds it); fall back to facet keys.
+  const categoryOptions = useMemo(() => {
+    const byKey = new Map((roles ?? []).map((r) => [r.key, r.name]));
+    const keys = new Set([...byKey.keys(), ...facets.categories]);
+    return [...keys].sort().map((key) => ({ key, name: byKey.get(key) ?? key }));
+  }, [roles, facets.categories]);
+  const filtered = useMemo(
+    () => filterUsers(users, { ...filter, q: debouncedQ }),
+    [users, filter, debouncedQ]
+  );
+  const active = filter.q || filter.year || filter.level || filter.branch || filter.category || filter.status;
+  const clear = () => setFilter({ q: "", year: "", level: "", branch: "", category: "", status: "" });
+  const set = (k) => (e) => setFilter((f) => ({ ...f, [k]: e.target.value }));
 
   const canCreate = hasPerm(perms, "user.create");
   const canUpdate = hasPerm(perms, "user.update");
@@ -60,37 +96,81 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
           <button className="adm-btn ghost" onClick={() => setBulk(true)}>Bulk import (CSV)</button>
         </div>
       )}
+
+      {/* Smart filter — email-format (year/level/branch), role category & status. */}
+      <div className="adm-toolbar" style={{ flexWrap: "wrap", gap: 8 }}>
+        <input className="adm-input" style={{ maxWidth: 260 }} placeholder="Search email or name…" value={filter.q} onChange={set("q")} />
+        <select className="adm-select" value={filter.year} onChange={set("year")} aria-label="Admission year">
+          <option value="">Any year</option>
+          {facets.years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select className="adm-select" value={filter.level} onChange={set("level")} aria-label="Level">
+          <option value="">Any level</option>
+          {facets.levels.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l] ?? l}</option>)}
+        </select>
+        <select className="adm-select" value={filter.branch} onChange={set("branch")} aria-label="Branch">
+          <option value="">Any branch</option>
+          {facets.branches.map((b) => <option key={b} value={b}>{b.toUpperCase()}</option>)}
+        </select>
+        <select className="adm-select" value={filter.category} onChange={set("category")} aria-label="Category (role)">
+          <option value="">Any category</option>
+          {categoryOptions.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+        </select>
+        <select className="adm-select" value={filter.status} onChange={set("status")} aria-label="Status">
+          <option value="">Any status</option>
+          {["active", "suspended", "invited", "disabled"].map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {active && <button className="adm-btn ghost sm" onClick={clear}>Clear</button>}
+        <span style={{ marginLeft: "auto", fontSize: "0.8rem", color: "var(--adm-muted)" }}>{filtered.length} of {users.length}</span>
+      </div>
+
       <div className="adm-tablewrap">
         <table className="adm-table">
-          <thead><tr><th>Email</th><th>Name</th><th>Roles</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Email</th><th>Identity</th><th>Roles</th><th>Status</th><th></th></tr></thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  {u.email} {u.isDeveloper && <Badge tone="dev">dev</Badge>} {u.id === viewerId && <Badge tone="info">you</Badge>}
-                  {u.mustChangePassword && <Badge tone="warn">must change pw</Badge>}
-                </td>
-                <td>{u.name}</td>
-                <td><div className="adm-pill-row">{(u.roles ?? []).map((r) => <Badge key={r.key} tone="neutral">{r.name}</Badge>)}{(u.roles ?? []).length === 0 && <span style={{ color: "var(--adm-faint)" }}>—</span>}</div></td>
-                <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
-                <td>
-                  <div className="adm-actions">
-                    {canAssign && <button className="adm-btn ghost sm" onClick={() => setGranting(u)}>Roles</button>}
-                    {canUpdate && <button className="adm-btn ghost sm" onClick={() => setEditing(u)}>Edit</button>}
-                    {canUpdate && u.hasPassword && (
-                      <ConfirmButton confirm={`Generate a new temporary password for ${u.email}? They will be forced to change it on next login.`} busy={busy} onConfirm={() => forceReset(u)}>Reset pw</ConfirmButton>
+            {filtered.map((u) => {
+              const id = userEmailIdentity(u);
+              const overrideCount = (u.overrides ?? []).length;
+              return (
+                <tr key={u.id}>
+                  <td>
+                    {u.email} {u.isDeveloper && <Badge tone="dev">dev</Badge>} {u.id === viewerId && <Badge tone="info">you</Badge>}
+                    {u.mustChangePassword && <Badge tone="warn">must change pw</Badge>}
+                    {overrideCount > 0 && <Badge tone="warn">{overrideCount} override{overrideCount > 1 ? "s" : ""}</Badge>}
+                  </td>
+                  <td>
+                    {id ? (
+                      <div className="adm-pill-row">
+                        <Badge tone="neutral">{id.year}</Badge>
+                        <Badge tone="neutral">{LEVEL_LABEL[id.level] ?? id.level}</Badge>
+                        <Badge tone="neutral">{id.branch.toUpperCase()}</Badge>
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--adm-faint)" }}>{u.name || "—"}</span>
                     )}
-                    {canSuspend && u.id !== viewerId && (u.status === "active"
-                      ? <button className="adm-btn danger sm" disabled={busy} onClick={() => setStatus(u, "suspended")}>Suspend</button>
-                      : <button className="adm-btn ghost sm" disabled={busy} onClick={() => setStatus(u, "active")}>Activate</button>)}
-                    {canDelete && u.id !== viewerId && (
-                      <ConfirmButton className="adm-btn danger sm" confirm={`Permanently delete ${u.email}? This cannot be undone.`} busy={busy} onConfirm={() => del(u)}>Delete</ConfirmButton>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && <tr><td colSpan={5}><div className="adm-empty">No users.</div></td></tr>}
+                  </td>
+                  <td><div className="adm-pill-row">{(u.roles ?? []).map((r) => <Badge key={r.key} tone="neutral">{r.name}</Badge>)}{(u.roles ?? []).length === 0 && <span style={{ color: "var(--adm-faint)" }}>—</span>}</div></td>
+                  <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
+                  <td>
+                    <div className="adm-actions">
+                      {canAssign && <button className="adm-btn ghost sm" onClick={() => setGranting(u)}>Roles</button>}
+                      {canOverride && <button className="adm-btn ghost sm" onClick={() => setOverriding(u)}>Perms</button>}
+                      {canUpdate && <button className="adm-btn ghost sm" onClick={() => setEditing(u)}>Edit</button>}
+                      {canUpdate && u.hasPassword && (
+                        <ConfirmButton confirm={`Generate a new temporary password for ${u.email}? They will be forced to change it on next login.`} busy={busy} onConfirm={() => forceReset(u)}>Reset pw</ConfirmButton>
+                      )}
+                      {canSuspend && u.id !== viewerId && (u.status === "active"
+                        ? <button className="adm-btn danger sm" disabled={busy} onClick={() => setStatus(u, "suspended")}>Suspend</button>
+                        : <button className="adm-btn ghost sm" disabled={busy} onClick={() => setStatus(u, "active")}>Activate</button>)}
+                      {canDelete && u.id !== viewerId && (
+                        <ConfirmButton className="adm-btn danger sm" confirm={`Permanently delete ${u.email}? This cannot be undone.`} busy={busy} onConfirm={() => del(u)}>Delete</ConfirmButton>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && <tr><td colSpan={5}><div className="adm-empty">{users.length === 0 ? "No users." : "No users match the filter."}</div></td></tr>}
           </tbody>
         </table>
       </div>
@@ -98,9 +178,90 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper }) {
       {creating && <UserModal title="New user" isCreate viewerIsDeveloper={viewerIsDeveloper} onClose={() => setCreating(false)} run={run} busy={busy} />}
       {editing && <UserModal title={`Edit ${editing.email}`} user={editing} viewerIsDeveloper={viewerIsDeveloper} canUpdate={canUpdate} onClose={() => setEditing(null)} run={run} busy={busy} />}
       {granting && <GrantModal user={granting} roles={roles} canRevoke={hasPerm(perms, "role.revoke")} onClose={() => setGranting(null)} run={run} busy={busy} />}
+      {overriding && <OverridesModal user={overriding} onClose={() => setOverriding(null)} run={run} busy={busy} />}
       {bulk && <BulkModal onClose={() => setBulk(false)} run={run} busy={busy} />}
       {generated && <GeneratedPasswordModal email={generated.email} password={generated.password} onClose={() => setGenerated(null)} />}
     </>
+  );
+}
+
+// ── Per-email permission overrides modal (M2) ──
+// Grant or deny a single catalog permission to one account (institute-wide here;
+// scoped overrides are available via the API). Deny WINS over any role grant. The
+// table behind refreshes via router.refresh after each mutation; this modal holds
+// a snapshot, so it closes on a successful change.
+const PERMS_BY_MODULE = (() => {
+  const byModule = {};
+  for (const p of PERMISSIONS) (byModule[p.module ?? "other"] ??= []).push(p);
+  return byModule;
+})();
+
+function OverridesModal({ user, onClose, run, busy }) {
+  const [form, setForm] = useState({ permissionKey: "", mode: "deny", reason: "" });
+  const [errors, setErrors] = useState({});
+  const current = user.overrides ?? [];
+
+  const submit = async () => {
+    const v = validateOverrideForm({ ...form, userId: user.id });
+    setErrors(v.errors);
+    if (!v.ok) return;
+    try {
+      await run("permission.override.set", { input: v.value }, { success: `${form.mode === "deny" ? "Denied" : "Granted"} ${form.permissionKey}` });
+      onClose();
+    } catch { /* toast shown */ }
+  };
+  const remove = (o) =>
+    run("permission.override.remove", { id: o.id }, { success: `Removed override ${o.permissionKey}` }).then(onClose).catch(() => {});
+
+  return (
+    <Modal title={`Permission overrides · ${user.email}`} onClose={onClose} footer={<button className="adm-btn ghost" onClick={onClose}>Done</button>}>
+      <div className="adm-form">
+        <p className="adm-banner info" style={{ whiteSpace: "normal" }}>
+          Overrides apply <strong>on top of</strong> this account's roles — a <strong>grant</strong> adds one
+          permission, a <strong>deny</strong> removes it, and <strong>deny wins</strong>. They have no effect on a
+          developer / unrestricted account. You can only grant a permission you hold yourself.
+        </p>
+        <div className="adm-check-group">
+          <h4>Current overrides</h4>
+          {current.length === 0 ? (
+            <p style={{ fontSize: "0.82rem", color: "var(--adm-faint)" }}>None.</p>
+          ) : (
+            current.map((o) => (
+              <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "4px 0" }}>
+                <span style={{ fontSize: "0.84rem" }}>
+                  <Badge tone={o.mode === "deny" ? "muted" : "good"}>{o.mode}</Badge>{" "}
+                  <span className="adm-code">{o.permissionKey}</span>
+                  {(o.orgUnitLineageKey || o.academicYearId) && <span style={{ color: "var(--adm-faint)" }}> · scoped</span>}
+                </span>
+                <button className="adm-btn danger sm" disabled={busy} onClick={() => remove(o)}>Remove</button>
+              </div>
+            ))
+          )}
+        </div>
+        <Field label="Permission" error={errors.permissionKey}>
+          <select className="adm-select" value={form.permissionKey} onChange={(e) => setForm({ ...form, permissionKey: e.target.value })}>
+            <option value="">Choose a permission…</option>
+            {Object.entries(PERMS_BY_MODULE).map(([module, list]) => (
+              <optgroup key={module} label={module}>
+                {list.map((p) => <option key={p.key} value={p.key}>{p.key} — {p.label}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        <Field label="Mode" error={errors.mode}>
+          <select className="adm-select" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
+            <option value="deny">Deny (remove this permission)</option>
+            <option value="grant">Grant (add this permission)</option>
+          </select>
+        </Field>
+        <Field label="Reason (optional)">
+          <input className="adm-input" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="Why this override?" />
+        </Field>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button className="adm-btn primary" onClick={submit} disabled={busy || !form.permissionKey}>Apply override</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

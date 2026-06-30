@@ -179,8 +179,8 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
 |---|---|---|
 | — | **Plugin control plane** (`feature_flag` / `member_platform`, developer-toggled, fail-closed) | ✅ (M0) |
 | M0 | Auth & account lifecycle (email+password only) | ✅ Session 11 |
-| M1 | User status (active/inactive/revoked) + surfaces | ⬜ |
-| M2 | RBAC categories + per-email overrides + search | ⬜ |
+| M1 | User status (active/inactive/revoked) + surfaces | ⬜ (NEXT) |
+| M2 | RBAC categories + per-email overrides + search | ✅ Session 11 (DL-062/063/064) |
 | M3 | Club pages + memberships | ⬜ |
 | M4 | Wall of Fame | ⬜ |
 | M5 | Centralized Event Playground | ⬜ |

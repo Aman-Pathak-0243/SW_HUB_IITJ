@@ -105,6 +105,20 @@ export async function POST(req) {
 - Developer (`is_developer` / a `grants_all` role) short-circuits all checks.
 - Permission checks hit the DB live, so revoked roles / suspended accounts take
   effect on the next request (sessions are JWT — DL-019).
+- **RBAC "categories" are roles (M2, DL-063).** The seeded stakeholder ladder
+  (`normal_user` / `co_coordinator` / `coordinator` / `secretary` / `staff` / `admin`,
+  plus `developer`/`super_admin`) lives in `ROLE_DEFS`; `CATEGORY_ROLE_KEYS` is the
+  search/grouping facet. Grant a category per-unit/per-year via the `role_assignment`
+  scope columns.
+- **Per-email overrides (M2, DL-062).** Resolution order is: developer short-circuit →
+  additive role union → `grants_all` short-circuit → per-user overrides (`grant` adds,
+  `deny` **wins**). Manage with `lib/users/admin.mjs#setUserOverride/removeUserOverride`
+  (gated `permission.override`; a *grant* requires the actor to hold that permission).
+  The bypass (developer/`grants_all`) is never restricted by an override.
+- **Email smart search (M2, DL-064).** `lib/users/search.mjs` (pure, client-safe)
+  reuses `lib/auth/email.mjs#parseInstituteEmail`; `matchesUserFilter` is the one
+  predicate behind both the debounced admin filter and `listUsers`'s server criteria
+  (`year`/`level`/`branch`/`category`/`status`/`search`).
 
 ## CMS content lifecycle (Session 3)
 

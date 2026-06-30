@@ -10,9 +10,9 @@ import {
   diffViews, buildDiffRows, formatAssignmentScope, shapeYearRow, humanBytes,
 } from "../lib/admin/view-models.mjs";
 import {
-  validateUserForm, validateRoleForm, validateGrantForm, validateContentForm, validateYearForm, validateMediaForm,
+  validateUserForm, validateRoleForm, validateGrantForm, validateContentForm, validateYearForm, validateMediaForm, validateOverrideForm,
 } from "../lib/admin/forms.mjs";
-import { normalizeEmail, normalizeRoleKey, shapeUser, shapeRole, shapeAssignment } from "../lib/users/admin.mjs";
+import { normalizeEmail, normalizeRoleKey, shapeUser, shapeRole, shapeAssignment, shapeOverride } from "../lib/users/admin.mjs";
 import { ADMIN_ACTIONS, isKnownAdminAction } from "../lib/admin/handlers.mjs";
 
 // helper: a resolved permission set from a list of keys
@@ -161,6 +161,15 @@ describe("admin/forms", () => {
     expect(validateMediaForm({ url: "https://x/y.png", kind: "nope" }).errors.kind).toBeTruthy();
     expect(validateMediaForm({ url: "https://x/y.png" }).ok).toBe(true);
   });
+
+  it("validateOverrideForm needs a user, a known mode and a permission key (M2)", () => {
+    expect(validateOverrideForm({}).ok).toBe(false);
+    expect(validateOverrideForm({ userId: "u", mode: "nope", permissionKey: "user.delete" }).errors.mode).toBeTruthy();
+    expect(validateOverrideForm({ userId: "u", mode: "deny" }).errors.permissionKey).toBeTruthy();
+    const ok = validateOverrideForm({ userId: "u", mode: "grant", permissionKey: "media.upload", reason: " test " });
+    expect(ok.ok).toBe(true);
+    expect(ok.value).toMatchObject({ userId: "u", mode: "grant", permissionKey: "media.upload", reason: "test" });
+  });
 });
 
 describe("users/admin pure helpers", () => {
@@ -210,5 +219,26 @@ describe("admin/handlers registry", () => {
     expect(ADMIN_ACTIONS["content.publish"].scoped).toBe(true);
     expect(ADMIN_ACTIONS["org.unit.create"].scoped).toBe(true);
     expect(ADMIN_ACTIONS["backup.record"].console).toBe(true);
+  });
+
+  it("the M2 override actions gate on permission.override", () => {
+    expect(ADMIN_ACTIONS["permission.override.set"].permission).toBe("permission.override");
+    expect(ADMIN_ACTIONS["permission.override.remove"].permission).toBe("permission.override");
+  });
+});
+
+describe("users/admin shapeOverride", () => {
+  it("shapes a JSON-safe override row", () => {
+    const o = shapeOverride({
+      id: "o1", userId: "u1", permissionId: "p1", mode: "deny",
+      orgUnitLineageKey: null, academicYearId: null,
+      permission: { key: "content.publish", label: "Publish content" },
+      createdAt: new Date("2026-06-30T00:00:00Z"),
+    });
+    expect(o).toMatchObject({ id: "o1", mode: "deny", permissionKey: "content.publish", permissionLabel: "Publish content" });
+    expect(o.createdAt).toBe("2026-06-30T00:00:00.000Z");
+  });
+  it("returns null for a falsy row", () => {
+    expect(shapeOverride(null)).toBeNull();
   });
 });

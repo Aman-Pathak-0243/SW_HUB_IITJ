@@ -27,9 +27,12 @@ context and no repeated work.
 | 9 | **Admin Panel** | RBAC-gated admin UI over CMS/years/orgs/events/announcements/resources/media + the dev-console readers; NEW `lib/users/admin.mjs` (users/roles/grants, audited, escalation guards); ONE registry-driven `POST /api/admin/action`; pure client-safe helpers; 285 static + 6 live; 45-agent review (CRITICAL grant-escalation fixed) | ✅ **DONE** |
 | 10 | **Testing + Deployment + Optimization + Handover** | Full test gate (307 static + 344 live) + CI workflow; public CWV (Cloudinary f_auto/q_auto, next/image sizes, font consolidation #12, brand-blue #11); responsive (admin mobile sidebar); deploy hardening (security headers, CSRF + rate-limit on the write routes, NFT #32 decision); pruned V1 leftovers (#10/#13 + Header `/org` cutover); operator runbook + full docs sweep; 13-agent review | ✅ **DONE** |
 
-> **The original 10-session plan is complete.** A **Session 11** is queued for two
-> operator-requested NEW features (student event-participation login + a "Wall of
-> Fame") — deferred from the harden-only Session 10 (DL-057). The prompt is in
+> **The original 10-session plan is complete.** A **Session 11+ member-platform
+> program** (multi-session, one module per session — DL-057) is in progress on the
+> existing spine. Shipped so far: the developer-controlled **plugin** control plane,
+> **M0** (auth & account lifecycle), and **M2** (RBAC categories + per-email permission
+> overrides + email-format smart search). **Next: M1** (user status + surfaces).
+> Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).
 
