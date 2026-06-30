@@ -24,6 +24,48 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M7 + M8 spine (notifications/feedback + developer dashboard) · 2026-06-30
+- **M7 — notifications generalized (DL-069)** — the M0 `notification` queue gains a
+  free-text `label`, keyset pagination (`listNotificationsPage`, createdAt+id cursor),
+  and a generic deduped `createNotification` for system producers (the storage monitor
+  raises `threshold_alert`s through it). No parallel pipeline.
+- **M7 — feedback / support tickets (DL-070)** — a NEW standalone `feedback` table
+  (DL-038 rule): public create with a unique `FB-NNNNN` ref id + a CHECK-guarded status
+  workflow (open→triaged→in_progress→resolved/dismissed); `lib/feedback/{forms,service}.mjs`
+  (pure client-safe validator mirrored server-side, DL-051); public `POST /api/feedback`
+  (plugin + CSRF + rate-limit; submitter linked from the SESSION, never the body);
+  audited assign/status (gated `feedback.resolve`); keyset reads (gated `feedback.read`).
+  Public form `/feedback` + admin Feedback module.
+- **M7 — `groupByWindow` (DL-074)** — a pure past/current/upcoming windowing primitive
+  (`lib/events/public.mjs`) the announcement + event listings (and M3) share.
+- **M8 — Action Log export (DL-068)** — `exportAuditLog` (JSON/CSV) over the Session-8
+  audit reader, PII-minimized like the list view (DL-047), gated `audit.read`.
+- **M8 — hidden usage analytics (DL-071)** — a `page_visit` table (BIGSERIAL) +
+  best-effort, never-audited `recordPageVisit` + the same-origin/rate-limited
+  `POST /api/usage` beacon; `getUsageAnalytics` (top sections/paths) gated `dev.console`.
+- **M8 — per-table storage monitoring (DL-072)** — `lib/devconsole/storage.mjs`:
+  `getTableSizes` (raw `pg_total_relation_size`), `table_threshold` (dev-only
+  `storage.manage`, audited), `getStorageReport` (flags over-threshold tables
+  NON-blocking + a deduped threshold alert), `exportTable` (→ `backup_record`) +
+  `truncateTable` (allowlist `{page_visit}` + `confirm:true` + a live-table-name
+  injection guard).
+- **M8 — bulk mail (DL-073)** — `lib/mail/{progress,service}.mjs`: an authorized-sender
+  allowlist (`mail.manage`), rate-limited `sendBulk` (`mail.send`) with progress
+  accounting and a LAZY+INJECTABLE nodemailer transport (no hard dep at import); one
+  accounting-only audit row (no bodies/recipients logged). Admin Mail + Developer
+  Dashboard modules.
+- **Permissions** — +5 (`feedback.read`/`feedback.resolve`, `storage.manage` [dev-only],
+  `mail.send`/`mail.manage`) → **50 total**; `staff` gains feedback.read + mail.send;
+  `admin` (computed) gains feedback.* + mail.* but NOT the dev-only `storage.manage`.
+- **Schema** — one forward migration `20260630170000_member_platform_m7m8` (notification.label
+  + the 4 new tables + `feedback_ref_seq` + CHECK tail), applied to Neon; the 4 new models
+  registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP` (page_visit NEVER audited).
+- **Tests** — **415 static** (was 393; +feedback/mail/devdash/windows pure suites) +
+  **7 new live** (`m7.db` 4 + `m8.db` 3): feedback lifecycle + closed-guard + keyset walk, notification
+  dedupe/keyset, usage+storage+truncate guards, mail allowlist + rate-limited send,
+  audit export. `next build` + ESLint clean. Operator: `npm install nodemailer` + set
+  `MAIL_*` to enable real sending.
+
 ### Added/Changed — Session 11: Member Platform M1 (user status & access modes) · 2026-06-30
 - **Three access modes (DL-065)** — the `UserStatus` enum is forward-migrated from
   `{active, suspended, invited, disabled}` to **`{active, inactive, revoked}`** via a

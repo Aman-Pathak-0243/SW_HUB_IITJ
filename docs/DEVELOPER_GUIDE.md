@@ -582,6 +582,43 @@ admin-mediated account lifecycle.
 > permissions (`notification.*`, `user.delete`) attach to `super_admin` and the
 > `member_platform` plugin row is registered. The migration itself is schema-only.
 
+## Member platform — M7/M8: notifications, feedback & the developer dashboard (Session 11)
+
+The M7/M8 SPINE (the foundation M3–M6 consume). Migration `20260630170000_member_platform_m7m8`
+(additive: `notification.label` + `feedback` / `page_visit` / `table_threshold` /
+`authorized_sender` + `feedback_ref_seq` + CHECK tail). After pulling: `npm run db:migrate`
+then `npm run db:seed` (idempotent; +5 permissions → 50).
+
+- **Notifications generalized (M7, DL-069).** `lib/notifications/service.mjs` gains a free-text
+  `label`, `listNotificationsPage` (keyset, createdAt+id cursor), and a generic deduped
+  `createNotification({ type, label, title, body, entityType, entityId, data, dedupeKey })`
+  for system producers. Reuse it for any future queue item — DON'T add a parallel table.
+- **Feedback / support tickets (M7, DL-070).** A STANDALONE table (`lib/feedback/{forms,service}.mjs`).
+  Public create via `POST /api/feedback` (plugin + CSRF + rate-limit; submitter linked from the
+  SESSION, never the body) → `FB-NNNNN` ref id. Triage/assign/resolve gated `feedback.resolve`
+  (audited); reads gated `feedback.read` (keyset). Public form `/feedback`; admin `/admin/feedback`.
+  The pure `validateFeedbackForm` (lib/feedback/forms.mjs) is the client+server validator.
+- **Windowing (M7, DL-074).** `lib/events/public.mjs#groupByWindow(items, { fromKey, untilKey })`
+  → `{ upcoming, current, past }` — the shared past/current/upcoming primitive (reuse for M3 club
+  announcements).
+- **Action Log export (M8, DL-068).** `lib/devconsole/audit.mjs#exportAuditLog(filters, actor, {format})`
+  (JSON/CSV, PII-minimized, `audit.read`). Registry action `audit.export`.
+- **Usage analytics (M8, DL-071).** `recordPageVisit({path,section,userId})` is best-effort + never
+  audited; the `POST /api/usage` beacon records it (NOT yet auto-fired from the client — KNOWN_ISSUES #41).
+  `getUsageAnalytics({windowDays}, actor)` (gated `dev.console`) → top sections/paths.
+- **Storage monitoring (M8, DL-072).** `lib/devconsole/storage.mjs`: `getTableSizes` (raw SQL),
+  `setTableThreshold`/`getStorageReport` (flags over-threshold tables NON-blocking + a deduped
+  alert), `exportTable` (any table → download + a GUARANTEED audit row + a best-effort
+  `backup_record`), `truncateTable` (allowlist `{page_visit}` + `confirm:true` + a
+  validate-against-live-catalog injection guard). All gated `storage.manage` — **developer-only**
+  (excluded from `admin`). Surfaced at `/admin/devdash`.
+- **Bulk mail (M8, DL-073).** `lib/mail/{progress,service}.mjs`: an `authorized_sender` allowlist
+  (`mail.manage`) + `sendBulk(input, actor, { transport, sleep, ratePerMinute, onProgress })`
+  (`mail.send`, rate-limited, one accounting-only audit row). nodemailer is LAZY + INJECTABLE — to
+  enable real sending: `npm install nodemailer` + set `MAIL_HOST`/`MAIL_PORT`/`MAIL_USER`/`MAIL_PASS`
+  (until then `sendBulk` returns a friendly 503; KNOWN_ISSUES #40). Tests inject a fake transport +
+  a no-op `sleep`. Surfaced at `/admin/mail`. Initial passwords still go via external institute mail.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

@@ -1,13 +1,66 @@
 # Current Status
 
 **Last updated:** 2026-06-30
-**Session:** 11 — **M1 COMPLETE** (user status active/inactive/revoked + the three
-surfaces + scoped route RBAC), on top of the **plugin + M0 + M2**. Sessions 1–10 remain
+**Session:** 11 — **M7/M8 SPINE COMPLETE** (centralized notifications + feedback/support
+tickets + the developer dashboard: action-log export, usage analytics, per-table storage
+thresholds, bulk mail), on top of the **plugin + M0 + M2 + M1**. Sessions 1–10 remain
 complete (deployable V2).
 **Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2, ✅ M1. **Next: the M7/M8 spine** (centralized notifications/feedback + the
-developer dashboard), then M3 → M4 → M5 → M6.
+✅ M2, ✅ M1, ✅ M7, ✅ M8. **Next: M3** (club/council pages + memberships), then
+M4 → M5 → M6.
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M7 + M8 spine: notifications/feedback + developer dashboard)
+
+- **M7 — notifications generalized (DL-069).** The M0 `notification` queue gains a
+  free-text `label`, keyset pagination (`listNotificationsPage`, a createdAt+id composite
+  cursor), and a generic deduped `createNotification` for system producers (the M8 storage
+  monitor raises `threshold_alert`s through it). No parallel pipeline (extends DL-060).
+- **M7 — feedback / support tickets (DL-070).** A NEW standalone `feedback` table (the
+  DL-038 rule): public create with a unique `FB-NNNNN` ref id + a CHECK-guarded status
+  workflow (open→triaged→in_progress→resolved/dismissed). [lib/feedback/forms.mjs](lib/feedback/forms.mjs)
+  (pure client-safe validator, mirrored server-side per DL-051) + [lib/feedback/service.mjs](lib/feedback/service.mjs);
+  public `POST /api/feedback` (plugin + CSRF + rate-limit; submitter linked from the
+  SESSION, never the body); audited assign/status (gated `feedback.resolve`); keyset reads
+  (gated `feedback.read`). Public form `/feedback` + admin `/admin/feedback`.
+- **M7 — `groupByWindow` (DL-074).** A pure past/current/upcoming windowing primitive in
+  [lib/events/public.mjs](lib/events/public.mjs) the announcement + event listings (and M3) share.
+- **M8 — Action Log / Change History export (DL-068).** `exportAuditLog` (JSON/CSV) over the
+  Session-8 audit reader, PII-minimized like the list view (DL-047), gated `audit.read`.
+- **M8 — hidden usage analytics (DL-071).** A `page_visit` table (BIGSERIAL) + best-effort,
+  never-audited `recordPageVisit` + the same-origin/rate-limited `POST /api/usage` beacon;
+  `getUsageAnalytics` (top sections/paths) gated `dev.console`. (Client auto-beacon not yet
+  wired — KNOWN_ISSUES #41.)
+- **M8 — per-table storage monitoring (DL-072).** [lib/devconsole/storage.mjs](lib/devconsole/storage.mjs):
+  `getTableSizes` (raw `pg_total_relation_size`), `table_threshold` (dev-only `storage.manage`,
+  audited), `getStorageReport` (flags over-threshold tables NON-blocking + a deduped alert),
+  `exportTable` (→ a GUARANTEED audit row + a best-effort `backup_record`) + `truncateTable`
+  (allowlist `{page_visit}` + `confirm:true` + a validate-against-live-catalog injection guard).
+- **M8 — bulk mail (DL-073).** [lib/mail/progress.mjs](lib/mail/progress.mjs) (pure rate-limit/
+  progress) + [lib/mail/service.mjs](lib/mail/service.mjs): an `authorized_sender` allowlist
+  (`mail.manage`) + rate-limited `sendBulk` (`mail.send`) with progress accounting and a LAZY +
+  INJECTABLE nodemailer transport (no hard dep at import; one accounting-only audit row — no
+  bodies/recipients logged). Admin `/admin/mail` + `/admin/devdash`. (Operator: `npm install
+  nodemailer` + `MAIL_*` to enable real sending — KNOWN_ISSUES #40.)
+- **Permissions.** +5 (`feedback.read`/`feedback.resolve`, dev-only `storage.manage`,
+  `mail.send`/`mail.manage`) → **50 total**; `staff` gains feedback.read + mail.send; the
+  computed `admin` gains feedback.* + mail.* but NOT the dev-only `storage.manage` (verified).
+- **Schema.** One forward migration `20260630170000_member_platform_m7m8` (notification.label +
+  the 4 new tables + `feedback_ref_seq` + CHECK tail), applied to Neon via `migrate deploy`
+  (no drift/reset); the 4 new models registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`
+  (page_visit NEVER audited). Seed re-run (50 perms, role mappings verified).
+- **Tests.** **415 static** (was 393; +`tests/{feedback,mail,devdash,windows}.test.mjs`) +
+  **7 new live** (`m7.db` 4 + `m8.db` 3; run isolated per #39): feedback lifecycle + closed/invalid
+  guards + reopen-clears + a multi-page keyset WALK, notification dedupe/keyset, usage+storage+
+  truncate guards + the export audit-trail, mail allowlist + a two-batch rate-limited send, audit
+  export. `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (20 agents).
+  **7 raw → 3 confirmed-by-both + 2 single-vote → all 5 fixed; 2 refuted:** (medium) `exportTable`
+  swallowed its ledger write so a PII table-dump could leave no trail → a **guaranteed independent
+  audit row**; (low) reopening a closed ticket kept stale `resolvedAt/By` → cleared; (high, test) the
+  keyset cursor was never walked across pages → a real no-overlap walk; (low) `mailProgress` rounded
+  up to 100% before the last send → floored; (high, test) the batching/pause path was never exercised
+  → a two-batch test. The 2 refuted were extra coverage (threshold-alert + invalid-status) added anyway.
 
 ## What is done (Session 11 — M1: user status & access modes)
 
@@ -587,10 +640,10 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**393 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  green (**415 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
   live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
-  media (3) + developer console (10) + users/roles (6) + M0 (8) + M2 (7) + **M1 (6)**
-  live tests. (The full live suite runs the DB suites in parallel against one Neon DB;
+  media (3) + developer console (10) + users/roles (6) + M0 (8) + M2 (7) + M1 (6) +
+  **M7 (4) + M8 (3)** live tests. (The full live suite runs the DB suites in parallel against one Neon DB;
   the stateful `year.db` suite — it mutates the shared current-year row — can show a
   transient P2025 under that contention and is re-confirmed green in isolation. M1 does
   not touch the year engine.)
@@ -604,6 +657,15 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
   transient "Can't reach database server" on a cold compute — re-run once if so (not
   a logic failure). The org live suite is the slowest (the importer makes many
   sequential audited tx round-trips).
+- **M7/M8 spine:** centralized **notifications** (`lib/notifications/service.mjs` —
+  `createNotification`/`listNotificationsPage`, labels, dedupe) + standalone **feedback**
+  tickets (`lib/feedback/service.mjs`, public `POST /api/feedback`, `FB-NNNNN`) +
+  the **developer dashboard** (`/admin/devdash`): `exportAuditLog` (audit.read),
+  `lib/devconsole/usage.mjs` (page_visit + `recordPageVisit`/`getUsageAnalytics`),
+  `lib/devconsole/storage.mjs` (table sizes + thresholds + export + allowlisted truncate,
+  gated dev-only `storage.manage`), and `lib/mail/*` (authorized-sender allowlist +
+  rate-limited `sendBulk`, lazy nodemailer). Reuse `createNotification` (don't add a
+  parallel queue) and `groupByWindow` (past/current/upcoming) for M3.
 - **Access modes (M1):** `app_user.status ∈ {active, inactive, revoked}` is the single
   status field (the pure matrix is `lib/auth/access.mjs`). Gate the BACK OFFICE with
   `requireUser()`/`requirePermission()` (active-only); gate the MEMBER view with

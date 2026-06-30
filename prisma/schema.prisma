@@ -222,6 +222,12 @@ model User {
   notificationsResolved  Notification[]    @relation("NotificationResolvedBy")
   permissionOverrides    UserPermissionOverride[] @relation("UserPermissionOverrideUser")
   permissionOverridesSet UserPermissionOverride[] @relation("UserPermissionOverrideCreatedBy")
+  feedbackSubmitted      Feedback[]        @relation("FeedbackSubmitter")
+  feedbackAssigned       Feedback[]        @relation("FeedbackAssignedTo")
+  feedbackResolved       Feedback[]        @relation("FeedbackResolvedBy")
+  pageVisits             PageVisit[]       @relation("PageVisitUser")
+  tableThresholdsUpdated TableThreshold[]  @relation("TableThresholdUpdatedBy")
+  authorizedSendersCreated AuthorizedSender[] @relation("AuthorizedSenderCreatedBy")
 
   @@index([status])
   @@map("app_user")
@@ -974,7 +980,11 @@ model FeatureFlag {
 model Notification {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   referenceId      String    @unique @map("reference_id")
-  type             String // account_request | password_reset (M7 adds more)
+  type             String // account_request | password_reset | threshold_alert | system (M7)
+  // M7 (DL-069): a free-text LABEL for grouping/filtering the centralized queue
+  // (e.g. "accounts", "security", "storage"). Distinct from `type` (the workflow
+  // kind); nullable so existing rows are unaffected.
+  label            String?
   status           String    @default("open")
   title            String
   body             String?
@@ -997,6 +1007,7 @@ model Notification {
   @@index([type, status])
   @@index([subjectEmail])
   @@index([assignedToUserId])
+  @@index([label])
   @@map("notification")
 }
 
@@ -1037,4 +1048,98 @@ model UserPermissionOverride {
   @@index([userId])
   @@index([permissionId])
   @@map("user_permission_override")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M7 (feedback) + M8 (usage, storage, mail)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Feedback / support tickets (M7, DL-070) — a STANDALONE table (the DL-038 rule:
+// not CMS content). A public form creates a ticket with a human, DB-unique
+// `reference_id` (FB-NNNNN from a raw-SQL sequence) so a user can reference a bug
+// against any component/service id (`component`); stakeholders triage → assign →
+// resolve through a `status` workflow (CHECK-guarded). Assignment/status changes
+// are audited (cross-stakeholder); the public create is itself the durable record.
+model Feedback {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceId      String    @unique @map("reference_id")
+  category         String // bug | issue | query | suggestion (CHECK)
+  status           String    @default("open") // open | triaged | in_progress | resolved | dismissed (CHECK)
+  subject          String
+  body             String
+  component        String? // the component/service id the report is against
+  submitterEmail   String?   @map("submitter_email") @db.Citext
+  submitterUserId  String?   @map("submitter_user_id") @db.Uuid
+  assignedToUserId String?   @map("assigned_to_user_id") @db.Uuid
+  assignedAt       DateTime? @map("assigned_at") @db.Timestamptz
+  resolvedByUserId String?   @map("resolved_by_user_id") @db.Uuid
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNote   String?   @map("resolution_note")
+  data             Json?     @db.JsonB
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  submitter  User? @relation("FeedbackSubmitter", fields: [submitterUserId], references: [id], onDelete: SetNull)
+  assignedTo User? @relation("FeedbackAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("FeedbackResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([category, status])
+  @@index([submitterEmail])
+  @@index([assignedToUserId])
+  @@map("feedback")
+}
+
+// Hidden usage analytics (M8, DL-071) — which sections are visited most. BIGSERIAL
+// PK (high-volume, monotonic — keyset paging like audit_log, DL-018). `userId` is
+// nullable + SET NULL (an anonymous/public visit has none; a deleted user's visits
+// keep their aggregate). Minimal by design: path + an optional section label + an
+// optional user + when. Never audited (in AUTO_AUDIT_SKIP).
+model PageVisit {
+  id        BigInt   @id @default(autoincrement())
+  path      String
+  section   String?
+  userId    String?  @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User? @relation("PageVisitUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([section, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("page_visit")
+}
+
+// Per-table size threshold (M8, DL-072). A developer sets a byte threshold per
+// table; the storage report flags tables whose live size exceeds it (NON-blocking —
+// the site keeps working) and posts a dashboard message. `tableName` is the unique
+// key. Set/cleared by `storage.manage` (developer-only), audited.
+model TableThreshold {
+  tableName      String   @id @map("table_name")
+  thresholdBytes BigInt   @map("threshold_bytes")
+  note           String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById    String?  @map("updated_by") @db.Uuid
+
+  updatedBy User? @relation("TableThresholdUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("table_threshold")
+}
+
+// Authorized mail senders (M8, DL-073). nodemailer bulk sends are restricted to
+// this admin/dev-maintained allowlist (`mail.manage`). Email is the unique key;
+// `active` lets a sender be disabled without deletion. Maintained = audited.
+model AuthorizedSender {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String   @unique @db.Citext
+  name        String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  createdBy User? @relation("AuthorizedSenderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([active])
+  @@map("authorized_sender")
 }

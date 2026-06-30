@@ -1,9 +1,27 @@
 # Next Task
 
 **As of:** 2026-06-30 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
-and now M1** (user status active/inactive/revoked + the three surfaces + scoped route
-RBAC). Next session: **the M7/M8 spine** (centralized notifications/feedback + the
-developer dashboard), built inside the plugin — then M3 → M4 → M5 → M6.
+M1, and now the M7/M8 spine** (centralized notifications + feedback/support tickets + the
+developer dashboard: action-log export, usage analytics, per-table storage thresholds, bulk
+mail). Next session: **M3** (club/council pages + memberships), built inside the plugin —
+then M4 → M5 → M6.
+
+> ### ✅ Session 11 done — M7 + M8 spine (notifications/feedback + developer dashboard)
+> Built inside the `member_platform` plugin. **M7:** generalized the `notification` queue
+> (label + keyset `listNotificationsPage` + generic deduped `createNotification`, DL-069);
+> a NEW standalone **`feedback`** table (FB-NNNNN ref id + CHECK status workflow, public
+> `POST /api/feedback`, audited assign/resolve, pure client-safe validator, DL-070) + public
+> `/feedback` form + admin module; a pure **`groupByWindow`** past/current/upcoming primitive
+> (DL-074). **M8:** Action Log **export** (JSON/CSV, PII-minimized, DL-068); hidden **usage
+> analytics** (`page_visit` + best-effort beacon + `getUsageAnalytics`, DL-071); per-table
+> **storage** monitoring + thresholds + export + allowlisted/confirm-gated truncate (dev-only
+> `storage.manage`, DL-072); **bulk mail** (authorized-sender allowlist + rate-limited send +
+> lazy/injectable nodemailer, DL-073). +5 perms (50 total); migration
+> `20260630170000_member_platform_m7m8` (applied). **415 static + 7 live (m7.db 4 + m8.db 3);**
+> 20-agent review (3 confirmed-both + 2 single-vote → all 5 fixed). Next: **M3**.
+> **Operator:** after pulling, `npm run db:migrate` then `npm run db:seed` (idempotent). To
+> enable bulk mail: `npm install nodemailer` + set `MAIL_*` (KNOWN_ISSUES #40). Optionally wire
+> the client usage beacon to `POST /api/usage` (KNOWN_ISSUES #41).
 
 > ### ✅ Session 11 done — M1 (user status & access modes)
 > Built inside the `member_platform` plugin, on top of M0 + M2. Delivered: the

@@ -12,7 +12,7 @@ import { ToastProvider } from "./ui";
 
 const ICONS = {
   home: "🏠", doc: "📄", sitemap: "🗂️", calendar: "📅", image: "🖼️", users: "👥", terminal: "🖥️",
-  inbox: "📥", plug: "🔌",
+  inbox: "📥", plug: "🔌", send: "✉️", gauge: "📊",
 };
 
 function isActive(pathname, href) {

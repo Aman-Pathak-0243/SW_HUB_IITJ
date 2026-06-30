@@ -185,5 +185,5 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
 | M4 | Wall of Fame | ⬜ |
 | M5 | Centralized Event Playground | ⬜ |
 | M6 | Member profiles & performance | ⬜ |
-| M7 | Notifications + feedback + announcements | ⬜ |
-| M8 | Developer dashboard (audit/analytics/backups/mail) | ⬜ |
+| M7 | Notifications + feedback + announcements | ✅ Session 11 (DL-069/070/074) |
+| M8 | Developer dashboard (audit/analytics/backups/mail) | ✅ Session 11 (DL-068/071/072/073) |
