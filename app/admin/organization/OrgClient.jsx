@@ -12,13 +12,29 @@ export default function OrgClient({ year, units, positions, people, types, roste
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [roster, setRoster] = useState(null); // unit object
+  const [personModal, setPersonModal] = useState(null); // { mode:'create'|'edit', person? }
 
   const canCreate = hasPerm(perms, "org_unit.create");
   const canUpdate = hasPerm(perms, "org_unit.update");
   const canArchive = hasPerm(perms, "org_unit.archive");
+  const canManagePeople = hasPerm(perms, "appointment.create") || hasPerm(perms, "appointment.update");
+  const canRemovePeople = hasPerm(perms, "appointment.archive");
+  const removePerson = (p) =>
+    window.confirm(`Remove ${p.fullName} from the directory? (Blocked if they still hold appointments — remove those first.)`) &&
+    run("org.person.archive", { id: p.id }, { success: `Removed ${p.fullName}` }).catch(() => {});
 
   const publish = (u) => run("org.unit.publish", { id: u.id }, { success: `Published ${u.name}` }).catch(() => {});
   const archive = (u) => window.confirm(`Archive ${u.name}?`) && run("org.unit.archive", { id: u.id }, { success: `Archived ${u.name}` }).catch(() => {});
+
+  // Move a club from one council to another (reparent). The service reuses org.unit.edit
+  // (patch.parentId); the DB hierarchy guard enforces council→club, so an invalid parent
+  // is rejected with a friendly error.
+  const councils = units.filter((u) => u.typeKey === "council" && u.status !== "archived");
+  const moveClub = (club, councilId) => {
+    if (!councilId || councilId === club.parentId) return;
+    const dest = councils.find((c) => c.id === councilId);
+    run("org.unit.edit", { id: club.id, patch: { parentId: councilId } }, { success: `Moved ${club.name} → ${dest?.name ?? "council"}` }).catch(() => {});
+  };
 
   return (
     <>
@@ -44,6 +60,13 @@ export default function OrgClient({ year, units, positions, people, types, roste
                 <td><button className="adm-btn link" onClick={() => setRoster(u)}>{(rosterByUnit[u.id] ?? []).length} appointment(s)</button></td>
                 <td>
                   <div className="adm-actions">
+                    {canUpdate && u.typeKey === "club" && councils.length > 0 && (
+                      <select className="adm-select" style={{ maxWidth: 170 }} value={u.parentId ?? ""} disabled={busy}
+                        onChange={(e) => moveClub(u, e.target.value)} title="Move this club to another council">
+                        <option value="" disabled>Move to council…</option>
+                        {councils.map((c) => <option key={c.id} value={c.id}>{c.name}{c.id === u.parentId ? " (current)" : ""}</option>)}
+                      </select>
+                    )}
                     {canUpdate && <button className="adm-btn ghost sm" onClick={() => setEditing(u)}>Edit</button>}
                     {canUpdate && u.status !== "published" && <button className="adm-btn ghost sm" disabled={busy} onClick={() => publish(u)}>Publish</button>}
                     {canArchive && u.status !== "archived" && <button className="adm-btn danger sm" disabled={busy} onClick={() => archive(u)}>Archive</button>}
@@ -56,6 +79,52 @@ export default function OrgClient({ year, units, positions, people, types, roste
         </table>
       </div>
 
+      {/* ── People directory — deans, secretaries, PICs, coordinators, wardens, committee ── */}
+      <div className="adm-section-head" style={{ margin: "34px 0 14px" }}>
+        <div className="adm-pagehead" style={{ marginBottom: 0 }}>
+          <p className="adm-eyebrow">Directory</p><h2>People</h2>
+          <p>{people.length} listed — edit their name, photo, profile link &amp; contact; the same person shows everywhere they hold a role.</p>
+        </div>
+        {canManagePeople && <button className="adm-btn primary" onClick={() => setPersonModal({ mode: "create" })}>+ Add person</button>}
+      </div>
+      <div className="adm-tablewrap">
+        <table className="adm-table">
+          <thead><tr><th>Person</th><th>Type</th><th>Roles</th><th>Contact</th><th></th></tr></thead>
+          <tbody>
+            {people.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {p.photoUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.photoUrl} alt="" width={28} height={28} style={{ borderRadius: "50%", objectFit: "cover" }} />
+                    )}
+                    <span>{p.fullName}</span>
+                  </div>
+                </td>
+                <td><Badge tone="neutral">{p.personType}</Badge></td>
+                <td style={{ fontSize: "0.76rem", color: "var(--adm-muted)" }}>
+                  {p.roles?.length ? p.roles.map((r, i) => <div key={i}>{r.title}{r.unit ? ` · ${r.unit}` : ""}</div>) : "—"}
+                </td>
+                <td style={{ fontSize: "0.78rem" }}>
+                  {p.phone && <div>{p.phone}</div>}
+                  {p.profileUrl && <a href={p.profileUrl} target="_blank" rel="noopener noreferrer" className="adm-btn link">profile ↗</a>}
+                  {!p.phone && !p.profileUrl && "—"}
+                </td>
+                <td>
+                  <div className="adm-actions">
+                    {canManagePeople && <button className="adm-btn ghost sm" onClick={() => setPersonModal({ mode: "edit", person: p })}>Edit</button>}
+                    {canRemovePeople && <button className="adm-btn danger sm" disabled={busy} onClick={() => removePerson(p)}>Delete</button>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {people.length === 0 && <tr><td colSpan={5}><div className="adm-empty">No people in the directory yet.</div></td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {personModal && <PersonModal mode={personModal.mode} person={personModal.person} onClose={() => setPersonModal(null)} run={run} busy={busy} />}
       {creating && <UnitModal title="New unit" isCreate yearId={year.id} types={types} units={units} onClose={() => setCreating(false)} run={run} busy={busy} />}
       {editing && <UnitModal title={`Edit ${editing.name}`} unit={editing} types={types} units={units} onClose={() => setEditing(null)} run={run} busy={busy} />}
       {roster && (
@@ -185,6 +254,61 @@ function RosterModal({ unit, appointments, positions, people, perms, onClose, ru
           </div>
         </div>
       )}
+    </Modal>
+  );
+}
+
+// Add / edit a directory PERSON (name, type, photo, profile link, contact). Photo is a
+// URL (a /public path or an external image) resolved to a media asset server-side.
+// (PERSON_TYPES is declared at the top of the module.)
+function PersonModal({ mode, person, onClose, run, busy }) {
+  const isCreate = mode === "create";
+  const [form, setForm] = useState({
+    fullName: person?.fullName ?? "",
+    personType: person?.personType ?? "student",
+    email: person?.email ?? "",
+    phone: person?.phone ?? "",
+    profileUrl: person?.profileUrl ?? "",
+    photoUrl: person?.photoUrl ?? "",
+  });
+  const submit = async () => {
+    try {
+      if (isCreate) {
+        await run("org.person.create", { input: {
+          fullName: form.fullName, personType: form.personType,
+          email: form.email || undefined, phone: form.phone || undefined,
+          profileUrl: form.profileUrl || undefined, photoUrl: form.photoUrl || undefined,
+        } }, { success: "Person added" });
+      } else {
+        // Edit OVERWRITES — send every field (empty string clears it).
+        await run("org.person.edit", { id: person.id, patch: {
+          fullName: form.fullName, personType: form.personType,
+          email: form.email, phone: form.phone, profileUrl: form.profileUrl, photoUrl: form.photoUrl,
+        } }, { success: "Person updated" });
+      }
+      onClose();
+    } catch { /* toast shown by useAdminAction */ }
+  };
+  return (
+    <Modal title={isCreate ? "Add person" : `Edit ${person.fullName}`} onClose={onClose} footer={<>
+      <button className="adm-btn ghost" onClick={onClose}>Cancel</button>
+      <button className="adm-btn primary" onClick={submit} disabled={busy || !form.fullName.trim()}>{isCreate ? "Add" : "Save"}</button>
+    </>}>
+      <div className="adm-form">
+        <Field label="Full name"><input className="adm-input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Dr. / student full name" /></Field>
+        <Field label="Type"><select className="adm-select" value={form.personType} onChange={(e) => setForm({ ...form, personType: e.target.value })}>{PERSON_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></Field>
+        <Field label="Photo URL"><input className="adm-input" value={form.photoUrl} onChange={(e) => setForm({ ...form, photoUrl: e.target.value })} placeholder="/photo.jpg or https://res.cloudinary.com/…" /></Field>
+        <Field label="Profile URL"><input className="adm-input" value={form.profileUrl} onChange={(e) => setForm({ ...form, profileUrl: e.target.value })} placeholder="faculty page / portfolio (optional)" /></Field>
+        <Field label="Phone"><input className="adm-input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="optional" /></Field>
+        <Field label="Email (optional)"><input className="adm-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="optional; must be unique" /></Field>
+        {form.photoUrl && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={form.photoUrl} alt="preview" width={56} height={56} style={{ borderRadius: "50%", objectFit: "cover", border: "1px solid var(--adm-border)" }} />
+            <span style={{ fontSize: "0.78rem", color: "var(--adm-muted)" }}>Photo preview</span>
+          </div>
+        )}
+      </div>
     </Modal>
   );
 }

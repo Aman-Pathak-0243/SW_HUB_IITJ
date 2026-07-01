@@ -9,6 +9,7 @@
 // (organizer tagging, closure REVIEW, custom entities) are intentionally absent.
 import React, { useState } from "react";
 import { useAdminAction, Field, ConfirmButton, Badge } from "../../admin/_components/ui";
+import { REGISTRANT_ROLE_OPTIONS } from "../../../lib/events/forms.mjs";
 
 const REG_STATUSES = ["confirmed", "waitlisted", "cancelled"];
 
@@ -73,32 +74,48 @@ function SettingsSection({ eventItemId, settings }) {
   const [opensAt, setOpensAt] = useState(settings.registrationOpensAt ? settings.registrationOpensAt.slice(0, 16) : "");
   const [closesAt, setClosesAt] = useState(settings.registrationClosesAt ? settings.registrationClosesAt.slice(0, 16) : "");
   const [closed, setClosed] = useState(!!settings.registrationClosed);
+  const [roles, setRoles] = useState(new Set(settings.allowedRegistrantRoles ?? []));
 
-  const save = () =>
-    run(
-      "event.settings.set",
-      {
-        eventItemId,
-        patch: {
-          capacity: capacity === "" ? null : Number(capacity),
-          registrationOpensAt: opensAt ? new Date(opensAt).toISOString() : null,
-          registrationClosesAt: closesAt ? new Date(closesAt).toISOString() : null,
-          registrationClosed: closed,
-        },
-      },
-      { success: "Registration settings saved." }
-    );
+  const toggleRole = (key) =>
+    setRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // Build the full settings patch from current state (+ optional overrides). Sending all
+  // keys keeps the upsert authoritative; an omitted key would just leave the stored value.
+  const buildPatch = (overrides = {}) => ({
+    capacity: capacity === "" ? null : Number(capacity),
+    registrationOpensAt: opensAt ? new Date(opensAt).toISOString() : null,
+    registrationClosesAt: closesAt ? new Date(closesAt).toISOString() : null,
+    registrationClosed: closed,
+    allowedRegistrantRoles: [...roles],
+    ...overrides,
+  });
+
+  const save = () => run("event.settings.set", { eventItemId, patch: buildPatch() }, { success: "Registration settings saved." });
+
+  // "Go live now" — open registration immediately (opens = now, clear force-close). The
+  // register button auto-enables; if capacity is blank this is "unlimited until the deadline".
+  const goLiveNow = () => {
+    const iso = new Date().toISOString();
+    setOpensAt(iso.slice(0, 16));
+    setClosed(false);
+    run("event.settings.set", { eventItemId, patch: buildPatch({ registrationOpensAt: iso, registrationClosed: false }) }, { success: "Event is live — registration open." }).catch(() => {});
+  };
 
   return (
-    <Section title="Registration settings" hint="Capacity drives the waitlist. Raising capacity auto-promotes waitlisted members.">
+    <Section title="Registration settings" hint="Capacity drives the waitlist (blank = unlimited). Set an 'opens' time to schedule go-live — the register button counts down and auto-enables. Leave the roles empty to open registration to every member.">
       <div className="coord-grid">
         <Field label="Capacity (blank = unlimited)">
           <input className="adm-input" type="number" min="0" value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="Unlimited" />
         </Field>
-        <Field label="Registration opens">
+        <Field label="Registration opens (go-live time)">
           <input className="adm-input" type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} />
         </Field>
-        <Field label="Registration closes">
+        <Field label="Registration closes (deadline)">
           <input className="adm-input" type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
         </Field>
         <Field label="Force-close registration">
@@ -107,7 +124,19 @@ function SettingsSection({ eventItemId, settings }) {
           </label>
         </Field>
       </div>
-      <button className="adm-btn primary" onClick={save} disabled={busy}>Save settings</button>
+      <Field label="Who can register (none checked = open to every member)">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 4 }}>
+          {REGISTRANT_ROLE_OPTIONS.map((o) => (
+            <label key={o.key} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input type="checkbox" checked={roles.has(o.key)} onChange={() => toggleRole(o.key)} /> {o.label}
+            </label>
+          ))}
+        </div>
+      </Field>
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <button className="adm-btn primary" onClick={save} disabled={busy}>Save settings</button>
+        <button className="adm-btn ghost" onClick={goLiveNow} disabled={busy} title="Open registration immediately (sets 'opens' to now and clears force-close)">Go live now</button>
+      </div>
     </Section>
   );
 }

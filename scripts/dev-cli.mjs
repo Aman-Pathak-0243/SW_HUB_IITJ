@@ -212,7 +212,7 @@ const COMMANDS = {
     ok(`Deleted ${u.email}.`);
   },
   "user:import-csv": async (flags, actor) => {
-    if (!flags.file || flags.file === true) fail("--file=<path> is required (columns: email,name).");
+    if (!flags.file || flags.file === true) fail("--file=<path> is required (columns: email,password[,name[,role]]).");
     const csv = await readFile(String(flags.file), "utf8");
     print(await importUsersCsv(csv, actor));
   },
@@ -362,7 +362,7 @@ USERS
   user:status         --email=|--id= --status=active|inactive|revoked
   user:reset-password --email=|--id=
   user:delete         --email=|--id= --yes        (HARD delete; cascades grants + auth accounts)
-  user:import-csv     --file=<path>               (CSV columns: email,name)
+  user:import-csv     --file=<path>               (CSV columns: email,password[,name[,role]])
 
 ROLES
   role:list [--all]

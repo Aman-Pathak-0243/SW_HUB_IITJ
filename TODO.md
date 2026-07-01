@@ -143,8 +143,21 @@ The one remaining OPTIONAL dev item, plus the client-facing hand-over documentat
 - [x] Tests: **530 static** (+`coordinator.test.mjs` 13) + `coordinator.db.test.mjs` **5/5 green**; m5/m1 re-run green; route-smoke + `/coordinator` routes; `lint` + `build` clean; 5-dimension × 2-verifier review
 - [x] Delivery docs (repo root): `Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`, `INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`
 
+## Session 14 — Quick-wins bundle + VM hosting spec ✅ (2026-07-02)
+- [x] `systemRequirements.md` — single-VM hosting spec (Docker Postgres 16, TLS/proxy, PM2, backups, Tier-A/B sizing; self-hosted SSE + Redis chosen for live quizzes)
+- [x] Per-event allowed registrant roles — migration + `EventSettings.allowedRegistrantRoles` + `registerForEvent` gate + checkbox UIs + pure helpers/tests (DL-097)
+- [x] Scheduled go-live + live countdown register button + "Go live now" (DL-098)
+- [x] Multi-club event listing — `listClubEvents` unions orgUnitId + `event_organizer` lineage (DL-099)
+- [x] Resource cards render all data types + responsive 4-col grid (DL-100); confirmed the 4 Cloudinary PDFs are importer-ready
+- [x] Wall-of-Fame credits admin UI wiring `achievement.credits.set` (DL-101)
+- [x] Bulk grant/deny permission-override checkbox grid + `setUserOverrides` (DL-102)
+- [x] Validate: prisma generate + 536 static tests + lint + build; 4-lens adversarial review → 1 confirmed bug fixed (admin settings preload)
+- [ ] **Apply the migration in each environment:** `npm run db:migrate` (adds `event_settings.allowed_registrant_roles`)
+- [ ] Add live-DB coverage for the multi-club listing + eligibility gate + bulk overrides (RUN_DB_TESTS=1) — pure helpers are covered; the DB paths are not yet
+- [ ] **Deferred dev work (next):** inline edit-on-public-page; live quizzes + leaderboards (SSE + Redis, Tier B) — see NEXT_TASK.md
+
 ## Operator-owned (out-of-band — see OPERATIONS_RUNBOOK.md)
-- [ ] Run `db:import:org` → `db:import:events` → `db:import:resources` against 2025-26 (#27)
+- [ ] Run `db:import:org` → `db:import:events` → `db:import:resources` against 2025-26 (#27) — `db:import:resources` publishes the 4 infrastructure PDFs onto the resources page
 - [ ] Run the media migration (`db:migrate:media -- --apply`) + safe `/public` prune (#18)
 
 ## Owner-owned (out-of-band)

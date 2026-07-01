@@ -142,9 +142,20 @@ export default async function EventDetailPage({ params }) {
             </p>
           )}
 
-          {/* Register / cancel (member self-service) */}
+          {/* Register / cancel (member self-service) — live countdown + eligibility (DL-097/098) */}
           <div className="my-6">
-            <RegisterButton eventItemId={ev.id} open={reg.open} mine={reg.mine} nextOutcome={reg.nextOutcome} canParticipate={canParticipate} />
+            <RegisterButton
+              eventItemId={ev.id}
+              open={reg.open}
+              mine={reg.mine}
+              nextOutcome={reg.nextOutcome}
+              canParticipate={canParticipate}
+              eligible={reg.eligible !== false}
+              allowedRegistrantRoles={reg.allowedRegistrantRoles}
+              registrationOpensAt={reg.registrationOpensAt}
+              registrationClosesAt={reg.registrationClosesAt}
+              registrationClosed={reg.registrationClosed}
+            />
           </div>
 
           {ev.summary && <p className="text-lg text-gray-700 mb-4">{ev.summary}</p>}

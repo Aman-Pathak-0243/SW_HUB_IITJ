@@ -70,6 +70,17 @@ context and no repeated work.
 > client-facing **delivery documentation set** (see [DELIVERABLES_INDEX.md](../DELIVERABLES_INDEX.md)).
 > **The product is now feature-complete, hardened, and delivery-documented; remaining work is
 > operator/owner-owned.**
+>
+> **Session 14 (2026-07-02) — quick-wins bundle + VM hosting spec:** shipped the root
+> **`systemRequirements.md`** (single-VM hosting spec: Docker **Postgres 16** on the same VM, nginx/Caddy +
+> TLS, PM2, backups, two sizing tiers — **self-hosted SSE + Redis** chosen for the future live-quiz path) and
+> **six scoped enhancements** to the existing platform: per-event **allowed registrant roles** (DL-097, one
+> additive migration `event_settings.allowed_registrant_roles`), **scheduled go-live + a live countdown**
+> register button (DL-098), **multi-club event listing** (DL-099), **all-data-type responsive resource cards**
+> (DL-100), a **Wall-of-Fame credits admin UI** (DL-101), and a **bulk grant/deny permission-override checkbox
+> grid** (DL-102). 536 static + lint + build green; a 4-lens adversarial review found + fixed one authz-downgrade
+> (admin event-settings form now preloads). **Deferred (operator's build-order choice):** the inline
+> edit-on-public-page surface and the live-quiz + real-time (SSE + Redis) subsystem — see `NEXT_TASK.md`.
 
 There is a **THREE-surface** logged-in model (Session 11–13): the public **member** view (`/member`,
 plugin-gated, admits inactive), the global **admin/developer** back office (`/admin`, active-only, global

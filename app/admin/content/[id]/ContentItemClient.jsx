@@ -9,7 +9,7 @@ import { statusTone, diffViews, buildDiffRows } from "../../../../lib/admin/view
 // Pretty field label: camelCase → "Camel case".
 const labelize = (f) => f.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 
-export default function ContentItemClient({ data, fieldSpec, perms }) {
+export default function ContentItemClient({ data, fieldSpec, perms, achievement = null }) {
   const { item, contentType } = data;
   const { run, busy } = useAdminAction();
 
@@ -93,8 +93,120 @@ export default function ContentItemClient({ data, fieldSpec, perms }) {
         )}
       </div>
 
+      {contentType === "achievement" && achievement && (
+        <AchievementCredits itemId={item.id} initialCredits={achievement.credits ?? []} unitOptions={achievement.unitOptions ?? []} canEdit={canEdit} run={run} busy={busy} />
+      )}
+
       <VersionHistory revisions={data.revisions} canRestore={canRestore} itemId={item.id} run={run} busy={busy} />
     </>
+  );
+}
+
+// Wall-of-Fame CREDITS editor (Session 14, DL-101) — the previously API/CLI-only
+// achievement.credits.set, now with a UI. Credits a Wall-of-Fame entry to members
+// (by email) and/or clubs (by lineage). "Save credits" REPLACES the full set (the
+// service is a bulk idempotent replace), so the on-screen list is the source of truth.
+function AchievementCredits({ itemId, initialCredits, unitOptions, canEdit, run, busy }) {
+  const unitByLineage = useMemo(() => new Map(unitOptions.map((u) => [u.lineageKey, u.name])), [unitOptions]);
+  // Normalize loaded credits into the local editable rows.
+  const [rows, setRows] = useState(() =>
+    (initialCredits ?? []).map((c) => ({
+      kind: c.kind, // 'user' | 'club'
+      email: c.userEmail ?? "",
+      userId: c.userId ?? null,
+      orgUnitLineageKey: c.orgUnitLineageKey ?? "",
+      label: c.kind === "user" ? (c.userName || c.userEmail || "member") : (unitByLineage.get(c.orgUnitLineageKey) || "club"),
+      role: c.role ?? "",
+    }))
+  );
+  // Add-form state.
+  const [kind, setKind] = useState("user");
+  const [email, setEmail] = useState("");
+  const [lineageKey, setLineageKey] = useState(unitOptions[0]?.lineageKey ?? "");
+  const [role, setRole] = useState("");
+
+  const addRow = () => {
+    if (kind === "user") {
+      const e = email.trim();
+      if (!e) return;
+      setRows((prev) => [...prev, { kind: "user", email: e, userId: null, orgUnitLineageKey: "", label: e, role: role.trim() }]);
+      setEmail("");
+    } else {
+      if (!lineageKey) return;
+      setRows((prev) => [...prev, { kind: "club", email: "", userId: null, orgUnitLineageKey: lineageKey, label: unitByLineage.get(lineageKey) || "club", role: role.trim() }]);
+    }
+    setRole("");
+  };
+  const removeRow = (i) => setRows((prev) => prev.filter((_, idx) => idx !== i));
+
+  const save = () => {
+    const credits = rows.map((r, i) => ({
+      ...(r.kind === "user" ? (r.userId ? { userId: r.userId } : { email: r.email }) : { orgUnitLineageKey: r.orgUnitLineageKey }),
+      role: r.role || undefined,
+      sortOrder: i,
+    }));
+    run("achievement.credits.set", { itemId, credits }, { success: "Wall-of-Fame credits saved." }).catch(() => {});
+  };
+
+  return (
+    <div className="adm-section adm-card">
+      <div className="adm-section-head"><h3>Wall of Fame credits</h3></div>
+      <p className="adm-muted" style={{ marginTop: 0 }}>Credit this achievement to members (by email) and/or clubs. These appear on the public Wall of Fame and in member/club profiles.</p>
+      {!canEdit ? (
+        <p className="adm-empty">You don&apos;t have permission to edit credits (needs content.update).</p>
+      ) : (
+        <>
+          <div className="adm-tablewrap">
+            <table className="adm-table">
+              <thead><tr><th>Type</th><th>Credited</th><th>Role</th><th></th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    <td><Badge tone={r.kind === "user" ? "info" : "good"}>{r.kind === "user" ? "Member" : "Club"}</Badge></td>
+                    <td>{r.label}{r.kind === "club" && !unitByLineage.has(r.orgUnitLineageKey) ? <span className="adm-code"> {r.orgUnitLineageKey}</span> : null}</td>
+                    <td>{r.role || "—"}</td>
+                    <td><button className="adm-btn ghost sm" disabled={busy} onClick={() => removeRow(i)}>Remove</button></td>
+                  </tr>
+                ))}
+                {rows.length === 0 && <tr><td colSpan={4}><div className="adm-empty">No credits yet.</div></td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="adm-toolbar" style={{ marginTop: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <Field label="Credit a">
+              <select className="adm-select" value={kind} onChange={(e) => setKind(e.target.value)}>
+                <option value="user">Member (email)</option>
+                <option value="club">Club / council</option>
+              </select>
+            </Field>
+            {kind === "user" ? (
+              <Field label="Member email">
+                <input className="adm-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="member@iitjammu.ac.in" />
+              </Field>
+            ) : (
+              <Field label="Club / council">
+                {unitOptions.length ? (
+                  <select className="adm-select" value={lineageKey} onChange={(e) => setLineageKey(e.target.value)}>
+                    {unitOptions.map((u) => <option key={u.lineageKey} value={u.lineageKey}>{u.name}{u.typeName ? ` (${u.typeName})` : ""}</option>)}
+                  </select>
+                ) : (
+                  <input className="adm-input" value={lineageKey} onChange={(e) => setLineageKey(e.target.value)} placeholder="org-unit lineage key" />
+                )}
+              </Field>
+            )}
+            <Field label="Role (optional)">
+              <input className="adm-input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Winner, Organizing club" />
+            </Field>
+            <button className="adm-btn ghost" disabled={busy} onClick={addRow}>Add</button>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <button className="adm-btn primary" disabled={busy} onClick={save}>Save credits</button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

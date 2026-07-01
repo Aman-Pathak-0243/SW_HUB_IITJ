@@ -15,6 +15,19 @@ describe("bulk-account CSV parsing (M0)", () => {
     expect(rows[1].name).toBeUndefined();
   });
 
+  it("parses an optional 4th column as the role to grant", () => {
+    const csv = [
+      "2023ume0243@iitjammu.ac.in,Welcome#2026,Asha Rao,coordinator",
+      "2022bme0111@iitjammu.ac.in,Change#Me99,,normal_user",
+    ].join("\n");
+    const { rows, errors } = parseUserCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows[0]).toEqual({ email: "2023ume0243@iitjammu.ac.in", password: "Welcome#2026", name: "Asha Rao", role: "coordinator" });
+    // empty 3rd column ⇒ no name, but the 4th column still applies as the role.
+    expect(rows[1]).toMatchObject({ email: "2022bme0111@iitjammu.ac.in", password: "Change#Me99", role: "normal_user" });
+    expect(rows[1].name).toBeUndefined();
+  });
+
   it("rejects invalid emails and policy-failing passwords with the line number", () => {
     const csv = ["nope-no-at,Welcome#2026", "ok@iitjammu.ac.in,weak"].join("\n");
     const { rows, errors } = parseUserCsv(csv);

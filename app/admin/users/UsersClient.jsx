@@ -4,7 +4,7 @@ import Link from "next/link";
 import React, { useState, useMemo, useEffect } from "react";
 import { Badge, Modal, Field, ConfirmButton, useAdminAction } from "../_components/ui";
 import { hasPerm } from "../../../lib/admin/nav.mjs";
-import { validateUserForm, validateRoleForm, validateOverrideForm, passwordRequirements, USER_STATUSES } from "../../../lib/admin/forms.mjs";
+import { validateUserForm, validateRoleForm, passwordRequirements, USER_STATUSES } from "../../../lib/admin/forms.mjs";
 import { statusTone, formatAssignmentScope } from "../../../lib/admin/view-models.mjs";
 import { filterUsers, userFilterFacets, userEmailIdentity } from "../../../lib/users/search.mjs";
 import { PERMISSIONS } from "../../../lib/rbac/permissions.mjs";
@@ -185,7 +185,7 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper, canOverrid
       {creating && <UserModal title="New user" isCreate viewerIsDeveloper={viewerIsDeveloper} onClose={() => setCreating(false)} run={run} busy={busy} />}
       {editing && <UserModal title={`Edit ${editing.email}`} user={editing} viewerIsDeveloper={viewerIsDeveloper} canUpdate={canUpdate} onClose={() => setEditing(null)} run={run} busy={busy} />}
       {granting && <GrantModal user={granting} roles={roles} canRevoke={hasPerm(perms, "role.revoke")} onClose={() => setGranting(null)} run={run} busy={busy} />}
-      {overriding && <OverridesModal user={overriding} onClose={() => setOverriding(null)} run={run} busy={busy} />}
+      {overriding && <OverridesModal user={overriding} perms={perms} viewerIsDeveloper={viewerIsDeveloper} onClose={() => setOverriding(null)} run={run} busy={busy} />}
       {bulk && <BulkModal onClose={() => setBulk(false)} run={run} busy={busy} />}
       {generated && <GeneratedPasswordModal email={generated.email} password={generated.password} onClose={() => setGenerated(null)} />}
     </>
@@ -203,70 +203,97 @@ const PERMS_BY_MODULE = (() => {
   return byModule;
 })();
 
-function OverridesModal({ user, onClose, run, busy }) {
-  const [form, setForm] = useState({ permissionKey: "", mode: "deny", reason: "" });
-  const [errors, setErrors] = useState({});
-  const current = user.overrides ?? [];
+// Session 14 (DL-102): a CHECKBOX GRID (replacing the one-at-a-time dropdown). The admin
+// ticks grant/deny for many permissions across modules and saves ONCE — the whole
+// institute-wide override set is applied via permission.override.setBulk. Per row the
+// Grant and Deny checkboxes are mutually exclusive (both off = inherit from roles); a
+// Grant is only offered for a permission the admin holds (server also enforces this).
+// Any SCOPED (unit/year) overrides are shown read-only and left untouched (API-managed).
+function OverridesModal({ user, perms, viewerIsDeveloper, onClose, run, busy }) {
+  const all = user.overrides ?? [];
+  const scoped = all.filter((o) => o.orgUnitLineageKey || o.academicYearId);
+  // Editable state = the institute-wide overrides, as Map(permissionKey → 'grant'|'deny').
+  const [sel, setSel] = useState(() => {
+    const m = new Map();
+    for (const o of all) if (!o.orgUnitLineageKey && !o.academicYearId) m.set(o.permissionKey, o.mode);
+    return m;
+  });
+  const canGrant = (key) => viewerIsDeveloper || hasPerm(perms, key);
 
-  const submit = async () => {
-    const v = validateOverrideForm({ ...form, userId: user.id });
-    setErrors(v.errors);
-    if (!v.ok) return;
-    try {
-      await run("permission.override.set", { input: v.value }, { success: `${form.mode === "deny" ? "Denied" : "Granted"} ${form.permissionKey}` });
-      onClose();
-    } catch { /* toast shown */ }
+  const setMode = (key, mode) =>
+    setSel((prev) => {
+      const next = new Map(prev);
+      if (next.get(key) === mode) next.delete(key); // toggling the active mode off = inherit
+      else next.set(key, mode);
+      return next;
+    });
+
+  const save = () => {
+    const entries = [...sel.entries()].map(([permissionKey, mode]) => ({ permissionKey, mode }));
+    run("permission.override.setBulk", { userId: user.id, entries }, { success: "Permission overrides saved." })
+      .then(onClose)
+      .catch(() => {});
   };
-  const remove = (o) =>
-    run("permission.override.remove", { id: o.id }, { success: `Removed override ${o.permissionKey}` }).then(onClose).catch(() => {});
 
   return (
-    <Modal title={`Permission overrides · ${user.email}`} onClose={onClose} footer={<button className="adm-btn ghost" onClick={onClose}>Done</button>}>
+    <Modal
+      title={`Permission overrides · ${user.email}`}
+      onClose={onClose}
+      footer={<>
+        <button className="adm-btn ghost" onClick={onClose}>Cancel</button>
+        <button className="adm-btn primary" onClick={save} disabled={busy}>Save overrides</button>
+      </>}
+    >
       <div className="adm-form">
         <p className="adm-banner info" style={{ whiteSpace: "normal" }}>
-          Overrides apply <strong>on top of</strong> this account's roles — a <strong>grant</strong> adds one
+          Overrides apply <strong>on top of</strong> this account&apos;s roles — a <strong>grant</strong> adds a
           permission, a <strong>deny</strong> removes it, and <strong>deny wins</strong>. They have no effect on a
           developer / unrestricted account. You can only grant a permission you hold yourself.
         </p>
-        <div className="adm-check-group">
-          <h4>Current overrides</h4>
-          {current.length === 0 ? (
-            <p style={{ fontSize: "0.82rem", color: "var(--adm-faint)" }}>None.</p>
-          ) : (
-            current.map((o) => (
-              <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "4px 0" }}>
-                <span style={{ fontSize: "0.84rem" }}>
-                  <Badge tone={o.mode === "deny" ? "muted" : "good"}>{o.mode}</Badge>{" "}
-                  <span className="adm-code">{o.permissionKey}</span>
-                  {(o.orgUnitLineageKey || o.academicYearId) && <span style={{ color: "var(--adm-faint)" }}> · scoped</span>}
-                </span>
-                <button className="adm-btn danger sm" disabled={busy} onClick={() => remove(o)}>Remove</button>
+
+        {scoped.length > 0 && (
+          <div className="adm-check-group">
+            <h4>Scoped overrides (managed via the API — not edited here)</h4>
+            {scoped.map((o) => (
+              <div key={o.id} style={{ fontSize: "0.82rem", padding: "2px 0" }}>
+                <Badge tone={o.mode === "deny" ? "muted" : "good"}>{o.mode}</Badge>{" "}
+                <span className="adm-code">{o.permissionKey}</span> <span style={{ color: "var(--adm-faint)" }}>· scoped</span>
               </div>
-            ))
-          )}
-        </div>
-        <Field label="Permission" error={errors.permissionKey}>
-          <select className="adm-select" value={form.permissionKey} onChange={(e) => setForm({ ...form, permissionKey: e.target.value })}>
-            <option value="">Choose a permission…</option>
-            {Object.entries(PERMS_BY_MODULE).map(([module, list]) => (
-              <optgroup key={module} label={module}>
-                {list.map((p) => <option key={p.key} value={p.key}>{p.key} — {p.label}</option>)}
-              </optgroup>
             ))}
-          </select>
-        </Field>
-        <Field label="Mode" error={errors.mode}>
-          <select className="adm-select" value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
-            <option value="deny">Deny (remove this permission)</option>
-            <option value="grant">Grant (add this permission)</option>
-          </select>
-        </Field>
-        <Field label="Reason (optional)">
-          <input className="adm-input" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="Why this override?" />
-        </Field>
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button className="adm-btn primary" onClick={submit} disabled={busy || !form.permissionKey}>Apply override</button>
-        </div>
+          </div>
+        )}
+
+        {Object.entries(PERMS_BY_MODULE).map(([module, list]) => (
+          <div className="adm-check-group" key={module}>
+            <h4 style={{ textTransform: "capitalize" }}>{module}</h4>
+            <table className="adm-table" style={{ width: "100%" }}>
+              <thead><tr><th style={{ textAlign: "left" }}>Permission</th><th style={{ width: 70 }}>Grant</th><th style={{ width: 70 }}>Deny</th></tr></thead>
+              <tbody>
+                {list.map((p) => {
+                  const mode = sel.get(p.key) ?? null;
+                  const grantable = canGrant(p.key);
+                  return (
+                    <tr key={p.key}>
+                      <td><span className="adm-code">{p.key}</span> <span style={{ color: "var(--adm-muted)", fontSize: "0.78rem" }}>— {p.label}</span></td>
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={mode === "grant"}
+                          disabled={!grantable}
+                          title={grantable ? "Grant this permission" : "You don't hold this permission, so you can't grant it"}
+                          onChange={() => setMode(p.key, "grant")}
+                        />
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <input type="checkbox" checked={mode === "deny"} onChange={() => setMode(p.key, "deny")} title="Deny this permission" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
     </Modal>
   );
@@ -317,8 +344,8 @@ function UserModal({ title, user, isCreate, viewerIsDeveloper, canUpdate = true,
   );
 }
 
-// Bulk-create accounts from a CSV (email,password[,name] per line). The server
-// parses + creates; we render the per-row outcome (created / skipped / failed).
+// Bulk-create accounts from a CSV (email,password[,name[,role]] per line). The server
+// parses + creates + grants the optional role; we render the per-row outcome.
 function BulkModal({ onClose, run, busy }) {
   const [csv, setCsv] = useState("");
   const [result, setResult] = useState(null);
@@ -337,13 +364,15 @@ function BulkModal({ onClose, run, busy }) {
     </>}>
       <div className="adm-form">
         <p style={{ fontSize: "0.82rem", color: "var(--adm-muted)" }}>
-          One account per line: <span className="adm-code">email,password[,name]</span>. An optional
-          header row is detected. Existing emails are skipped; each new account must change its
-          password on first login. Deliver the passwords via the institute's external email.
+          One account per line: <span className="adm-code">email,password[,name[,role]]</span>. The optional
+          4th column <strong>role</strong> is a role key (e.g. <span className="adm-code">normal_user</span>,{" "}
+          <span className="adm-code">coordinator</span>, <span className="adm-code">staff</span>) granted on
+          creation. An optional header row is detected. Existing emails are skipped; each new account must
+          change its password on first login. Deliver the passwords via the institute's external email.
         </p>
         <Field label="CSV">
           <textarea className="adm-textarea" rows={8} value={csv} onChange={(e) => setCsv(e.target.value)}
-            placeholder={"email,password\n2023ume0243@iitjammu.ac.in,Welcome#2026\n…"} />
+            placeholder={"email,password,name,role\n2023ume0243@iitjammu.ac.in,Welcome#2026,Riya Sharma,normal_user\n…"} />
         </Field>
         {result && (
           <div className="adm-banner info" style={{ whiteSpace: "normal" }}>

@@ -36,19 +36,19 @@ function Empty({ children }) {
 
 function PersonCard({ member }) {
   const inner = (
-    <div className="flex items-center gap-4 bg-blue-50 rounded-xl p-4">
+    <div className="flex items-center gap-5 bg-blue-50 rounded-xl p-5">
       {member.person.photoUrl ? (
-        <div className="relative w-14 h-14 rounded-full overflow-hidden shrink-0 bg-gray-100">
-          <Image src={member.person.photoUrl} alt={member.person.name ?? ""} fill sizes="56px" className="object-cover" />
+        <div className="relative w-20 h-20 rounded-full overflow-hidden shrink-0 bg-gray-100">
+          <Image src={member.person.photoUrl} alt={member.person.name ?? ""} fill sizes="80px" className="object-cover" />
         </div>
       ) : (
-        <div className="w-14 h-14 rounded-full shrink-0 bg-[#003f87]/10 flex items-center justify-center text-[#003f87] font-bold">
+        <div className="w-20 h-20 rounded-full shrink-0 bg-[#003f87]/10 flex items-center justify-center text-2xl text-[#003f87] font-bold">
           {(member.person.name ?? "?").trim().charAt(0)}
         </div>
       )}
       <div>
         {member.title && <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full inline-block mb-1">{member.title}</span>}
-        <p className="font-semibold text-[#003f87]">{member.person.name}</p>
+        <p className="text-lg font-semibold text-[#003f87]">{member.person.name}</p>
       </div>
     </div>
   );
@@ -70,13 +70,48 @@ function fmtDate(d) {
   }
 }
 
+// An enriched club card (used on a council page) — logo + name + vision + PIC +
+// coordinator(s), matching the /org/clubs listing card.
+function ClubCard({ view, child }) {
+  const logo = mediaUrl(view, child.profile?.payload?.logoMediaId);
+  const pic = child.pic ?? null;
+  const coordinators = child.coordinators ?? [];
+  return (
+    <Link href={`/org/${child.unit.typeKey}/${child.unit.slug}`} className="bg-white rounded-xl shadow hover:shadow-xl transition overflow-hidden block">
+      {logo && (
+        <div className="relative w-full aspect-[4/3] bg-gray-100">
+          <Image src={logo} alt={child.unit.name} fill sizes="(max-width:768px) 100vw, 33vw" className="object-contain p-3" />
+        </div>
+      )}
+      <div className="p-5">
+        <h3 className="text-lg font-bold text-[#003f87]">{child.unit.name}</h3>
+        {child.profile?.payload?.vision && <p className="text-sm text-gray-600 mt-2 line-clamp-3">{child.profile.payload.vision}</p>}
+        {(pic || coordinators.length > 0) && (
+          <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
+            {pic && (
+              <div className="flex items-center gap-2">
+                {pic.photoUrl && <Image src={pic.photoUrl} alt="" width={24} height={24} className="rounded-full object-cover border border-gray-200 shrink-0" />}
+                <p className="text-xs text-gray-700"><span className="font-semibold text-[#003f87]">PIC:</span> {pic.name}</p>
+              </div>
+            )}
+            {coordinators.length > 0 && (
+              <p className="text-xs text-gray-700">
+                <span className="font-semibold text-[#003f87]">{coordinators.length > 1 ? "Coordinators:" : "Coordinator:"}</span>{" "}
+                {coordinators.map((x) => x.name).join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 // ── tab bodies ──
 
 function OverviewTab({ view }) {
   const { unit, profile, roster = [], children = [] } = view;
   const payload = profile?.payload ?? {};
-  const leads = roster.filter((m) => m.isLead);
-  const members = roster.filter((m) => !m.isLead);
   const hasAny = payload.vision || (payload.missionPoints?.length) || payload.location || payload.capacity != null || payload.officeEmail || (payload.mealTimings?.length) || roster.length || children.length;
 
   return (
@@ -121,17 +156,10 @@ function OverviewTab({ view }) {
         </Section>
       )}
 
-      {leads.length > 0 && (
-        <Section title="Leadership">
+      {roster.length > 0 && (
+        <Section title="Team">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {leads.map((m) => <PersonCard key={m.id} member={m} />)}
-          </div>
-        </Section>
-      )}
-      {members.length > 0 && (
-        <Section title={leads.length ? "Team" : "Members"}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {members.map((m) => <PersonCard key={m.id} member={m} />)}
+            {roster.map((m) => <PersonCard key={m.id} member={m} />)}
           </div>
         </Section>
       )}
@@ -139,12 +167,7 @@ function OverviewTab({ view }) {
       {children.length > 0 && (
         <Section title="Clubs">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {children.map((c) => (
-              <Link key={c.unit.id} href={`/org/${c.unit.typeKey}/${c.unit.slug}`} className="bg-white rounded-xl shadow hover:shadow-xl transition p-6 block">
-                <h3 className="text-lg font-bold text-[#003f87]">{c.unit.name}</h3>
-                {c.profile?.payload?.vision && <p className="text-sm text-gray-600 mt-2 line-clamp-3">{c.profile.payload.vision}</p>}
-              </Link>
-            ))}
+            {children.map((c) => <ClubCard key={c.unit.id} view={view} child={c} />)}
           </div>
         </Section>
       )}

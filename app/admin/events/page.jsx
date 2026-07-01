@@ -2,6 +2,7 @@ import { loadModuleContext } from "../../../lib/admin/server.mjs";
 import { loadAdminContent } from "../../../lib/admin/reads.mjs";
 import { getCurrentYearId } from "../../../lib/year/context.mjs";
 import { listEventEntities } from "../../../lib/events/organizers.mjs";
+import { getEventSettings } from "../../../lib/events/settings.mjs";
 import { ModuleDenied } from "../_components/parts";
 import EventsClient from "./EventsClient";
 
@@ -26,6 +27,10 @@ export default async function AdminEventsPage() {
       yearId ? loadAdminContent({ yearId, contentType: "event", includeArchived: false }, actor) : Promise.resolve([]),
       listEventEntities({ status: "active" }),
     ]);
+    // Preload each event's operational settings so the Settings form SEEDS from the stored
+    // values (capacity / window / allowed roles) rather than submitting blank — otherwise a
+    // save/"Go live now" would silently clobber a coordinator's role restriction (DL-097 review).
+    events = await Promise.all(events.map(async (ev) => ({ ...ev, settings: await getEventSettings(ev.id) })));
   } catch (e) {
     console.error("[/admin/events] load failed:", e?.message ?? e);
   }

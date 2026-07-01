@@ -71,18 +71,18 @@ const Footer = () => {
           }}
         >
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
-            <span style={{ color: '#f5a623', fontWeight: '600', marginRight: '5px' }}>✦ Developed by</span>
-            <span className="text-white font-semibold">Tushar Singh</span>
-            <span style={{ color: 'rgba(255,255,255,0.4)', margin: '0 5px' }}>&amp;</span>
-            <span className="text-white font-semibold">Apaar Gupta</span>
+            <span style={{ color: '#f5a623', fontWeight: '600', marginRight: '5px' }}>✦ Architected &amp; Engineered by</span>
+            <a href="https://amanpathak.dev" target="_blank" rel="noopener noreferrer" className="text-white font-semibold" style={{ textDecoration: 'underline', textDecorationColor: 'rgba(245,166,35,0.6)' }}>Aman Pathak</a>
+            <span style={{ color: 'rgba(245,166,35,0.65)', marginLeft: '4px', fontStyle: 'italic' }}>— Lead Developer &amp; Architect</span>
           </p>
 
           <span className="hidden sm:inline" style={{ color: 'rgba(229,123,0,0.4)', fontSize: '14px' }}>·</span>
 
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
-            <span style={{ color: '#f5a623', fontWeight: '600', marginRight: '5px' }}>✦ Supervised, Hosted &amp; Deployed by</span>
-            <span className="text-white font-semibold">Aman Pathak</span>
-            <span style={{ color: 'rgba(245,166,35,0.65)', marginLeft: '4px', fontStyle: 'italic' }}>(Academic Secretary)</span>
+            <span style={{ color: '#f5a623', fontWeight: '600', marginRight: '5px' }}>✦ Developed by</span>
+            <span className="text-white font-semibold">Tushar Singh</span>
+            <span style={{ color: 'rgba(255,255,255,0.4)', margin: '0 5px' }}>&amp;</span>
+            <span className="text-white font-semibold">Apaar Gupta</span>
           </p>
         </div>
 

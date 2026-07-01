@@ -13,6 +13,7 @@
 // event detail pages. Keep it functional; do not invent data we don't have.
 import React, { useMemo, useState } from "react";
 import { Badge, ConfirmButton, Field, useAdminAction } from "../_components/ui";
+import { REGISTRANT_ROLE_OPTIONS } from "../../../lib/events/forms.mjs";
 
 // datetime-local <input> gives "YYYY-MM-DDTHH:mm"; we forward it verbatim (or "").
 const dtHint = "Leave blank to clear. Uses your local time.";
@@ -88,7 +89,7 @@ function EventManager({ event, run, busy }) {
   const eventItemId = event.id;
   return (
     <>
-      <SettingsSection eventItemId={eventItemId} run={run} busy={busy} />
+      <SettingsSection eventItemId={eventItemId} settings={event.settings ?? null} run={run} busy={busy} />
       <RoundsSection eventItemId={eventItemId} run={run} busy={busy} />
       <OrganizersSection eventItemId={eventItemId} run={run} busy={busy} />
       <RegistrationsSection eventItemId={eventItemId} run={run} busy={busy} />
@@ -100,26 +101,49 @@ function EventManager({ event, run, busy }) {
 }
 
 // ── Registration settings ──
-function SettingsSection({ eventItemId, run, busy }) {
-  const [capacity, setCapacity] = useState("");
-  const [opensAt, setOpensAt] = useState("");
-  const [closesAt, setClosesAt] = useState("");
-  const [closed, setClosed] = useState(false);
+// Seeds from the event's STORED settings (passed from the server) so a save preserves
+// capacity / window / allowed roles instead of clobbering them (DL-097 review). `settings`
+// is the shaped getEventSettings output (or null when none exists yet).
+function SettingsSection({ eventItemId, settings, run, busy }) {
+  const s = settings ?? {};
+  const [capacity, setCapacity] = useState(s.capacity == null ? "" : String(s.capacity));
+  const [opensAt, setOpensAt] = useState(s.registrationOpensAt ? s.registrationOpensAt.slice(0, 16) : "");
+  const [closesAt, setClosesAt] = useState(s.registrationClosesAt ? s.registrationClosesAt.slice(0, 16) : "");
+  const [closed, setClosed] = useState(!!s.registrationClosed);
+  const [roles, setRoles] = useState(() => new Set(s.allowedRegistrantRoles ?? []));
 
-  const save = () => {
-    const patch = {
-      capacity: capacity === "" ? "" : parseInt(capacity, 10),
-      registrationOpensAt: opensAt,
-      registrationClosesAt: closesAt,
-      registrationClosed: closed,
-    };
-    run("event.settings.set", { eventItemId, patch }, { success: "Saved." }).catch(() => {});
+  const toggleRole = (key) =>
+    setRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // This form OVERWRITES the event's settings (it does not preload live values). Build the
+  // full patch from state; `buildPatch({...})` lets "Go live now" override two keys.
+  const buildPatch = (overrides = {}) => ({
+    capacity: capacity === "" ? null : parseInt(capacity, 10),
+    registrationOpensAt: opensAt ? new Date(opensAt).toISOString() : null,
+    registrationClosesAt: closesAt ? new Date(closesAt).toISOString() : null,
+    registrationClosed: closed,
+    allowedRegistrantRoles: [...roles],
+    ...overrides,
+  });
+
+  const save = () => run("event.settings.set", { eventItemId, patch: buildPatch() }, { success: "Saved." }).catch(() => {});
+
+  const goLiveNow = () => {
+    const iso = new Date().toISOString();
+    setOpensAt(iso.slice(0, 16));
+    setClosed(false);
+    run("event.settings.set", { eventItemId, patch: buildPatch({ registrationOpensAt: iso, registrationClosed: false }) }, { success: "Event is live — registration open." }).catch(() => {});
   };
 
   return (
     <section className="adm-card" style={{ marginTop: 16 }}>
       <h3>Registration settings</h3>
-      <p>Capacity, the registration window, and a manual close switch.</p>
+      <p>Capacity, the registration window (schedules go-live), a manual close switch, and which member types may register. Saving overwrites this event&apos;s settings.</p>
       <div className="adm-form">
         <Field label="Capacity (blank = unlimited)">
           <input
@@ -131,7 +155,7 @@ function SettingsSection({ eventItemId, run, busy }) {
             onChange={(e) => setCapacity(e.target.value)}
           />
         </Field>
-        <Field label={`Registration opens at — ${dtHint}`}>
+        <Field label={`Registration opens at (go-live) — ${dtHint}`}>
           <input
             className="adm-input"
             type="datetime-local"
@@ -139,7 +163,7 @@ function SettingsSection({ eventItemId, run, busy }) {
             onChange={(e) => setOpensAt(e.target.value)}
           />
         </Field>
-        <Field label={`Registration closes at — ${dtHint}`}>
+        <Field label={`Registration closes at (deadline) — ${dtHint}`}>
           <input
             className="adm-input"
             type="datetime-local"
@@ -151,9 +175,23 @@ function SettingsSection({ eventItemId, run, busy }) {
           <input type="checkbox" checked={closed} onChange={(e) => setClosed(e.target.checked)} />
           Registration closed (overrides the window)
         </label>
-        <button className="adm-btn primary" disabled={busy} onClick={save}>
-          Save settings
-        </button>
+        <Field label="Who can register (none checked = open to every member)">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+            {REGISTRANT_ROLE_OPTIONS.map((o) => (
+              <label key={o.key} className="adm-check" style={{ margin: 0 }}>
+                <input type="checkbox" checked={roles.has(o.key)} onChange={() => toggleRole(o.key)} /> {o.label}
+              </label>
+            ))}
+          </div>
+        </Field>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="adm-btn primary" disabled={busy} onClick={save}>
+            Save settings
+          </button>
+          <button className="adm-btn ghost" disabled={busy} onClick={goLiveNow} title="Open registration immediately (sets 'opens' to now and clears force-close)">
+            Go live now
+          </button>
+        </div>
       </div>
     </section>
   );

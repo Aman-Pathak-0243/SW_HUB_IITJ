@@ -19,6 +19,11 @@ import {
   normalizeReportBody,
   rankEntries,
   EVENT_ORGANIZER_KINDS,
+  normalizeAllowedRoles,
+  isRoleAllowedToRegister,
+  registrationPhase,
+  formatDuration,
+  REGISTRANT_ROLE_OPTIONS,
 } from "../lib/events/forms.mjs";
 import { csvCell, toCsv, participantsToCsv, scoresToCsv } from "../lib/events/csv.mjs";
 
@@ -121,6 +126,57 @@ describe("M5 forms — capacity, registration window + outcome", () => {
   it("normalizes a registration status (rejects unknown)", () => {
     expect(normalizeRegistrationStatus("confirmed")).toBe("confirmed");
     expect(() => normalizeRegistrationStatus("pending")).toThrow();
+  });
+});
+
+describe("Session 14 forms — allowed registrant roles (DL-097)", () => {
+  it("normalizeAllowedRoles: undefined leaves existing; null/[] clears; array is trimmed/lowercased/deduped", () => {
+    expect(normalizeAllowedRoles(undefined)).toBe(undefined); // omitted → leave stored value
+    expect(normalizeAllowedRoles(null)).toEqual([]); // explicit clear → open to all
+    expect(normalizeAllowedRoles([])).toEqual([]);
+    expect(normalizeAllowedRoles([" Staff ", "STAFF", "coordinator", ""])).toEqual(["staff", "coordinator"]);
+    expect(() => normalizeAllowedRoles("staff")).toThrow(); // non-array (and not null/undefined)
+    expect(() => normalizeAllowedRoles(["x".repeat(61)])).toThrow(); // over-long key
+  });
+
+  it("isRoleAllowedToRegister: empty allow-list is open to all; otherwise needs an intersection", () => {
+    expect(isRoleAllowedToRegister([], ["normal_user"])).toBe(true); // open to all
+    expect(isRoleAllowedToRegister(null, [])).toBe(true);
+    expect(isRoleAllowedToRegister(["staff"], ["normal_user"])).toBe(false);
+    expect(isRoleAllowedToRegister(["staff", "coordinator"], ["coordinator"])).toBe(true);
+    expect(isRoleAllowedToRegister(["staff"], new Set(["staff"]))).toBe(true); // accepts a Set
+    expect(isRoleAllowedToRegister(["staff"], [])).toBe(false); // holds no roles
+  });
+
+  it("REGISTRANT_ROLE_OPTIONS mirrors the seeded category ladder", () => {
+    const keys = REGISTRANT_ROLE_OPTIONS.map((o) => o.key);
+    expect(keys).toContain("normal_user");
+    expect(keys).toContain("staff");
+    expect(REGISTRANT_ROLE_OPTIONS.every((o) => typeof o.label === "string" && o.label.length > 0)).toBe(true);
+  });
+});
+
+describe("Session 14 forms — registration phase + countdown (DL-098)", () => {
+  const now = new Date("2026-05-10T00:00:00Z");
+  it("registrationPhase mirrors isRegistrationOpen and reports timing", () => {
+    expect(registrationPhase({}, now).phase).toBe("open"); // unbounded
+    expect(registrationPhase({ registrationClosed: true }, now).phase).toBe("manually-closed");
+    const before = registrationPhase({ registrationOpensAt: "2026-05-11T00:00:00Z" }, now);
+    expect(before.phase).toBe("before");
+    expect(before.msUntilOpen).toBe(24 * 3600 * 1000);
+    expect(registrationPhase({ registrationClosesAt: "2026-05-09T00:00:00Z" }, now).phase).toBe("closed");
+    // consistency with isRegistrationOpen at the same instant
+    for (const s of [{}, { registrationClosed: true }, { registrationOpensAt: "2026-05-11T00:00:00Z" }, { registrationClosesAt: "2026-05-09T00:00:00Z" }]) {
+      expect(registrationPhase(s, now).phase === "open").toBe(isRegistrationOpen(s, now));
+    }
+  });
+
+  it("formatDuration renders a compact countdown and clamps negatives", () => {
+    expect(formatDuration(-5000)).toBe("0s");
+    expect(formatDuration(45 * 1000)).toBe("45s");
+    expect(formatDuration((9 * 60 + 30) * 1000)).toBe("9m 30s");
+    expect(formatDuration((5 * 3600 + 12 * 60) * 1000)).toBe("5h 12m");
+    expect(formatDuration((2 * 86400 + 3 * 3600) * 1000)).toBe("2d 3h");
   });
 });
 

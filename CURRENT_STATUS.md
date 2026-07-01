@@ -1,6 +1,23 @@
 # Current Status
 
-**Last updated:** 2026-07-01
+**Last updated:** 2026-07-02
+**Session:** 14 — **QUICK-WINS BUNDLE + VM HOSTING SPEC.** New root `systemRequirements.md`
+(single-VM hosting spec: Docker **Postgres 16** on the same VM, nginx/Caddy + TLS, PM2, backups, and a
+**Tier-B 4 vCPU/8 GB + Redis** sizing for the chosen **self-hosted SSE** live-quiz path) plus six scoped
+enhancements: per-event **allowed registrant roles** (creation-time checkbox gate — DL-097, one additive
+migration `event_settings.allowed_registrant_roles`), a **scheduled go-live + live countdown** register
+button + "Go live now" (DL-098), **multi-club event listing** (a collaboratively tagged event now shows on
+every organizing club's page — DL-099), **all-data-type responsive resource cards** (DL-100), a
+**Wall-of-Fame credits admin UI** wiring the previously API-only `achievement.credits.set` (DL-101), and a
+**bulk grant/deny permission-override checkbox grid** (DL-102). 536 static tests + `eslint` + `next build`
+green; a 4-lens adversarial review (per-finding verified) found and **fixed one high-severity authz-downgrade**
+(the admin event-settings form now PRELOADS stored values instead of blank-clobbering a coordinator's role
+restriction). **Deferred (per the operator's build-order choice):** the inline edit-on-public-page surface and
+the live-quiz + real-time (SSE + Redis) subsystem — see NEXT_TASK.md. **NOTE:** the working tree already held
+**unrelated pre-existing uncommitted edits** at session start (Header/Footer/OrgUnitTabs/org data + importer/
+people, package.json, etc.) — operator in-progress work, now intermixed with this session's diff.
+
+**Prior session (unchanged):**
 **Session:** 13 — **SCOPED-COORDINATOR SURFACE** (the one remaining OPTIONAL dev item, DL-096):
 a STANDALONE **`/coordinator`** back office that closes **KNOWN_ISSUES #43** — a club-scoped
 coordinator can now SEE and run their unit's **events** (settings/rounds/registrations/scores/

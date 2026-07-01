@@ -54,24 +54,31 @@ const Header = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Council links now point at the data-driven /org/councils/<slug> pages (the
-  // Session-5 <OrgUnitPage>), replacing the removed static /Clubs/* pages
-  // (KNOWN_ISSUES #13 route cutover). Slugs match lib/org/data/councils.mjs; the
-  // pages render the live current year, so they populate once db:import:org has run.
-  const navItems = [
-    { label: "Home",             href: "/" },
-    { label: "General Council",  href: "/org/councils/general-affairs-council" },
-    { label: "Academic Council", href: "/org/councils/academic-council" },
-    { label: "Cultural Council", href: "/org/councils/cultural-council" },
-    { label: "Sports Council",   href: "/org/councils/sports-council" },
-    { label: "Hostels",          href: "/hostels" },
-    { label: "Messes",           href: "/messes" },
-    { label: "Flagship Events",  href: "/Flagship-events" },
-    { label: "Announcements",    href: "/announcements" },
-    { label: "Wall of Fame",     href: "/wall-of-fame" },
-    { label: "Team",             href: "/Team" },
-    { label: "Contact Us",       href: "/Contact-Us" },
+  // The 4 councils collapse into ONE "Councils" dropdown; Clubs / Events / Resources
+  // are top-level; Hostels/Messes point at the data-driven /org/* pages. All links
+  // render the live current year (they populate once db:import:org has run).
+  const councilItems = [
+    { label: "General Affairs Council", href: "/org/councils/general-affairs-council" },
+    { label: "Academic Council",        href: "/org/councils/academic-council" },
+    { label: "Technical Council",       href: "/org/councils/technical-council" },
+    { label: "Cultural Council",        href: "/org/councils/cultural-council" },
+    { label: "Sports Council",          href: "/org/councils/sports-council" },
   ];
+  const navItems = [
+    { label: "Home",            href: "/" },
+    // "Councils" (dropdown) is rendered explicitly between Home and Clubs below.
+    { label: "Clubs",           href: "/org/clubs" },
+    { label: "Events",          href: "/events" },
+    { label: "Resources",       href: "/resources" },
+    { label: "Hostels",         href: "/org/hostels" },
+    { label: "Messes",          href: "/org/messes" },
+    { label: "Flagship Events", href: "/Flagship-events" },
+    { label: "Announcements",   href: "/announcements" },
+    { label: "Wall of Fame",    href: "/wall-of-fame" },
+    { label: "Team",            href: "/Team" },
+    { label: "Contact Us",      href: "/Contact-Us" },
+  ];
+  const isCouncilActive = pathname?.startsWith("/org/councils");
 
   return (
     <>
@@ -164,7 +171,10 @@ const Header = () => {
 
         .nav-band {
           background: linear-gradient(135deg, var(--iitj-blue-dark) 0%, var(--iitj-blue) 60%, var(--iitj-blue-mid) 100%);
-          position:relative; overflow:hidden;
+          /* overflow must stay VISIBLE so the Councils dropdown (which opens BELOW the
+             band) isn't clipped; the decorative ::before/::after use inset:0 so they
+             never bleed past the band regardless. */
+          position:relative; overflow:visible;
         }
         .nav-band::before {
           content:''; position:absolute; inset:0;
@@ -199,6 +209,41 @@ const Header = () => {
           box-shadow:0 2px 12px rgba(0,0,0,0.15),inset 0 1px 0 rgba(255,255,255,0.1);
         }
         .nav-link.active::after { transform:translateX(-50%) scaleX(1); }
+
+        /* Councils dropdown (hover on desktop) */
+        .nav-dropdown { position:relative; display:inline-flex; }
+        .nav-dropdown-trigger { cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+        .nav-dropdown-caret { font-size:0.6rem; transition:transform 0.2s ease; }
+        .nav-dropdown:hover .nav-dropdown-caret { transform:rotate(180deg); }
+        .nav-dropdown-menu {
+          position:absolute; top:100%; left:50%; transform:translateX(-50%) translateY(6px);
+          min-width:230px; background:#fff; border-radius:10px; padding:6px;
+          box-shadow:0 12px 34px rgba(0,48,135,0.24); border:1px solid rgba(0,48,135,0.1);
+          opacity:0; visibility:hidden; transition:opacity 0.18s ease, transform 0.18s ease; z-index:200;
+        }
+        .nav-dropdown:hover .nav-dropdown-menu { opacity:1; visibility:visible; transform:translateX(-50%) translateY(2px); }
+        .nav-dropdown-menu a {
+          display:block; padding:9px 14px; border-radius:7px; font-size:0.8rem; font-weight:500;
+          color:var(--iitj-blue-dark); text-decoration:none; transition:background 0.15s ease, color 0.15s ease; white-space:nowrap;
+        }
+        .nav-dropdown-menu a:hover { background:var(--iitj-offwhite); color:var(--iitj-blue); }
+        .nav-dropdown-menu a.active { background:rgba(0,48,135,0.08); color:var(--iitj-blue); font-weight:700; }
+
+        /* Login button (stands out at the end of the nav) */
+        .nav-login-btn {
+          margin-left:10px; padding:6px 18px; border-radius:6px; font-size:0.78rem; font-weight:700;
+          letter-spacing:0.04em; color:var(--iitj-blue-dark); text-decoration:none;
+          background:linear-gradient(135deg,var(--iitj-saffron) 0%,var(--iitj-saffron-lt) 100%);
+          box-shadow:0 2px 10px rgba(255,107,0,0.35); transition:transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .nav-login-btn:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(255,107,0,0.5); color:#fff; }
+        .mob-council-label { font-size:0.7rem; font-weight:700; letter-spacing:0.14em; text-transform:uppercase;
+          color:rgba(255,255,255,0.55); padding:10px 32px 2px; width:82%; text-align:center; }
+        .mobile-nav-link.sub { font-size:0.82rem; opacity:0.92; }
+        .mobile-nav-link.login {
+          margin-top:8px; background:linear-gradient(135deg,var(--iitj-saffron),var(--iitj-saffron-lt));
+          color:var(--iitj-blue-dark); font-weight:700; width:60%;
+        }
 
         .mobile-menu {
           background:linear-gradient(180deg,var(--iitj-blue) 0%,var(--iitj-blue-dark) 100%);
@@ -390,11 +435,28 @@ const Header = () => {
         {/* ══ Nav band ══ */}
         <div className="nav-band">
           <nav className="desktop-nav">
-            {navItems.map((item, idx) => (
+            <Link href="/" className={`nav-link${pathname === "/" ? " active" : ""}`}>Home</Link>
+
+            {/* Councils dropdown (replaces the 4 separate council links) */}
+            <div className="nav-dropdown">
+              <Link href="/org/councils" className={`nav-link nav-dropdown-trigger${isCouncilActive ? " active" : ""}`}>
+                Councils <span className="nav-dropdown-caret">▾</span>
+              </Link>
+              <div className="nav-dropdown-menu">
+                <Link href="/org/councils" className={pathname === "/org/councils" ? "active" : ""}>All councils</Link>
+                {councilItems.map((c, i) => (
+                  <Link key={i} href={c.href} className={pathname === c.href ? "active" : ""}>{c.label}</Link>
+                ))}
+              </div>
+            </div>
+
+            {navItems.filter((i) => i.href !== "/").map((item, idx) => (
               <Link key={idx} href={item.href} className={`nav-link${pathname === item.href ? " active" : ""}`}>
                 {item.label}
               </Link>
             ))}
+
+            <Link href="/login" className="nav-login-btn">Login</Link>
           </nav>
         </div>
 
@@ -402,12 +464,26 @@ const Header = () => {
         {isMobileMenuOpen && (
           <div className="mobile-menu">
             <div className="mobile-menu-inner">
-              {navItems.map((item, idx) => (
+              <Link href="/" onClick={() => setIsMobileMenuOpen(false)}
+                className={`mobile-nav-link${pathname === "/" ? " active" : ""}`}>Home</Link>
+
+              {/* Councils group (inline on mobile) */}
+              <span className="mob-council-label">Councils</span>
+              <Link href="/org/councils" onClick={() => setIsMobileMenuOpen(false)}
+                className={`mobile-nav-link sub${pathname === "/org/councils" ? " active" : ""}`}>All councils</Link>
+              {councilItems.map((c, i) => (
+                <Link key={i} href={c.href} onClick={() => setIsMobileMenuOpen(false)}
+                  className={`mobile-nav-link sub${pathname === c.href ? " active" : ""}`}>{c.label}</Link>
+              ))}
+
+              {navItems.filter((i) => i.href !== "/").map((item, idx) => (
                 <Link key={idx} href={item.href} onClick={() => setIsMobileMenuOpen(false)}
                   className={`mobile-nav-link${pathname === item.href ? " active" : ""}`}>
                   {item.label}
                 </Link>
               ))}
+
+              <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link login">Login</Link>
             </div>
           </div>
         )}

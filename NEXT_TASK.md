@@ -1,18 +1,33 @@
 # Next Task
 
-**As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the full M0–M8
-member-platform program.** **Session 12 completed the consolidation / deploy-hardening.**
-**Session 13 built the one remaining OPTIONAL dev item — the standalone `/coordinator`
-scoped surface (closes KNOWN_ISSUES #43) — and the full client-facing delivery
-documentation set.** **The product is now feature-complete, hardened, and delivery-
-documented; the ONLY remaining work is operator/owner-owned** (below). There is NO
-pending developer feature work.
+**As of:** 2026-07-02 · **Session 14 shipped the "quick-wins bundle" + `systemRequirements.md`**
+(the VM hosting spec). Two developer feature areas were **explicitly DEFERRED** by the operator's
+build-order choice and are the next dev work; plus the operator backlog below.
 
-> ### ▶️ NEXT — Operator/owner backlog ONLY (no developer work remains)
+> ### ▶️ FIRST — apply this session's migration
+> Session 14 added ONE additive forward migration: **`20260702120000_event_allowed_registrant_roles`**
+> (`event_settings.allowed_registrant_roles TEXT[] NOT NULL DEFAULT '{}'`). Run **`npm run db:migrate`**
+> (prisma migrate deploy) before the allowed-registrant-roles gate takes effect in a live environment.
+> Then re-run the full gate per the SOP (static + lint + build + live per-file/single-fork).
+
+> ### ▶️ NEXT — Deferred developer work (from the Session-14 quick-wins plan)
+> 1. **Inline edit-on-public-page (role + jurisdiction gated).** Add an "Edit" affordance on public pages
+>    (events/clubs/wall-of-fame) that resolves the viewer's scoped permissions server-side
+>    (`getEffectivePermissions({ orgUnitLineageKey, academicYearId })` / `canManageEvent`), passes a
+>    `canEdit` flag into a client wrapper, and opens a modal that posts to the ONE `/api/admin/action`
+>    (`content.edit` / `org.unit.edit` / `achievement.credits.set`). All gate primitives + the WoF credits
+>    UI (DL-101) already exist; this is the affordance + wiring. Reuse the `/coordinator` scoped pattern.
+> 2. **Live quizzes + live leaderboards (self-hosted SSE + Redis — the CHOSEN real-time path, `systemRequirements.md` §10, Tier B).**
+>    New quiz domain (question/session/answer models keyed on the durable event id, per-answer write path,
+>    server-authoritative timer, a Redis-cached running-score aggregate) + an SSE transport. Sizing = 4 vCPU/8 GB
+>    + a Redis container. Registration concurrency is already DB-safe (deferred capacity trigger + SKIP LOCKED);
+>    a live REGISTRATION leaderboard is a cheap first step on the same transport.
+
+> ### ▶️ ALSO — Operator/owner backlog (unchanged)
 > 1. **Operator (run when convenient — OPERATIONS_RUNBOOK.md):** populate the live year —
->    `npm run db:import:org` → `db:import:events` → `db:import:resources` (#27); then the media
->    migration `npm run db:migrate:media -- --apply` + the safe `/public` prune (#18, runbook §3.1).
->    Optionally `npm install nodemailer` + set `MAIL_*` to enable bulk mail (#40/#45).
+>    `npm run db:import:org` → `db:import:events` → **`db:import:resources`** (publishes the 4 Cloudinary
+>    infrastructure PDFs — #27); then the media migration `npm run db:migrate:media -- --apply` + the safe
+>    `/public` prune (#18, runbook §3.1). Optionally `npm install nodemailer` + set `MAIL_*` for bulk mail (#40/#45).
 > 2. **Owner (anytime):** rotate/remove the V1 leaked secrets in `README.md` + purge history
 >    (#1), then drop the `.gitleaks.toml` by-SHA allowlist; consider rotating the Neon password (#19).
 > 3. **Client hand-over:** follow `CLIENT_INSTRUCTIONS.md` (the go-live runbook) and share the

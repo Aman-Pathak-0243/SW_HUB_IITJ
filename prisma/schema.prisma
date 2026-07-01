@@ -1358,6 +1358,13 @@ model EventSettings {
   registrationOpensAt  DateTime? @map("registration_opens_at") @db.Timestamptz
   registrationClosesAt DateTime? @map("registration_closes_at") @db.Timestamptz
   registrationClosed   Boolean   @default(false) @map("registration_closed")
+  // Session 14 (DL-097): which stakeholder ROLE types may self-register. Empty array =
+  // open to every logged-in ACTIVE member (the prior behaviour, unchanged). A non-empty
+  // set restricts self-registration to members holding ANY of these Role.keys (resolved
+  // from active role_assignment). Organizer manual-add (assertEventManage) is NOT gated by
+  // this — it is the escape hatch. Operational config, kept OUT of the versioned payload,
+  // like capacity. Column is NOT NULL DEFAULT '{}' so existing rows read as "open to all".
+  allowedRegistrantRoles String[] @default([]) @map("allowed_registrant_roles")
   createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz
   updatedById          String?   @map("updated_by") @db.Uuid

@@ -201,24 +201,40 @@ export default function TeamPage() {
           </div>
 
           <div className="text-center mb-12 mt-16">
-            <h2 className="text-3xl font-extrabold text-[#0b3c7d]">Website Developed by:</h2>
+            <h2 className="text-3xl font-extrabold text-[#0b3c7d]">Portal Developed by:</h2>
             <div className="w-32 h-1 bg-[#0b3c7d] mx-auto mt-3 rounded-full"></div>
+            <p className="text-gray-600 mt-4 max-w-2xl mx-auto text-sm">
+              The team changes each year — the developers stay credited here, and this list grows with the portal.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-10 max-w-2xl mx-auto">
+          {/* Durable developer credits — persist across years; each with a role. Aman
+              Pathak built the full V2 portal; Tushar & Apaar built the earlier static
+              website under his supervision. Append new contributors + roles as it grows. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 max-w-4xl mx-auto">
             {[
-              { name: "Tushar Singh", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774116594/WhatsApp_Image_2026-03-21_at_23.39.07_uvmbgk.jpg" },
-              { name: "Apaar Gupta", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774010364/WhatsApp_Image_2026-03-20_at_18.07.00_ac4bpk.jpg" }
-            ].map((member, i) => (
-              <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02]">
-                <div className="relative w-full aspect-[4/5]">
-                  <Image src={member.img} alt={member.name} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+              { name: "Aman Pathak", role: "Portal Architect & Lead Developer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641536/WhatsApp_Image_2026-01-17_at_14.12.59_2_jcbwsp.jpg", link: "https://amanpathak.dev" },
+              { name: "Tushar Singh", role: "Developer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774116594/WhatsApp_Image_2026-03-21_at_23.39.07_uvmbgk.jpg" },
+              { name: "Apaar Gupta", role: "Developer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774010364/WhatsApp_Image_2026-03-20_at_18.07.00_ac4bpk.jpg" },
+            ].map((member, i) => {
+              const card = (
+                <div className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] h-full">
+                  <div className="relative w-full aspect-[4/5]">
+                    <Image src={member.img} alt={member.name} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                  </div>
+                  <div className="p-5 text-center">
+                    <p className="text-lg font-bold text-[#0b3c7d] mt-1">{member.name}</p>
+                    {member.role && <p className="text-sm text-gray-600 mt-1">{member.role}</p>}
+                    {member.link && <span className="inline-block mt-2 text-sm font-semibold text-[#e57b00]">amanpathak.dev ↗</span>}
+                  </div>
                 </div>
-                <div className="p-5 text-center">
-                  <p className="text-lg font-bold text-[#0b3c7d] mt-1">{member.name}</p>
-                </div>
-              </div>
-            ))}
+              );
+              return member.link ? (
+                <a key={i} href={member.link} target="_blank" rel="noopener noreferrer" className="block h-full">{card}</a>
+              ) : (
+                <div key={i} className="h-full">{card}</div>
+              );
+            })}
           </div>
         </section>
 
