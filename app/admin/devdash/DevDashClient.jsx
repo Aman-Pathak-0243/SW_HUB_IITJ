@@ -23,7 +23,7 @@ function download(filename, content, contentType) {
   URL.revokeObjectURL(url);
 }
 
-export default function DevDashClient({ storage, thresholds, usage, actionLog, perms }) {
+export default function DevDashClient({ storage, thresholds, usage, actionLog, eventsOrganized, perms }) {
   const { run, busy } = useAdminAction();
   const canStorage = hasPerm(perms, "storage.manage");
   const canAudit = hasPerm(perms, "audit.read") || hasPerm(perms, "dev.console");
@@ -32,6 +32,12 @@ export default function DevDashClient({ storage, thresholds, usage, actionLog, p
   const exportAudit = async (format) => {
     try {
       const res = await run("audit.export", { format }, { success: `Exported action log (${format})` });
+      if (res?.content) download(res.filename, res.content, res.contentType);
+    } catch { /* toast */ }
+  };
+  const exportOrganized = async (format) => {
+    try {
+      const res = await run("eventsOrganized.exportHistory", { format }, { success: `Exported Events-Organized history (${format})` });
       if (res?.content) download(res.filename, res.content, res.contentType);
     } catch { /* toast */ }
   };
@@ -87,6 +93,40 @@ export default function DevDashClient({ storage, thresholds, usage, actionLog, p
             </table>
           </div>
           <p style={{ fontSize: "0.78rem", color: "var(--adm-faint)", marginTop: 6 }}>Showing the 15 most recent. Export pulls up to 5000 matching the current filters (full filtering is in the Developer Console).</p>
+        </section>
+      )}
+
+      {/* Events Organized — change history (M5, DL-089): every add/update of the curated
+          "Events Organized" markdown doc, with before/after available in the Developer
+          Console audit detail. Visible + downloadable here. */}
+      {eventsOrganized && (
+        <section className="adm-card" style={{ marginTop: 16 }}>
+          <div className="adm-toolbar" style={{ alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>Events Organized — Change History</h3>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button className="adm-btn ghost sm" disabled={busy} onClick={() => exportOrganized("json")}>Export JSON</button>
+              <button className="adm-btn ghost sm" disabled={busy} onClick={() => exportOrganized("csv")}>Export CSV</button>
+            </div>
+          </div>
+          <p style={{ color: "var(--adm-muted)", fontSize: "0.85rem" }}>
+            Every add/update of the curated <span className="adm-code">events_organized</span> markdown doc (who / what / when). Full before/after is in the Developer Console audit detail.
+          </p>
+          <div className="adm-tablewrap">
+            <table className="adm-table">
+              <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Summary</th></tr></thead>
+              <tbody>
+                {(eventsOrganized.entries ?? []).map((e) => (
+                  <tr key={e.id}>
+                    <td style={{ fontSize: "0.78rem", color: "var(--adm-faint)" }}>{new Date(e.createdAt).toLocaleString()}</td>
+                    <td style={{ fontSize: "0.8rem" }}>{e.actor?.email ?? "system"}</td>
+                    <td><Badge tone="info">{e.action}</Badge></td>
+                    <td style={{ fontSize: "0.82rem" }}>{e.summary}</td>
+                  </tr>
+                ))}
+                {(eventsOrganized.entries ?? []).length === 0 && <tr><td colSpan={4}><div className="adm-empty">No edits recorded for the Events-Organized doc yet.</div></td></tr>}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

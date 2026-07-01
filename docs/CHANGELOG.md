@@ -24,6 +24,45 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M5 (Centralized Event Playground) · 2026-07-01
+- **Event content enriched, still a versioned content_item (DL-084)** — `event_payload` gains
+  `problem_statement` + `eligibility` (markdown), `category`, and a `blocks` **JSONB** of hybrid
+  ordered blocks (the M4 block model reused via a NEW `coercePayload` hook; the pure client-safe
+  [lib/events/forms.mjs](../lib/events/forms.mjs) `normalizeEventPayload` reuses `normalizeBlocks`).
+  Operational data lives in standalone tables keyed on the durable event item; registration config
+  (capacity / window / closed switch) is a 1:1 `event_settings`, NOT the versioned payload.
+- **Organizer/collaborator tagging + custom entities (DL-085)** — [event_organizer](../prisma/schema.prisma)
+  (exactly one of {club lineage, custom `event_entity`, member} via a CHECK + per-target uniques;
+  `kind` organizer|collaborator; replace-set, audited); `event_entity` for admin/dev-defined
+  stakeholders. Tagging is CENTRAL and defines a coordinator's scoped management access.
+- **`event.manage` permission (→ 52) + the `assertEventManage` seam (DL-086)** — GLOBAL
+  (staff/admin/dev) OR SCOPED to an organizing club lineage ([lib/events/authz.mjs](../lib/events/authz.mjs)).
+  Member participation is LOGIN-ONLY via `POST /api/events/participate` (plugin + CSRF + rate-limit +
+  `requireMember` → the M1 `assertCanParticipate()` active-only seam); self-registration is not audited.
+- **Registration + waitlist + rounds + scoring + attendance (DL-087)** — partial-unique active-reg
+  dedup; capacity → WAITLIST (service decision + a DEFERRED cardinality trigger backstop, DL-009/021)
+  with a race-retry + auto-promote on cancel; `event_round`; per-round + overall `event_score` /
+  `event_attendance` submitted as replace-set sheets (one audit row); ranking computed in the read
+  layer via the pure `rankEntries` (standard competition rank), batched.
+- **CSV downloads + closure + Events Organized (DL-087/088/089)** — `GET /api/events/export`
+  (participants / scores / attendance / ranking, gated); an optional markdown `event_closure_report`
+  (organizer submits, central admin reviews → comment + corrected budget); a NEW
+  `content_type='events_organized'` curated markdown doc (→ 13 content types) whose every edit is
+  audited + version-diffable, with the change history visible + downloadable from a named
+  **M8 developer-dashboard tab**.
+- **Surfaces** — `/events` (login-only playground when the plugin is ON; the public board when OFF),
+  `/events/[slug]` (detail + register/waitlist + rankings), `/events/organized`, `/admin/events`
+  (management), and the dev-dashboard change-history tab. 16 M5 registry actions on `/api/admin/action`.
+- **Schema** — one additive forward migration `20260701140000_member_platform_m5` (8 tables + 4
+  `event_payload` columns + FKs/uniques/CHECKs + the deferred capacity trigger), applied to Neon;
+  init untouched (DL-027). 8 models registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`.
+- **Tests** — **497 static** (was 466; `events-playground.test.mjs` 23 + migration/rbac assertions;
+  caught + fixed a real `trimOrNull` bug) + a NEW live suite `tests/m5.db.test.mjs` **10/10** green on
+  warm Neon (isolated, #39). `npm run lint` + `next build` clean.
+- **Operator** — after pulling, run `npm run db:migrate` then `npm run db:seed` (both idempotent — the
+  migration adds the 8 tables + the `event_payload` columns; the seed adds `event.manage` + the
+  `events_organized` content type). Then run the M5 live suite once on a warm Neon, isolated.
+
 ### Added/Changed — Session 11: Member Platform M4 (Wall of Fame / student achievements) · 2026-07-01
 - **Achievement content type (DL-080)** — a NEW `content_type='achievement'` (year-scoped,
   NOT org-bound) driven through the ordinary CMS service, with its OWN

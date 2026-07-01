@@ -1,9 +1,48 @@
 # Next Task
 
 **As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
-M1, the M7/M8 spine, M3, and now M4** (Wall of Fame / student achievements). Next session:
-**M5** (Centralized Event Playground — the largest module, likely 2 sessions), built inside
-the plugin — then M6.
+M1, the M7/M8 spine, M3, M4, and now M5** (Centralized Event Playground). Next session:
+**M6** (Member profiles & performance), built inside the plugin.
+
+> ### ▶️ NEXT — M6 (Member profiles & performance)
+> Build inside the `member_platform` plugin, on the full M0–M5 spine. Deliver a member
+> **profile page** — name, email, **syndicate** (if any), roles/category, events
+> **participated** in (category-mapped, from `event_registration` + `event_score` +
+> `event_attendance`), **registered/upcoming** events (from `event_registration` +
+> `event_settings`), and **achievements** (from `achievement_credit` by `userId`). Self-view
+> (`requireMember`, own data — no gate) + an admin view (gated `user.read`). Aggregate a
+> member's / a club's / a custom entity's institute contribution across a year by the DURABLE
+> ids M4/M5 already store (`achievement_credit.userId|orgUnitLineageKey`, `event_organizer`'s
+> three targets, `event_score`/`event_registration.userId`). Reuse the M5 read layer
+> (`lib/events/playground.mjs`, `lib/events/registration.mjs#listUserRegistrations`) + the M4
+> `listClubAchievements`. **Tests:** aggregation correctness + visibility gating. Then the
+> adversarial review + the END-OF-SESSION doc checklist (new DL records from DL-090). No new
+> permission is likely needed (self-data + `user.read`).
+> **First:** confirm the operator ran `npm run db:migrate` + `npm run db:seed`, and re-run the
+> M5 (and M3/M4) live suites once on a warm Neon, isolated (per KNOWN_ISSUES #39).
+
+> ### ✅ Session 11 done — M5 (Centralized Event Playground)
+> Built inside the `member_platform` plugin, on the M0–M4 spine. Delivered: the event stays a
+> versioned **`content_type='event'`** content_item (DL-037) — now with a markdown **problem
+> statement** + **eligibility** + **category** + a **`blocks` JSONB** of HYBRID ordered blocks
+> (the M4 block model reused via a NEW `coercePayload` hook, DL-084) — PLUS a standalone
+> operational subsystem keyed on the DURABLE event item: **`event_organizer`** (organizer/
+> collaborator tagging, one-target over {club-lineage, custom `event_entity`, member}, DL-085)
+> + **`event_settings`** (capacity / registration window), **`event_round`** (stages),
+> **`event_registration`** (partial-unique dedup + capacity→WAITLIST via a DEFERRED cardinality
+> guard + auto-promote, DL-087), **`event_score`** + **`event_attendance`** (round + overall
+> replace-set sheets → read-layer ranking via the pure `rankEntries`), and **`event_closure_report`**
+> (optional markdown; organizer submits, central admin reviews → corrected budget, DL-088). A NEW
+> **`event.manage`** permission (→ **52**) + the **`assertEventManage`** seam (GLOBAL or scoped to
+> an organizing club lineage, DL-086); member participation is LOGIN-ONLY via `POST
+> /api/events/participate` (`requireMember` + `assertCanParticipate`). CSV downloads (`GET
+> /api/events/export`); a curated **"Events Organized"** `content_type='events_organized'` doc
+> (→ **13** content types) with an audited **change-history M8 dev-dashboard tab** (DL-089).
+> Surfaces: `/events` (login-only playground / public-when-off), `/events/[slug]`,
+> `/events/organized`, `/admin/events`. Migration `20260701140000_member_platform_m5` (additive,
+> applied). **497 static + `tests/m5.db.test.mjs` 10/10 green** (a real `trimOrNull` bug caught +
+> fixed); 6-dimension × 2-verifier review. **Operator:** after pulling, run `npm run db:migrate`
+> then `npm run db:seed` (idempotent).
 
 > ### ✅ Session 11 done — M4 (Wall of Fame / student achievements)
 > Built inside the `member_platform` plugin, on the M0–M3/M7/M8 spine. Delivered: a NEW

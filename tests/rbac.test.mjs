@@ -202,6 +202,19 @@ describe("RBAC catalog: M2 categories + override permission", () => {
     // co_coordinator drafts content but does NOT manage the roster.
     expect(has("co_coordinator")).not.toContain("membership.manage");
   });
+
+  it("event.manage (M5) is in the catalog and held by coordinator/secretary/staff/admin, not normal_user/viewer", () => {
+    expect(PERMISSION_KEYS).toContain("event.manage");
+    const has = (key) => ROLE_DEFS.find((r) => r.key === key)?.permissions ?? [];
+    expect(has("coordinator")).toContain("event.manage"); // scoped to their organizing club
+    expect(has("secretary")).toContain("event.manage");
+    expect(has("staff")).toContain("event.manage"); // central (unscoped)
+    expect(has("admin")).toContain("event.manage"); // admin = full catalog minus dev-only
+    expect(has("normal_user")).not.toContain("event.manage");
+    expect(has("viewer")).not.toContain("event.manage");
+    // event.manage is NOT a developer-only op (it's an ordinary operational permission).
+    expect(has("co_coordinator")).not.toContain("event.manage");
+  });
 });
 
 describe("RBAC catalog integrity", () => {

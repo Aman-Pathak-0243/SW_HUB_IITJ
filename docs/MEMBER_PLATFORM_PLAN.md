@@ -197,7 +197,7 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
 | M2 | RBAC categories + per-email overrides + search | ✅ Session 11 (DL-062/063/064) |
 | M3 | Club pages + memberships | ✅ Session 11 (DL-075/076/077/078/079) |
 | M4 | Wall of Fame | ✅ Session 11 (DL-080/081/082/083) |
-| M5 | Centralized Event Playground | ⬜ |
-| M6 | Member profiles & performance | ⬜ |
+| M5 | Centralized Event Playground | ✅ Session 11 (DL-084/085/086/087/088/089) |
+| M6 | Member profiles & performance | ⬜ (next) |
 | M7 | Notifications + feedback + announcements | ✅ Session 11 (DL-069/070/074) |
 | M8 | Developer dashboard (audit/analytics/backups/mail) | ✅ Session 11 (DL-068/071/072/073) |

@@ -232,6 +232,19 @@ model User {
   clubMembershipsCreated ClubMembership[]  @relation("ClubMembershipCreatedBy")
   achievementCredits     AchievementCredit[] @relation("AchievementCreditUser")
   achievementCreditsCreated AchievementCredit[] @relation("AchievementCreditCreatedBy")
+  eventEntitiesCreated      EventEntity[]        @relation("EventEntityCreatedBy")
+  eventOrganizerTags        EventOrganizer[]     @relation("EventOrganizerUser")
+  eventOrganizersCreated    EventOrganizer[]     @relation("EventOrganizerCreatedBy")
+  eventSettingsUpdated      EventSettings[]      @relation("EventSettingsUpdatedBy")
+  eventRoundsCreated        EventRound[]         @relation("EventRoundCreatedBy")
+  eventRegistrations        EventRegistration[]  @relation("EventRegistrationUser")
+  eventRegistrationsCreated EventRegistration[]  @relation("EventRegistrationCreatedBy")
+  eventScores               EventScore[]         @relation("EventScoreUser")
+  eventScoresCreated        EventScore[]         @relation("EventScoreCreatedBy")
+  eventAttendances          EventAttendance[]    @relation("EventAttendanceUser")
+  eventAttendancesCreated   EventAttendance[]    @relation("EventAttendanceCreatedBy")
+  eventClosureSubmitted     EventClosureReport[] @relation("EventClosureSubmittedBy")
+  eventClosureReviewed      EventClosureReport[] @relation("EventClosureReviewedBy")
 
   @@index([status])
   @@map("app_user")
@@ -373,6 +386,7 @@ model OrgUnitLineage {
   permissionOverrides UserPermissionOverride[]
   clubMemberships     ClubMembership[]
   achievementCredits  AchievementCredit[]
+  eventOrganizers     EventOrganizer[]
 
   @@index([firstSeenYearId])
   @@map("org_unit_lineage")
@@ -617,6 +631,13 @@ model ContentItem {
 
   revisions          ContentRevision[]
   achievementCredits AchievementCredit[] @relation("AchievementCreditItem")
+  eventOrganizers     EventOrganizer[]     @relation("EventOrganizerItem")
+  eventSettings       EventSettings?       @relation("EventSettingsItem")
+  eventRounds         EventRound[]         @relation("EventRoundItem")
+  eventRegistrations  EventRegistration[]  @relation("EventRegistrationItem")
+  eventScores         EventScore[]         @relation("EventScoreItem")
+  eventAttendances    EventAttendance[]    @relation("EventAttendanceItem")
+  eventClosureReports EventClosureReport[] @relation("EventClosureReportItem")
 
   @@unique([contentType, academicYearId, lineageKey]) // one item per logical doc per year
   // Public-listing hot path is served by the raw-SQL partial index
@@ -756,6 +777,16 @@ model EventPayload {
   publishFrom  DateTime?    @map("publish_from") @db.Timestamptz
   publishUntil DateTime?    @map("publish_until") @db.Timestamptz
   coverMediaId String?      @map("cover_media_id") @db.Uuid
+  // Member-platform M5 (DL-084): the Centralized Event Playground makes an event's
+  // CONTENT richer while it stays a versioned content_type='event' payload (DL-037).
+  // problem_statement + eligibility are markdown (rendered escape-first, DL-077);
+  // blocks is the HYBRID ordered-block JSONB (reuses the M4 normalizer, DL-080);
+  // category is the event facet/tag that feeds M6 performance tracking. Operational
+  // config (capacity / registration window) is NOT here — it lives in event_settings.
+  problemStatement String? @map("problem_statement")
+  eligibility      String?
+  category         String?
+  blocks           Json?   @db.JsonB
 
   revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
   cover    MediaAsset?     @relation("EventCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
@@ -1253,4 +1284,207 @@ model AchievementCredit {
   @@index([orgUnitLineageKey])
   @@index([achievementItemId])
   @@map("achievement_credit")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M5 (Centralized Event Playground)
+// ──────────────────────────────────────────────────────────────────────────
+// The event stays a versioned content_type='event' content_item (DL-037); these
+// STANDALONE operational tables (the DL-038 "own table" rule) key on the DURABLE
+// event content_item id and are audited SEMANTICALLY by their services (all in
+// AUTO_AUDIT_SKIP; member self-registration is the durable row and is not audited).
+// Authorization is the `event.manage` seam (DL-086): GLOBAL (staff/admin/dev) OR
+// SCOPED to a tagged organizing club's lineage (a coordinator runs their event).
+
+// A custom organizing stakeholder admin/dev define (a syndicate / external partner /
+// ad-hoc committee) — anything that is not a registered org_unit (DL-085). Durable,
+// reusable across events + years so M6 can aggregate an entity's events.
+model EventEntity {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  kind        String? // free-text (e.g. "syndicate", "committee", "external")
+  description String?
+  status      String   @default("active") // active | archived (CHECK in raw SQL)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  createdBy  User?             @relation("EventEntityCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  organizers EventOrganizer[]
+
+  @@index([status])
+  @@map("event_entity")
+}
+
+// Organizer / collaborator TAGGING (DL-085). Each row credits an event to EXACTLY
+// ONE of {a club (org_unit_lineage), a custom entity (event_entity), a member
+// (app_user)} — a raw-SQL CHECK enforces it. `kind` distinguishes an organizer from
+// a contributing collaborator. A tagged CLUB lineage is also the SCOPE at which a
+// coordinator gains `event.manage` on the event (DL-086). Durable ids feed M6.
+model EventOrganizer {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId       String   @map("event_item_id") @db.Uuid
+  kind              String   @default("organizer") // organizer | collaborator (CHECK)
+  orgUnitLineageKey String?  @map("org_unit_lineage_key") @db.Uuid
+  entityId          String?  @map("entity_id") @db.Uuid
+  userId            String?  @map("user_id") @db.Uuid
+  role              String? // free-text tag (e.g. "Organizing club", "Sponsor", "Lead")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  event          ContentItem     @relation("EventOrganizerItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  entity         EventEntity?    @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  user           User?           @relation("EventOrganizerUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy      User?           @relation("EventOrganizerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([eventItemId, orgUnitLineageKey])
+  @@unique([eventItemId, entityId])
+  @@unique([eventItemId, userId])
+  @@index([eventItemId])
+  @@index([orgUnitLineageKey])
+  @@index([entityId])
+  @@index([userId])
+  @@map("event_organizer")
+}
+
+// 1:1 operational config for an event (DL-084/087) — capacity + registration window.
+// Kept OUT of the versioned event_payload: capacity drives the waitlist backstop and
+// must be a single stable value, not a per-revision one.
+model EventSettings {
+  eventItemId          String    @id @map("event_item_id") @db.Uuid
+  capacity             Int? // null = unlimited (CHECK >= 0)
+  registrationOpensAt  DateTime? @map("registration_opens_at") @db.Timestamptz
+  registrationClosesAt DateTime? @map("registration_closes_at") @db.Timestamptz
+  registrationClosed   Boolean   @default(false) @map("registration_closed")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById          String?   @map("updated_by") @db.Uuid
+
+  event     ContentItem @relation("EventSettingsItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  updatedBy User?       @relation("EventSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("event_settings")
+}
+
+// Event stages (DL-087). Scores + attendance can be per-round (round_id set) or
+// overall (round_id NULL). round_no is unique per event.
+model EventRound {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId String    @map("event_item_id") @db.Uuid
+  roundNo     Int       @map("round_no")
+  name        String
+  description String?
+  startsAt    DateTime? @map("starts_at") @db.Timestamptz
+  endsAt      DateTime? @map("ends_at") @db.Timestamptz
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?   @map("created_by") @db.Uuid
+
+  event       ContentItem       @relation("EventRoundItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation("EventRoundCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  scores      EventScore[]
+  attendances EventAttendance[]
+
+  @@unique([eventItemId, roundNo])
+  @@index([eventItemId])
+  @@map("event_round")
+}
+
+// Per-user registration (DL-087). A PARTIAL UNIQUE (event, user) WHERE status<>'cancelled'
+// dedups active registrations; a cancelled row is history + allows re-registration. The
+// waitlist is a service decision (confirmed vs waitlisted by capacity) with a DEFERRED
+// cardinality trigger backstop against event_settings.capacity (DL-009/021 reuse).
+model EventRegistration {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId  String    @map("event_item_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  status       String    @default("confirmed") // confirmed | waitlisted | cancelled (CHECK)
+  teamName     String?   @map("team_name")
+  note         String?
+  registeredAt DateTime  @default(now()) @map("registered_at") @db.Timestamptz
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdById  String?   @map("created_by") @db.Uuid
+
+  event     ContentItem @relation("EventRegistrationItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  user      User        @relation("EventRegistrationUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation("EventRegistrationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventItemId, status])
+  @@index([userId])
+  @@map("event_registration")
+}
+
+// Round-wise (round_id set) + overall (round_id NULL) scores (DL-087). Overall RANKING
+// is computed in the read layer as the sum of a user's round scores (+ any explicit
+// overall row); per-round ranking orders by that round's points.
+model EventScore {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId String   @map("event_item_id") @db.Uuid
+  roundId     String?  @map("round_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  points      Float    @default(0)
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  event     ContentItem @relation("EventScoreItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  round     EventRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user      User        @relation("EventScoreUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation("EventScoreCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventItemId, roundId, userId])
+  @@index([userId])
+  @@map("event_score")
+}
+
+// Round-wise + overall attendance (DL-087), manually marked by organizers.
+model EventAttendance {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId String   @map("event_item_id") @db.Uuid
+  roundId     String?  @map("round_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  present     Boolean  @default(true)
+  note        String?
+  markedAt    DateTime @default(now()) @map("marked_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  event     ContentItem @relation("EventAttendanceItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  round     EventRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user      User        @relation("EventAttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation("EventAttendanceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventItemId, roundId, userId])
+  @@index([userId])
+  @@map("event_attendance")
+}
+
+// The OPTIONAL markdown closure report per (event, submitting stakeholder) (DL-088):
+// role + contribution + a self-reported budget; a central admin reviews → comment +
+// corrected budget. Data-issue feedback reuses the M7 `feedback` table (no new table).
+model EventClosureReport {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId      String    @map("event_item_id") @db.Uuid
+  submittedById    String    @map("submitted_by") @db.Uuid
+  roleContribution String    @map("role_contribution") // markdown
+  reportedBudget   Decimal?  @map("reported_budget") @db.Decimal(14, 2)
+  status           String    @default("submitted") // submitted | reviewed (CHECK)
+  reviewComment    String?   @map("review_comment")
+  correctedBudget  Decimal?  @map("corrected_budget") @db.Decimal(14, 2)
+  reviewedById     String?   @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime? @map("reviewed_at") @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  event       ContentItem @relation("EventClosureReportItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  submittedBy User        @relation("EventClosureSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewedBy  User?       @relation("EventClosureReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventItemId, submittedById])
+  @@index([eventItemId])
+  @@map("event_closure_report")
 }

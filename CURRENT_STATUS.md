@@ -1,14 +1,94 @@
 # Current Status
 
 **Last updated:** 2026-07-01
-**Session:** 11 — **M4 COMPLETE** (Wall of Fame / student achievements: a new
-`content_type='achievement'` with typed scalars + a `blocks` JSONB of HYBRID ordered blocks,
-a standalone `achievement_credit` member-OR-club mapping, a public `/wall-of-fame` + the
-per-club Achievements tab), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine + M3**.
+**Session:** 11 — **M5 COMPLETE** (Centralized Event Playground: the event stays a versioned
+`content_type='event'` content_item — now with a markdown problem statement + hybrid ordered
+blocks + eligibility + category — PLUS a standalone operational subsystem: organizer/collaborator
+tagging + custom entities, rounds, capacity→waitlist registration, round+overall scores/ranking,
+attendance, closure reports, CSV downloads, and a curated "Events Organized" doc with an audited
+change-history dev-dashboard tab), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine + M3 + M4**.
 Sessions 1–10 remain complete (deployable V2).
 **Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3, ✅ M4. **Next: M5** (Event Playground), then M6.
+✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3, ✅ M4, ✅ M5. **Next: M6** (Member profiles & performance).
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M5: Centralized Event Playground)
+
+- **Event = content_item + a relational subsystem (DL-084).** The event stays a versioned
+  `content_type='event'` (DL-037); its CONTENT gains `problem_statement` + `eligibility` (markdown),
+  `category` (an M6 facet), and a `blocks` **JSONB** of HYBRID ordered blocks — the M4 block model
+  reused via a NEW `coercePayload` hook on the `event_payload` handler (the pure client-safe
+  [lib/events/forms.mjs](lib/events/forms.mjs)#`normalizeEventPayload` reuses `normalizeBlocks`,
+  DL-051). OPERATIONAL data lives in standalone tables keyed on the DURABLE event item; registration
+  CONFIG (capacity / window / a `registration_closed` switch) is a 1:1 `event_settings` — NOT the
+  versioned payload (so the waitlist guard reads one stable number).
+- **Organizer/collaborator tagging + custom entities (DL-085).** [event_organizer](prisma/schema.prisma)
+  credits an event to EXACTLY ONE of {a club `org_unit_lineage`, a custom `event_entity`, a member
+  `app_user`} (a raw-SQL one-target CHECK + three per-target uniques) with a `kind`
+  (organizer|collaborator) + role tag; `setEventOrganizers` REPLACES the set (one audit row).
+  Tagging is CENTRAL (`requireGlobal` event.manage) and a tagged organizing CLUB lineage is the
+  scope at which that club's coordinator gains management access. Custom entities (a syndicate /
+  external partner) are admin/dev-defined, durable, and feed M6 by durable id.
+- **The `event.manage` seam (DL-086).** ONE new permission (→ **52**) + [lib/events/authz.mjs](lib/events/authz.mjs)#`assertEventManage`:
+  GLOBAL (staff/admin/dev — an unscoped grant) OR SCOPED to any organizing club lineage (a
+  coordinator runs their own event); the RBAC resolver's `inScope()` keeps a club-scoped grant from
+  passing the global check (DL-082 parity), verified live. Member participation is LOGIN-ONLY via the
+  gated `POST /api/events/participate` (plugin + CSRF + rate-limit + `requireMember`) → the M1
+  `assertCanParticipate()` active-only seam (inactive browses but cannot register, verified live).
+- **Registration + waitlist + rounds + scoring + attendance (DL-087).** [event_registration](lib/events/registration.mjs)
+  dedups active registrations (partial-unique WHERE status<>'cancelled'); capacity → WAITLIST is a
+  service decision (`registrationOutcome`) backstopped by a DEFERRED cardinality trigger reading
+  `event_settings.capacity` (DL-009/021 reuse) with a race-retry; cancelling a confirmed spot
+  auto-promotes the earliest waitlisted (verified live). `event_round` (stages); `event_score` +
+  `event_attendance` are per-round (round_id) or overall (round_id NULL, a partial unique) submitted
+  as replace-set SHEETS (one summary audit row, missing emails reported). RANKING is computed in the
+  read layer — per-round (by points) + overall (sum) — via the PURE `rankEntries` (standard
+  competition rank), batched (the detail builds all rankings from ONE score fetch).
+- **CSV downloads + closure + Events Organized (DL-087/088/089).** [exportEventCsv](lib/events/downloads.mjs)
+  (participants / scores / attendance / ranking, round + overall) via `GET /api/events/export`, gated
+  by `assertEventManage`. An OPTIONAL markdown `event_closure_report` per (event, submitter): role +
+  contribution + self-reported budget (submitted by an organizer), reviewed CENTRALLY (comment +
+  corrected budget; a scoped coordinator cannot review — verified live); data-issue feedback reuses
+  M7. The "Events Organized" curated doc is a NEW `content_type='events_organized'` (page_block
+  markdown, → **13** content types) edited through the CMS — so every add/update is audited
+  (before/after) + version-diffable — with a data-driven organized-events index; its change history
+  is visible + downloadable from a NAMED **M8 developer-dashboard tab** ([getEventsOrganizedChangeHistory](lib/events/organized.mjs)
+  / `exportEventsOrganizedHistory`, gated `audit.read`).
+- **Surfaces.** Login-only playground at **`/events`** (plugin ON; the public Sessions-1–10 board
+  when OFF) + event detail **`/events/[slug]`** (hybrid content, rounds, live rankings, register/
+  waitlist) + **`/events/organized`**; admin **`/admin/events`** management module; the M8 dev-dash
+  change-history tab. Every management mutation posts to the ONE `POST /api/admin/action` registry
+  (16 scoped M5 actions; each service re-authorizes via `assertEventManage`).
+- **Schema.** One additive forward migration `20260701140000_member_platform_m5` (8 tables + the 4
+  `event_payload` columns + FKs/uniques/CHECKs + the deferred capacity trigger), applied to Neon via
+  `migrate deploy`; init untouched (DL-027). 8 new models registered in `TABLE_BY_MODEL` +
+  `AUTO_AUDIT_SKIP`. `event.manage` + `events_organized` are seed DATA. **Permissions → 52; content
+  types → 13.**
+- **Tests.** **497 static** (was 466; +`tests/events-playground.test.mjs` 23 — payload/organizer/
+  round/capacity/registration/scoring/budget validators, `rankEntries`, CSV quoting; +the M5
+  migration block; +the `event.manage` RBAC assertion) + a NEW live suite `tests/m5.db.test.mjs`
+  (**10/10 green** on warm Neon, isolated per #39): hybrid-content playground read, organizer tagging
+  (one-target + central-vs-scoped), the `assertEventManage` seam, registration + capacity→waitlist +
+  auto-promote + dedup + inactive-blocked, scores→ranking, attendance, closure submit-vs-central-
+  review, CSV downloads, roster PII gating, and the Events-Organized change history + export gate.
+  The static suite caught + fixed a real `trimOrNull` normalizer bug (it didn't trim). `npm run lint`
+  + `next build` clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (30 agents).
+  **12 raw → 4 confirmed-by-both + 5 single-vote (3 refuted) → all 9 legitimate ones fixed:**
+  (medium) an organizer cancel/remove of a CONFIRMED registration did NOT auto-promote the waitlist
+  (a freed seat was stranded — only a member self-cancel promoted) → `promoteEarliestWaitlisted` now
+  runs from EVERY seat-vacating path (self-cancel + organizer cancel/remove/downgrade) + a live
+  assertion; (medium) `promoteEarliestWaitlisted` used a non-locking select, so two concurrent
+  confirmed-cancellations could promote the SAME earliest row and leave a seat empty → the earliest
+  waitlisted row is now `SELECT … FOR UPDATE SKIP LOCKED` so concurrent promotions pick DISTINCT rows;
+  (medium) editing a round via the admin form silently wiped its start/end dates (blank inputs sent as
+  "clear") → the edit form sends ONLY the fields the user filled (blank = leave unchanged); (low)
+  `/events/organized` rendered member content for revoked / view-disabled accounts (only
+  `unauthenticated` was blocked) → now mirrors `/events` and holds them out; (single-vote, PII) the
+  playground / scoring / organizer PUBLIC shapes serialized the internal `app_user` uuid → stripped to
+  display-NAME-only (DL-082 parity) + a live no-uuid assertion; (single-vote) a re-submitted closure
+  report kept a stale reviewer/comment/corrected-budget → cleared on re-submit. The 3 refuted were
+  design-intent nits. All fixes re-verified: 497 static + m5.db **10/10** green, lint + build clean.
 
 ## What is done (Session 11 — M4: Wall of Fame / student achievements)
 

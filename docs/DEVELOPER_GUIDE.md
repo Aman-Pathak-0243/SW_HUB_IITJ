@@ -687,6 +687,41 @@ Migration `20260701130000_member_platform_m4` (additive: `achievement_payload` +
   (`isCreate:false`) — the payload row always pre-exists on edit, and Prisma statically requires the
   `upsert.create` branch to carry NOT-NULL columns. Fixes a latent M3 bug the first live run surfaced.
 
+## Member platform — M5: Centralized Event Playground (Session 11)
+
+The event stays a versioned `content_type='event'` content_item (DL-037) — its CONTENT (a markdown
+`problemStatement` + `eligibility`, a `category` facet, and a `blocks` JSONB of hybrid ordered blocks)
+lives in `event_payload`, normalized by the pure `lib/events/forms.mjs#normalizeEventPayload` through a
+`coercePayload` hook that reuses the M4 `normalizeBlocks` (DL-084). Everything operational is standalone
+tables keyed on the DURABLE event item; registration CONFIG (capacity / window) is a 1:1 `event_settings`.
+
+- **Authorize event ops via `assertEventManage(actor, eventItemId, { requireGlobal? })`** (`lib/events/authz.mjs`):
+  GLOBAL `event.manage` (staff/admin/dev — an UNSCOPED grant) OR SCOPED to any tagged ORGANIZING club
+  lineage (a coordinator runs their own event). `requireGlobal:true` = central-only (organizer tagging,
+  closure review, custom entities). The RBAC resolver's `inScope()` keeps a club-scoped grant from
+  passing the global check — so tagging (which grants scoped access) must be central (DL-086).
+- **Organizer tagging** (`lib/events/organizers.mjs#setEventOrganizers`, replace-set, one audit row): each
+  tag targets exactly one of {club lineage, `event_entity`, member} (a DB CHECK). Custom entities are
+  admin/dev-defined durable stakeholders.
+- **Registration** (`lib/events/registration.mjs`): MEMBER self-service is the gated `POST /api/events/participate`
+  route (`requireMember` + `assertCanParticipate` — inactive can't participate) — NOT audited (durable row).
+  Capacity → waitlist is a service decision backstopped by a DEFERRED trigger (`event_registration_capacity_guard`)
+  + a race-retry; cancelling a confirmed spot auto-promotes the earliest waitlisted. Organizer add/setStatus/
+  remove ARE audited (`event.registration.*` registry actions).
+- **Rounds / scores / attendance** (`lib/events/{rounds,scoring}.mjs`): scores/attendance are per-round
+  (`round_id`) or overall (`round_id NULL`), submitted as replace-set SHEETS (one summary audit row).
+  RANKING is read-layer only — `rankEntries` (PURE, standard competition rank); overall = sum. The
+  playground detail (`lib/events/playground.mjs#getPlaygroundEvent`) builds all rankings from ONE score fetch.
+- **CSV downloads**: `GET /api/events/export?eventItemId=&kind=participants|scores|attendance|ranking[&roundId=overall|<uuid>]`
+  (`lib/events/downloads.mjs#exportEventCsv`, gated by `assertEventManage`; pure builders in `lib/events/csv.mjs`).
+- **Closure** (`lib/events/closure.mjs`): an organizer submits an optional markdown report (role/contribution +
+  self-reported budget); a CENTRAL reviewer (`requireGlobal`) adds a comment + corrected budget.
+- **"Events Organized"** = `content_type='events_organized'` (page_block markdown) edited through the CMS →
+  every edit is audited + version-diffable; the change history is visible + downloadable from the M8
+  dev-dashboard (`lib/events/organized.mjs#getEventsOrganizedChangeHistory` / `exportEventsOrganizedHistory`).
+- **New content-type reminder:** an `event.manage` permission + the `events_organized` content type are
+  seed DATA (`lib/rbac/permissions.mjs` / `lib/cms/content-types.mjs`) — re-seed after pulling.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

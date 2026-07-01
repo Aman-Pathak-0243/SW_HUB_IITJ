@@ -36,10 +36,15 @@ context and no repeated work.
 > feedback/support tickets + the developer dashboard: action-log export, usage
 > analytics, per-table storage thresholds, and bulk mail), **M3** (club/council
 > tabbed pages + `club_membership` M-M + bulk CSV importer + markdown docs + club
-> announcements/events + the wired usage beacon), and **M4** (Wall of Fame:
+> announcements/events + the wired usage beacon), **M4** (Wall of Fame:
 > `content_type='achievement'` with hybrid JSONB blocks + the `achievement_credit`
-> member-or-club mapping + public `/wall-of-fame` + the per-club Achievements tab).
-> **Next: M5** (Centralized Event Playground — the largest module, ~2 sessions), then M6.
+> member-or-club mapping + public `/wall-of-fame` + the per-club Achievements tab), and
+> **M5** (Centralized Event Playground: the `event` content_item enriched with a markdown
+> problem statement + hybrid blocks, PLUS a relational subsystem — organizer/collaborator
+> tagging + custom entities, rounds, capacity→waitlist registration, round+overall scores/
+> ranking, attendance, CSV downloads, closure reports, and a curated "Events Organized" doc
+> with an audited change-history dev-dashboard tab; the `event.manage` seam + login-only
+> participation). **Next: M6** (Member profiles & performance).
 > Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).
