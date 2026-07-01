@@ -55,9 +55,12 @@ rotation) — see NEXT_TASK.md.
 - **Delivery documentation set (client-facing, repo root).** `Notebook.md` (the whole platform —
   architecture, data model, RBAC, every module, ops), `USER_MANUAL.md` (features + the 11-role ×
   3-status access matrix + how-to guides incl. the event-organizing engine), `RESOURCES.md` (Neon/
-  Cloudinary/host capacity + sizing rationale + where to check live prices), `INVESTOR_EMAIL.md` +
-  `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md` (every markdown + a one-line description), and
-  `CLIENT_INSTRUCTIONS.md` (the hand-over / go-live runbook).
+  Cloudinary/host capacity + sizing rationale + where to check live prices), `WEBSITE_V1_VS_V2.md`
+  (the before→after: the old website vs. the platform, with a full feature-comparison table),
+  `ACADEMIC_YEAR_ROLLOVER.md` (the year-change + new-data-ingestion runbook — create year →
+  Transition Wizard → set current → importers → lock), `INVESTOR_EMAIL.md` + `ANNOUNCEMENT_EMAIL.md`,
+  `DELIVERABLES_INDEX.md` (every markdown + a one-line description), and `CLIENT_INSTRUCTIONS.md`
+  (the hand-over / go-live runbook).
 - **Adversarial review** — a 5-dimension finder → per-finding 2-verifier workflow (scope-safety,
   global-only leakage, RBAC parity, correctness, client/UX); findings triaged + addressed (see the
   CHANGELOG entry).
