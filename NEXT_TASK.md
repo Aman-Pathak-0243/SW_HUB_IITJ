@@ -1,25 +1,53 @@
 # Next Task
 
 **As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
-M1, the M7/M8 spine, M3, M4, and now M5** (Centralized Event Playground). Next session:
-**M6** (Member profiles & performance), built inside the plugin.
+M1, the M7/M8 spine, M3, M4, M5, and now M6** (Member profiles & performance). **The full
+Session 11+ member-platform program (M0–M8) is COMPLETE.** The next session is a
+**consolidation / deploy-hardening + full-gate pass** (no new module).
 
-> ### ▶️ NEXT — M6 (Member profiles & performance)
-> Build inside the `member_platform` plugin, on the full M0–M5 spine. Deliver a member
-> **profile page** — name, email, **syndicate** (if any), roles/category, events
-> **participated** in (category-mapped, from `event_registration` + `event_score` +
-> `event_attendance`), **registered/upcoming** events (from `event_registration` +
-> `event_settings`), and **achievements** (from `achievement_credit` by `userId`). Self-view
-> (`requireMember`, own data — no gate) + an admin view (gated `user.read`). Aggregate a
-> member's / a club's / a custom entity's institute contribution across a year by the DURABLE
-> ids M4/M5 already store (`achievement_credit.userId|orgUnitLineageKey`, `event_organizer`'s
-> three targets, `event_score`/`event_registration.userId`). Reuse the M5 read layer
-> (`lib/events/playground.mjs`, `lib/events/registration.mjs#listUserRegistrations`) + the M4
-> `listClubAchievements`. **Tests:** aggregation correctness + visibility gating. Then the
-> adversarial review + the END-OF-SESSION doc checklist (new DL records from DL-090). No new
-> permission is likely needed (self-data + `user.read`).
-> **First:** confirm the operator ran `npm run db:migrate` + `npm run db:seed`, and re-run the
-> M5 (and M3/M4) live suites once on a warm Neon, isolated (per KNOWN_ISSUES #39).
+> ### ▶️ NEXT — Program consolidation, full test gate & deploy hardening (no new module)
+> The M0–M8 feature program is done; this session hardens + ships it. Suggested scope
+> (pick per priority, run in automode at ultracode, keep the protocol):
+> 1. **Full test gate on a warm Neon.** Run the ENTIRE live suite PER-FILE (or single-fork)
+>    to avoid the #39 parallel-`year.db` flake, and confirm the full static suite (516) +
+>    `npm run lint` + `next build` are green. Neon is currently SLOW (~30–60s/live test on a
+>    cold/loaded compute) — budget for it; run per-file, warm it first with `npm run db:migrate`.
+> 2. **CI:** extend `.github/workflows/ci.yml` so the member-platform live suites (m0–m8) run
+>    in the nightly/secret-gated live job, single-fork.
+> 3. **Member surface polish + navigation:** the member experience now spans `/member`,
+>    `/member/profile`, `/events`, `/wall-of-fame`, club pages — consider a small member
+>    header/nav so a logged-in member can move between them (today `/member` links to profile;
+>    the rest are reached by URL). Optional.
+> 4. **Scoped-coordinator surfaces (KNOWN_ISSUES #43):** a dedicated scoped view for a
+>    club-scoped `event.manage` coordinator (and, by extension, a scoped Contribution/profile
+>    view) — the seam exists (`assertEventManage`), only the nav gating is global today.
+> 5. **Operator/owner backlog:** the live-data imports + media migration + V1 secret rotation
+>    (see OPERATIONS_RUNBOOK.md, KNOWN_ISSUES #18/#19) remain owner-owned.
+> **First:** confirm the operator ran `npm run db:migrate` + `npm run db:seed` (idempotent).
+
+> ### ✅ Session 11 done — M6 (Member profiles & performance)
+> Built inside the `member_platform` plugin, on the full M0–M5 spine — a **READ-ONLY
+> aggregation** module (NO new table / permission / mutation, DL-090). Delivered: a member
+> **PROFILE** ([lib/member/profile.mjs](lib/member/profile.mjs)#`getMemberProfile`) — identity
+> (`parseInstituteEmail` facets), roles/category (`role_assignment` + resolved scope names),
+> affiliations (`club_membership` + a DERIVED, currently-empty **syndicate** facet), full **event
+> involvement** (registrations ∪ scores ∪ attendance, category-mapped, with the member's OVERALL
+> **rank** computed via the pure `rankEntries` = M5 `getOverallRanking` sum-across-round+overall,
+> DL-091), and credited **achievements** (a NEW `listMemberAchievements`). Per-stakeholder
+> **INSTITUTE CONTRIBUTION** ([lib/member/contribution.mjs](lib/member/contribution.mjs)) for a
+> member / club / custom entity by the DURABLE ids (organized/participated/achievements/roles/
+> members/**participants-reached** as a PII-minimized distinct COUNT, DL-092), reusing
+> `listClub/MemberAchievements` + `getMembershipCountForUnit`. Pure client-safe
+> [lib/member/summary.mjs](lib/member/summary.mjs) (split/category/totals/identity, DL-093/051).
+> Surfaces: **`/member/profile`** (self), **`/admin/users/[userId]`** (admin, `user.read`), and a
+> **`/admin/contribution`** explorer (a NEW `contribution` nav module, `user.read`) — all shared
+> **Server Components** so member PII stays server-side. **NO new permission (52), NO migration,
+> content types stay 13.** **516 static + `tests/m6.db.test.mjs` 8/8 green** (m5 10/10, m4 6/6, m3
+> 10/10 re-verified on warm Neon); 14-agent review (0 confirmed-both, 2 single-vote → both fixed:
+> a profile-page double-read → the `getMemberProfileView` composite; a weak rank test → an
+> overall-score-row fixture; 2 refuted nits hardened anyway). **Operator:** no migration/seed
+> change is required for M6 (read-only), but running `npm run db:migrate` + `npm run db:seed`
+> after pulling stays idempotent.
 
 > ### ✅ Session 11 done — M5 (Centralized Event Playground)
 > Built inside the `member_platform` plugin, on the M0–M4 spine. Delivered: the event stays a

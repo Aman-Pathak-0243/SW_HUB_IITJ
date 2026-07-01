@@ -24,6 +24,51 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M6 (Member profiles & performance) · 2026-07-01
+- **A READ-ONLY aggregation module over the durable M4/M5 ids (DL-090)** — NO new table,
+  permission, migration, or mutation. Reads `achievement_credit.userId|orgUnitLineageKey`,
+  `event_organizer`'s three targets, `event_registration`/`event_score`/`event_attendance.userId`,
+  `club_membership`, and `role_assignment`. Permissions stay **52**, content types **13**.
+  "Syndicate (if any)" is a DERIVED, currently-empty facet (a syndicate is an `event_entity`;
+  M6 invents no member↔syndicate table).
+- **Member profile (DL-091)** — `lib/member/profile.mjs#getMemberProfile` aggregates identity
+  (`parseInstituteEmail` facets), roles/category (`role_assignment` + resolved scope-unit names),
+  affiliations (`club_membership` → current-year unit names + the derived syndicate), full EVENT
+  involvement (registrations ∪ own-scores ∪ attendance, **category-mapped**, with the member's
+  OVERALL **rank** computed in-memory from a single all-scores fetch via the pure `rankEntries` —
+  the SAME sum-across-(round + overall) semantic as M5 `getOverallRanking`), and credited
+  achievements (a NEW `lib/achievements/public.mjs#listMemberAchievements`, mirroring the club
+  slice). Events are all-time (durable); achievements follow M4 current-year visibility. A
+  `getMemberProfileView` composite hydrates the heaviest read + current year ONCE for the pages.
+- **Institute contribution (DL-092)** — `lib/member/contribution.mjs`:
+  `getMemberContribution` / `getClubContribution` / `getEntityContribution` (+ a
+  `getStakeholderContribution` dispatcher + `listContributionStakeholders` picker data) aggregate
+  a stakeholder's YEAR contribution by durable id — organized / participated / achievements /
+  roles / members / **participants reached** (a distinct COUNT, never a roster — PII-minimized) —
+  reusing `listClub/MemberAchievements` + `getMembershipCountForUnit`. Batched (one in-year
+  resolve + one distinct-count). The pure `contributionTotals` yields the headline "touchpoints".
+- **Pure client-safe helpers (DL-093/051)** — `lib/member/summary.mjs`
+  (`splitMemberEvents` / `categoryBreakdown` / `participationSummary` / `formatIdentity` /
+  `contributionTotals` / `pickSyndicate`) — one authority imported by BOTH the Server-Component
+  reads AND the presentation, unit-tested without a DB.
+- **Surfaces (DL-093)** — self **`/member/profile`** (own data, `loadMemberContext`; linked from
+  `/member`), admin **`/admin/users/[userId]`** (`loadModuleContext('users')` + explicit
+  `user.read`; linked per-row from the Users list), and a **`/admin/contribution`** explorer
+  (member/club/entity, query-param driven — Server-Component GETs, no API route) behind a NEW
+  **`contribution`** nav module (`anyOf:['user.read']`). Rendering is TWO shared **Server
+  Components** (`MemberProfile` / `ContributionSummary`) so member PII stays server-side; the one
+  client component (the picker) receives only public club/entity names.
+- **Tests** — **516 static** (was 497; +`tests/member-profile.test.mjs` 19) + a NEW live suite
+  `tests/m6.db.test.mjs` (**8/8 green** on warm Neon, isolated per #39); the M5/M4/M3 live suites
+  re-ran green (m5 10/10, m4 6/6, m3 10/10). `npm run lint` + `next build` clean.
+- **Adversarial review** — 6-dimension × 2-verifier (14 agents): 4 raw → 0 confirmed-both + 2
+  single-vote (2 refuted) → both single-votes fixed (a profile-page double-read → the
+  `getMemberProfileView` composite; a single-round rank fixture → an overall-score-row fixture
+  proving the sum-across-rounds semantic) + both refuted nits hardened anyway. **This completes
+  the M0–M8 member-platform program.**
+- **Operator:** M6 is read-only — no migration/seed change is required; `npm run db:migrate` +
+  `npm run db:seed` after pulling stay idempotent.
+
 ### Added/Changed — Session 11: Member Platform M5 (Centralized Event Playground) · 2026-07-01
 - **Event content enriched, still a versioned content_item (DL-084)** — `event_payload` gains
   `problem_statement` + `eligibility` (markdown), `category`, and a `blocks` **JSONB** of hybrid

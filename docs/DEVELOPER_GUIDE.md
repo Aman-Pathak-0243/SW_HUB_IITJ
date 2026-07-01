@@ -722,6 +722,38 @@ tables keyed on the DURABLE event item; registration CONFIG (capacity / window) 
 - **New content-type reminder:** an `event.manage` permission + the `events_organized` content type are
   seed DATA (`lib/rbac/permissions.mjs` / `lib/cms/content-types.mjs`) — re-seed after pulling.
 
+## Member platform — M6: Member profiles & performance (Session 11)
+
+M6 is a **READ-ONLY aggregation** module over the DURABLE ids M3/M4/M5 store — **NO new table,
+permission, migration, or mutation** (DL-090). It has three files + surfaces:
+
+- **`lib/member/profile.mjs`** — `getMemberProfile(userId, { yearId?, scopeEventsToYear?, _achievements? })`
+  aggregates identity (`parseInstituteEmail`), roles/category (`role_assignment` + resolved scope-unit
+  names), affiliations (`club_membership` + a DERIVED syndicate facet), the member's full EVENT
+  involvement, and credited achievements. `getMemberEventHistory` batches registrations ∪ own-scores ∪
+  attendance → per-event rows, and computes the member's OVERALL **rank** in-memory from ONE all-scores
+  fetch via `rankEntries` (same sum-across-round+overall as M5 `getOverallRanking`, DL-091). Events are
+  all-time (durable); achievements follow M4 current-year visibility. **The two profile surfaces call
+  `getMemberProfileView(userId)`** — it resolves the current year + hydrates the heavy `listMemberAchievements`
+  ONCE and injects both into `getMemberProfile`/`getMemberContribution` (the `_achievements` seam) so the
+  page doesn't re-run the heaviest read twice (review fix, DL-093).
+- **`lib/member/contribution.mjs`** — `getMemberContribution` / `getClubContribution` /
+  `getEntityContribution` (+ `getStakeholderContribution` dispatcher + `listContributionStakeholders`
+  picker) aggregate a stakeholder's YEAR contribution by durable id (organized / participated /
+  achievements / roles / members / **participants reached** = a PII-minimized distinct COUNT, DL-092),
+  reusing `listClub/MemberAchievements` + `getMembershipCountForUnit`.
+- **`lib/member/summary.mjs`** — PURE, client-safe (`splitMemberEvents` / `categoryBreakdown` /
+  `participationSummary` / `formatIdentity` / `contributionTotals` / `pickSyndicate`), imported by BOTH
+  the reads AND the presentation (DL-093/051).
+- **Surfaces:** self **`/member/profile`** (gated by `loadMemberContext` — own data), admin
+  **`/admin/users/[userId]`** (gated `loadModuleContext('users')` + explicit `hasPerm('user.read')`), and
+  **`/admin/contribution`** (member/club/entity explorer, query-param driven — Server-Component GETs, no
+  API route) behind the NEW `contribution` nav module (`anyOf:['user.read']`). Rendering is TWO shared
+  **Server Components** (`app/components/MemberProfile.jsx` / `ContributionSummary.jsx`) so member PII
+  stays server-side; the one client component (`ContributionClient`, the picker) gets only public names.
+- **No seed/migration reminder for M6:** it adds no permission, content type, or table — `db:migrate` /
+  `db:seed` stay idempotent.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

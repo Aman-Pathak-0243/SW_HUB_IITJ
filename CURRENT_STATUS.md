@@ -1,16 +1,76 @@
 # Current Status
 
 **Last updated:** 2026-07-01
-**Session:** 11 — **M5 COMPLETE** (Centralized Event Playground: the event stays a versioned
-`content_type='event'` content_item — now with a markdown problem statement + hybrid ordered
-blocks + eligibility + category — PLUS a standalone operational subsystem: organizer/collaborator
-tagging + custom entities, rounds, capacity→waitlist registration, round+overall scores/ranking,
-attendance, closure reports, CSV downloads, and a curated "Events Organized" doc with an audited
-change-history dev-dashboard tab), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine + M3 + M4**.
-Sessions 1–10 remain complete (deployable V2).
+**Session:** 11 — **M6 COMPLETE** (Member profiles & performance: a READ-ONLY aggregation
+module over the DURABLE ids M4/M5 store — a member PROFILE (identity/roles/affiliations/
+category-mapped events + registrations/upcoming/rank/achievements) with a self view + an
+admin view, PLUS per-stakeholder INSTITUTE CONTRIBUTION across a year for a member / club /
+custom entity), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine + M3 + M4 + M5**.
+Sessions 1–10 remain complete (deployable V2). **The full Session 11+ member-platform
+program (M0–M8) is now complete.**
 **Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3, ✅ M4, ✅ M5. **Next: M6** (Member profiles & performance).
+✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3, ✅ M4, ✅ M5, ✅ M6. **Program complete — next is a
+consolidation / deploy-hardening pass** (see NEXT_TASK.md).
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M6: Member profiles & performance)
+
+- **M6 is a READ-ONLY aggregation module — NO new table / permission / mutation (DL-090).**
+  It reads the DURABLE ids M4/M5 already persist (`achievement_credit.userId|orgUnitLineageKey`,
+  `event_organizer`'s three targets, `event_registration`/`event_score`/`event_attendance.userId`,
+  `club_membership`, `role_assignment`), so there is **no new migration and no new `content_type`**;
+  the self profile is gated by the M1 member boundary (own data), and every admin surface by the
+  **existing `user.read`** (permissions stay at **52**, content types at **13**). "Syndicate (if
+  any)" is a DERIVED, currently-empty facet (the org model has no syndicate unit type — a syndicate
+  is an `event_entity`, DL-085); M6 does not invent a member↔syndicate table.
+- **Profile read layer (DL-091).** [lib/member/profile.mjs](lib/member/profile.mjs) — `getMemberProfile`
+  aggregates identity (`parseInstituteEmail` facets), roles/category (active `role_assignment` +
+  resolved scope-unit names), affiliations (`club_membership` → current-year unit names + the derived
+  syndicate), full EVENT INVOLVEMENT, and the member's credited ACHIEVEMENTS (a NEW
+  [lib/achievements/public.mjs](lib/achievements/public.mjs)#`listMemberAchievements`, mirroring the
+  club slice). Event history is ONE batched aggregation of registrations ∪ own-scores ∪ attendance;
+  the member's OVERALL RANK per event is computed in-memory from a single all-scores fetch via the
+  pure `rankEntries` — the SAME sum-across-(round + overall) semantic as M5 `getOverallRanking`, so the
+  profile number equals the event-page number. Events are all-time (durable); achievements follow M4
+  current-year visibility. `getMemberProfileView` composes profile+contribution for the pages.
+- **Institute contribution (DL-092).** [lib/member/contribution.mjs](lib/member/contribution.mjs) —
+  `getMemberContribution` / `getClubContribution` / `getEntityContribution` (+ a `getStakeholderContribution`
+  dispatcher, + `listContributionStakeholders` for the picker) aggregate a stakeholder's year
+  contribution by durable id: events organized, participated, achievements credited, roles, members,
+  and distinct **participants reached** (a COUNT, never a roster — PII-minimized). Reuses `listClub/
+  MemberAchievements` + `getMembershipCountForUnit`; batched (bounded per stakeholder, one in-year
+  resolve + one distinct-count). A pure `contributionTotals` yields the headline "touchpoints".
+- **Pure client-safe helpers (DL-093/051).** [lib/member/summary.mjs](lib/member/summary.mjs) —
+  `splitMemberEvents` / `categoryBreakdown` / `participationSummary` / `formatIdentity` /
+  `contributionTotals` / `pickSyndicate` — one authority for split/category-mapping/totals/identity,
+  imported by BOTH the Server-Component reads AND the presentation, unit-tested without a DB.
+- **Surfaces (DL-093).** Self **`/member/profile`** (gated by `loadMemberContext` — own data; linked
+  from `/member`), admin **`/admin/users/[userId]`** (gated `loadModuleContext('users')` + explicit
+  `user.read`; linked per-row from the Users list), and a **`/admin/contribution`** explorer (member/
+  club/entity, driven by query params — Server-Component GETs, no API route) behind a NEW
+  **`contribution`** nav module (`anyOf:['user.read']`). Rendering is TWO shared **Server Components**
+  ([MemberProfile](app/components/MemberProfile.jsx) / [ContributionSummary](app/components/ContributionSummary.jsx))
+  so member PII stays server-side (only HTML ships); the one client component (the picker) gets only
+  public club/entity names.
+- **Tests.** **516 static** (was 497; +`tests/member-profile.test.mjs` 19 — the pure split/category/
+  summary/identity/totals helpers + the `contribution` nav registration + the no-new-permission
+  invariant) + a NEW live suite `tests/m6.db.test.mjs` (**8/8 green** on warm Neon, isolated per #39):
+  profile aggregation (identity/roles/affiliations/events with SUM-based rank/achievements + a PII
+  no-uuid/email assertion on credited members), member contribution counts + year-scoping-to-zero,
+  club + entity contribution, the dispatcher (member-by-email/club/entity + unknown→null),
+  `listMemberAchievements`, and empty-account safety (valid empty shape vs unknown-id→null). The
+  M5/M4/M3 live suites were re-run green on a warm Neon (m5 10/10, m4 6/6, m3 10/10). `npm run lint`
+  + `next build` clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (14 agents).
+  **4 raw → 0 confirmed-by-both + 2 single-vote (2 refuted) → both single-votes fixed + both refuted
+  nits hardened anyway:** (medium, perf) the two profile surfaces re-ran the heaviest read
+  (`listMemberAchievements`) + the current-year lookup TWICE per render → a ONE `getMemberProfileView`
+  composite now hydrates the achievements + year ONCE and injects them into both aggregators (a
+  `_achievements` seam); (medium, test) the rank assertion used a single-round/single-score fixture
+  that could not distinguish the sum-across-rounds semantic → the fixture now adds an OVERALL score
+  row so memberA (40 round + 60 overall = 100) outranks memberB (90) ONLY when the rows are summed.
+  Hardened the two refuted nits anyway (a credited-member PII no-uuid/email assertion; empty-account
+  `roles`/`syndicate` assertions). All re-verified: 516 static + m6.db 8/8 green, lint + build clean.
 
 ## What is done (Session 11 — M5: Centralized Event Playground)
 

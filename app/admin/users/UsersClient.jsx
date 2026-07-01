@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useState, useMemo, useEffect } from "react";
 import { Badge, Modal, Field, ConfirmButton, useAdminAction } from "../_components/ui";
 import { hasPerm } from "../../../lib/admin/nav.mjs";
@@ -153,6 +154,8 @@ function UsersTab({ users, roles, perms, viewerId, viewerIsDeveloper, canOverrid
                   <td><Badge tone={statusTone(u.status)}>{u.status}</Badge></td>
                   <td>
                     <div className="adm-actions">
+                      {/* M6 (DL-090): the member's profile + institute contribution (user.read). */}
+                      <Link className="adm-btn ghost sm" href={`/admin/users/${u.id}`}>Profile</Link>
                       {canAssign && <button className="adm-btn ghost sm" onClick={() => setGranting(u)}>Roles</button>}
                       {canOverride && <button className="adm-btn ghost sm" onClick={() => setOverriding(u)}>Perms</button>}
                       {canUpdate && <button className="adm-btn ghost sm" onClick={() => setEditing(u)}>Edit</button>}

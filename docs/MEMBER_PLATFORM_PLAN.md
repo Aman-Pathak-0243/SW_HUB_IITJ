@@ -149,11 +149,30 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
   attendance, closure review, download integrity, access gating, **Events-Organized
   markdown edit → audited → appears in the dev-dashboard change history + export**.
 
-## M6 — Member profiles & performance
-- Profile: name, email, **syndicate** (if any), roles/category, events **participated**
-  (category-mapped), **registered/upcoming** events, **achievements**. Self + admin
-  view. Drives per-stakeholder institute contribution tracking across a year. **Tests:**
-  aggregation correctness, visibility.
+## M6 — Member profiles & performance — ✅ Session 11 (DL-090/091/092/093)
+- **Shipped:** a READ-ONLY aggregation module over the DURABLE ids M4/M5 store — NO new
+  table, permission, or mutation (DL-090). A member **PROFILE** (`lib/member/profile.mjs`):
+  identity (`parseInstituteEmail` facets), roles/category (`role_assignment` + resolved
+  scope-unit names), affiliations (`club_membership` + a derived, currently-empty
+  **syndicate** facet — a syndicate is an `event_entity`, so M6 invents no member↔syndicate
+  table), **category-mapped events** (registrations ∪ scores ∪ attendance, with the member's
+  OVERALL **rank** computed via the pure `rankEntries` = M5 `getOverallRanking`'s
+  sum-across-round+overall semantic, DL-091), and credited **achievements** (a NEW
+  `lib/achievements/public.mjs#listMemberAchievements`). Per-stakeholder **INSTITUTE
+  CONTRIBUTION** across a year (`lib/member/contribution.mjs`) for a member / club / custom
+  entity by durable id — organized/participated/achievements/roles/members/**participants
+  reached** (a PII-minimized distinct COUNT), reusing `listClub/MemberAchievements` +
+  `getMembershipCountForUnit` (DL-092). Pure client-safe `lib/member/summary.mjs`
+  (split/category/totals/identity, DL-093/051).
+- **Surfaces:** self `/member/profile` (own data, `loadMemberContext`), admin
+  `/admin/users/[userId]` + a `/admin/contribution` explorer (a NEW `contribution` nav
+  module, gated `user.read`) — all shared **Server Components** so member PII stays
+  server-side. Reuses the existing `user.read` — **NO new permission (52)**, no migration,
+  content types stay 13.
+- **Tests:** static (`member-profile.test.mjs` — the pure split/category/summary/identity/
+  totals helpers + the nav registration + the no-new-permission invariant) + live
+  (`m6.db.test.mjs` — profile aggregation incl. SUM-based rank + PII, member/club/entity
+  contribution, year-scoping-to-zero, the dispatcher, empty-account safety).
 
 ## M7 — Centralized notifications, feedback/issues, announcements
 - **`notification`** — centralized, **labelled**, **unique human ref id**,
@@ -198,6 +217,6 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
 | M3 | Club pages + memberships | ✅ Session 11 (DL-075/076/077/078/079) |
 | M4 | Wall of Fame | ✅ Session 11 (DL-080/081/082/083) |
 | M5 | Centralized Event Playground | ✅ Session 11 (DL-084/085/086/087/088/089) |
-| M6 | Member profiles & performance | ⬜ (next) |
+| M6 | Member profiles & performance | ✅ Session 11 (DL-090/091/092/093) |
 | M7 | Notifications + feedback + announcements | ✅ Session 11 (DL-069/070/074) |
 | M8 | Developer dashboard (audit/analytics/backups/mail) | ✅ Session 11 (DL-068/071/072/073) |

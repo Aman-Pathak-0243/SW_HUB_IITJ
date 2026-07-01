@@ -28,8 +28,8 @@ context and no repeated work.
 | 10 | **Testing + Deployment + Optimization + Handover** | Full test gate (307 static + 344 live) + CI workflow; public CWV (Cloudinary f_auto/q_auto, next/image sizes, font consolidation #12, brand-blue #11); responsive (admin mobile sidebar); deploy hardening (security headers, CSRF + rate-limit on the write routes, NFT #32 decision); pruned V1 leftovers (#10/#13 + Header `/org` cutover); operator runbook + full docs sweep; 13-agent review | ✅ **DONE** |
 
 > **The original 10-session plan is complete.** A **Session 11+ member-platform
-> program** (multi-session, one module per session — DL-057) is in progress on the
-> existing spine. Shipped so far: the developer-controlled **plugin** control plane,
+> program** (multi-session, one module per session — DL-057) is **COMPLETE (M0–M8)** on the
+> existing spine. Shipped: the developer-controlled **plugin** control plane,
 > **M0** (auth & account lifecycle), **M2** (RBAC categories + per-email permission
 > overrides + smart search), **M1** (user status active/inactive/revoked + the three
 > surfaces + scoped route RBAC), the **M7/M8 spine** (centralized notifications +
@@ -44,7 +44,11 @@ context and no repeated work.
 > tagging + custom entities, rounds, capacity→waitlist registration, round+overall scores/
 > ranking, attendance, CSV downloads, closure reports, and a curated "Events Organized" doc
 > with an audited change-history dev-dashboard tab; the `event.manage` seam + login-only
-> participation). **Next: M6** (Member profiles & performance).
+> participation), and **M6** (Member profiles & performance: a READ-ONLY aggregation over the
+> durable M4/M5 ids — a member profile (identity/roles/affiliations/category-mapped events +
+> rank/achievements) with self + admin views, and per-stakeholder institute contribution for a
+> member/club/entity; no new table/permission/migration). **The M0–M8 program is complete —
+> next is a consolidation / deploy-hardening pass** (see NEXT_TASK.md).
 > Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).

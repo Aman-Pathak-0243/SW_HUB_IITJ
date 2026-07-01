@@ -85,6 +85,12 @@ export default async function MemberPage() {
             : "Your account is inactive — you can browse the portal and see your achievements, but you cannot participate in events right now."}
         </p>
 
+        {/* My profile (M6) — the member's roles, events, achievements & contribution. */}
+        <div className="mbr-surfaces">
+          <span className="mbr-label">Your profile</span>
+          <div className="acc-links"><Link href="/member/profile">View my profile &amp; performance →</Link></div>
+        </div>
+
         {/* My clubs (M3) — memberships across clubs/societies/chapters. */}
         <div className="mbr-clubs">
           <span className="mbr-label">My clubs &amp; societies</span>
