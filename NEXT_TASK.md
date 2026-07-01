@@ -1,10 +1,27 @@
 # Next Task
 
-**As of:** 2026-06-30 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
-M1, and now the M7/M8 spine** (centralized notifications + feedback/support tickets + the
-developer dashboard: action-log export, usage analytics, per-table storage thresholds, bulk
-mail). Next session: **M3** (club/council pages + memberships), built inside the plugin —
-then M4 → M5 → M6.
+**As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
+M1, the M7/M8 spine, and now M3** (club/council tabbed pages + `club_membership` M-M + bulk
+CSV importer + markdown docs + club announcements/events + the wired usage beacon). Next
+session: **M4** (Wall of Fame), built inside the plugin — then M5 → M6.
+
+> ### ✅ Session 11 done — M3 (club/council pages + memberships)
+> Built inside the `member_platform` plugin, on the M0–M2/M1/M7/M8 spine. Delivered: a NEW
+> standalone **`club_membership`** many-to-many (`app_user` ↔ `org_unit_lineage`, durable,
+> `UNIQUE(user,lineage)`, DL-075) + `lib/memberships/{service,forms}.mjs` (add/remove/status/
+> list + an **idempotent bulk CSV importer** that reports missing accounts) gated by a NEW
+> scoped **`membership.manage`** (DL-066); a NEW **`club_doc`** content type reusing
+> `page_block_payload` for **Miscellaneous markdown docs** (DL-076) with a PURE escape-first
+> **`renderMarkdown`** (DL-077, reused by M4); **club-specific announcements/events** bound via
+> `content_item.orgUnitId` with an opt-in **`announcement_payload.sync_to_central`** to the
+> central board (DL-078); ONE data-driven **tabbed** club/council page (`OrgUnitTabs` over
+> `getClubPageView`, Achievements tab STUBBED for M4, DL-079) + "My clubs" on `/member`; and the
+> optional M8 **usage beacon** finally wired (closes KNOWN_ISSUES #41). +1 permission (**51**);
+> migration `20260701120000_member_platform_m3` (additive). **448 static** + a written live suite
+> `tests/m3.db.test.mjs`; 14-agent review (4 findings → 3 confirmed + 1 single-vote → all fixed).
+> **Operator:** after pulling, run `npm run db:migrate` then `npm run db:seed` (idempotent) — the
+> Prisma model now selects `announcement_payload.sync_to_central`, so announcement reads REQUIRE
+> the migration applied; then run the M3 live suite once on a warm Neon, isolated (KNOWN_ISSUES #42).
 
 > ### ✅ Session 11 done — M7 + M8 spine (notifications/feedback + developer dashboard)
 > Built inside the `member_platform` plugin. **M7:** generalized the `notification` queue

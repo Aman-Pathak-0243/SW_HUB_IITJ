@@ -190,6 +190,18 @@ describe("RBAC catalog: M2 categories + override permission", () => {
     const nu = ROLE_DEFS.find((r) => r.key === "normal_user");
     expect(nu.permissions).toEqual([]);
   });
+
+  it("membership.manage (M3) is in the catalog and held by coordinator/secretary/admin, not normal_user/viewer", () => {
+    expect(PERMISSION_KEYS).toContain("membership.manage");
+    const has = (key) => ROLE_DEFS.find((r) => r.key === key)?.permissions ?? [];
+    expect(has("coordinator")).toContain("membership.manage");
+    expect(has("secretary")).toContain("membership.manage");
+    expect(has("admin")).toContain("membership.manage"); // admin = full catalog minus dev-only
+    expect(has("normal_user")).not.toContain("membership.manage");
+    expect(has("viewer")).not.toContain("membership.manage");
+    // co_coordinator drafts content but does NOT manage the roster.
+    expect(has("co_coordinator")).not.toContain("membership.manage");
+  });
 });
 
 describe("RBAC catalog integrity", () => {

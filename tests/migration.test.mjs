@@ -16,6 +16,9 @@ const m0 = m0Folder ? readFileSync(join(migrationsDir, m0Folder, "migration.sql"
 const dedupFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_notification_dedup_uq"));
 const dedup = dedupFolder ? readFileSync(join(migrationsDir, dedupFolder, "migration.sql"), "utf8") : "";
 
+const m3Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m3"));
+const m3 = m3Folder ? readFileSync(join(migrationsDir, m3Folder, "migration.sql"), "utf8") : "";
+
 const TABLES = [
   "app_user", "auth_account", "verification_token", "academic_year", "role",
   "permission", "role_permission", "org_unit_lineage", "role_assignment",
@@ -172,5 +175,32 @@ describe("Session 11 / M0 forward migration (member platform)", () => {
   it("the dedup follow-up migration adds the one-open-request-per-(type,email) partial unique", () => {
     expect(dedupFolder, "missing _notification_dedup_uq migration").toBeTruthy();
     expect(dedup).toMatch(/CREATE UNIQUE INDEX "notification_one_open_per_email_uq"[\s\S]*WHERE "status" IN \('open', 'assigned'\) AND "subject_email" IS NOT NULL/);
+  });
+});
+
+describe("Session 11 / M3 forward migration (club pages + memberships)", () => {
+  it("the migration file exists", () => {
+    expect(m3Folder, "missing _member_platform_m3 migration").toBeTruthy();
+  });
+
+  it("creates the club_membership table with its FKs to app_user + org_unit_lineage", () => {
+    expect(m3).toMatch(/CREATE TABLE "club_membership"/);
+    expect(m3).toMatch(/club_membership_user_id_fkey[\s\S]*REFERENCES "app_user"\("id"\) ON DELETE CASCADE/);
+    expect(m3).toMatch(/club_membership_org_unit_lineage_key_fkey[\s\S]*REFERENCES "org_unit_lineage"\("lineage_key"\) ON DELETE RESTRICT/);
+    expect(m3).toMatch(/club_membership_created_by_fkey[\s\S]*REFERENCES "app_user"\("id"\) ON DELETE SET NULL/);
+  });
+
+  it("has the one-membership-per-(user, lineage) unique + the status CHECK (additive, not an init rewrite)", () => {
+    expect(m3).toMatch(/CREATE UNIQUE INDEX "club_membership_user_lineage_uq"[\s\S]*"user_id", "org_unit_lineage_key"/);
+    expect(m3).toMatch(/club_membership_status_chk[\s\S]*'active', 'inactive'/);
+  });
+
+  it("adds the announcement_payload.sync_to_central opt-in column (additive)", () => {
+    expect(m3).toMatch(/ALTER TABLE "announcement_payload" ADD COLUMN "sync_to_central" BOOLEAN/);
+  });
+
+  it("the schema declares the ClubMembership model + the sync_to_central field via @@map/@map", () => {
+    expect(schema).toContain('@@map("club_membership")');
+    expect(schema).toMatch(/syncToCentral\s+Boolean\?\s+@map\("sync_to_central"\)/);
   });
 });

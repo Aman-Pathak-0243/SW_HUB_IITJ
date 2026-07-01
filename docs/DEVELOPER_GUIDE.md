@@ -619,6 +619,43 @@ then `npm run db:seed` (idempotent; +5 permissions → 50).
   (until then `sendBulk` returns a friendly 503; KNOWN_ISSUES #40). Tests inject a fake transport +
   a no-op `sleep`. Surfaced at `/admin/mail`. Initial passwords still go via external institute mail.
 
+## Member platform — M3: club/council pages + memberships (Session 11)
+
+Migration `20260701120000_member_platform_m3` (additive: `club_membership` + FKs/unique/CHECK +
+`announcement_payload.sync_to_central`). After pulling: `npm run db:migrate` then `npm run db:seed`
+(idempotent; +1 permission → 51, +the `club_doc` content type). **NB:** the Prisma model now selects
+`announcement_payload.sync_to_central`, so announcement reads require the migration applied.
+
+- **Club memberships (DL-075).** `lib/memberships/service.mjs` — a STANDALONE M-M (`app_user` ↔
+  `org_unit_lineage`, durable across years, `UNIQUE(user, lineage)`). `addMembership({ userId|email,
+  orgUnitLineageKey|orgUnitId|slug, role?, status? })` (idempotent upsert — a status-only re-add
+  PRESERVES the existing role), `removeMembership`, `setMembershipStatus`, `listMembershipsForUnit`
+  (PII roster — gated), `getMembershipCountForUnit` (public aggregate — ungated), `listUserMemberships(userId)`
+  ("my clubs" — self). All mutations gate the NEW **`membership.manage`** permission SCOPED to the unit's
+  lineage (`assertActorPermission(actor, "membership.manage", { orgUnitLineageKey, academicYearId })`,
+  DL-066) BEFORE any disclosure; one semantic audit row each (`ClubMembership` is in `AUTO_AUDIT_SKIP`).
+  **Bulk CSV sync:** `importClubMemberships({ orgUnitLineageKey|orgUnitId|slug, csv, defaultRole?, defaultStatus? })`
+  — idempotent by `(user, lineage)`, resolves each email→account (missing accounts REPORTED, never
+  auto-created), ONE summary audit row. Pure `parseMembershipCsv` (lib/memberships/forms.mjs) mirrors it.
+  Registry actions: `membership.{add,remove,setStatus,import}` (scoped) on `POST /api/admin/action`.
+- **Club markdown docs + announcements/events (DL-076).** `club_doc` is a content_type reusing
+  `page_block_payload` (`blockKind='markdown'`, `body=markdown`) — CRUD via the CMS service scoped to
+  the club's lineage (content.*), each doc its own lineage. Club announcements/events = the existing
+  types bound to the club via `content_item.orgUnitId`. Public reads: `lib/org/docs.mjs#listClubDocs`,
+  `lib/events/public.mjs#listClubEvents/listClubAnnouncements` (archive-like: `enforceWindow:false`).
+- **Safe markdown (DL-077).** `lib/markdown/render.mjs#renderMarkdown(md)` — PURE, escape-FIRST (HTML
+  escaped before any markup → injection impossible), scheme-validated links (`isSafeHref`). Feed its
+  output to `dangerouslySetInnerHTML`. `markdownPreview(md, max)` for card excerpts. Reused by M4.
+- **Announcement sync-to-central (DL-078).** Set `payload.syncToCentral = true` on a club announcement
+  to also surface it on the central board. `listPublicAnnouncements` filters via the pure
+  `isCentralAnnouncement(item, payload)` (central `orgUnitId==null` OR synced). Club listings group
+  past/current/upcoming with `groupByWindow` (fromKey `publishFrom`, untilKey `publishUntil`).
+- **Tabbed club page (DL-079).** `lib/org/public.mjs#getClubPageView(slug)` aggregates the base view +
+  events/announcements/docs/memberCount (concurrently); `app/components/OrgUnitTabs.jsx` (Client) renders
+  the tabs. Expanded tabs (Announcements/Upcoming/Past/Achievements-stub/Documents) only for
+  `EXPANDED_UNIT_TYPES` (club/council); hostels/messes keep Overview + Resources. `OrgUnitPage` is removed.
+  The M8 **usage beacon** is wired in the root layout (`app/components/UsageBeacon.jsx` → `POST /api/usage`).
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

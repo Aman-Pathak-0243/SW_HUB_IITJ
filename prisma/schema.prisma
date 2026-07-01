@@ -228,6 +228,8 @@ model User {
   pageVisits             PageVisit[]       @relation("PageVisitUser")
   tableThresholdsUpdated TableThreshold[]  @relation("TableThresholdUpdatedBy")
   authorizedSendersCreated AuthorizedSender[] @relation("AuthorizedSenderCreatedBy")
+  clubMemberships        ClubMembership[]  @relation("ClubMembershipUser")
+  clubMembershipsCreated ClubMembership[]  @relation("ClubMembershipCreatedBy")
 
   @@index([status])
   @@map("app_user")
@@ -367,6 +369,7 @@ model OrgUnitLineage {
   orgUnits            OrgUnit[]
   roleAssignments     RoleAssignment[]
   permissionOverrides UserPermissionOverride[]
+  clubMemberships     ClubMembership[]
 
   @@index([firstSeenYearId])
   @@map("org_unit_lineage")
@@ -764,6 +767,12 @@ model AnnouncementPayload {
   publishFrom  DateTime?    @map("publish_from") @db.Timestamptz
   publishUntil DateTime?    @map("publish_until") @db.Timestamptz
   coverMediaId String?      @map("cover_media_id") @db.Uuid
+  // Member-platform M3 (DL-078): a CLUB-specific announcement (a content_item bound
+  // to a club via org_unit_id) is club-only by default; setting this opts it in to
+  // ALSO appear on the central (staff) announcements board. NULL/false = club-only.
+  // Additive column (forward migration 20260701_member_platform_m3), never on
+  // central (org_unit_id NULL) announcements.
+  syncToCentral Boolean?    @map("sync_to_central")
 
   revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
   cover    MediaAsset?     @relation("AnnouncementCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
@@ -1142,4 +1151,40 @@ model AuthorizedSender {
 
   @@index([active])
   @@map("authorized_sender")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M3 (club/council pages + memberships)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Club / society / student-chapter MEMBERSHIP (M3, DL-075) — a STANDALONE
+// many-to-many between an account (`app_user`) and a LOGICAL org unit
+// (`org_unit_lineage`, NOT a per-year `org_unit`), so a membership is durable
+// across academic years and one user can belong to many clubs/societies/chapters.
+// It is operational relational data with its own lifecycle (the DL-038 "own table"
+// rule), NOT CMS content. Coordinators submit member email lists; an admin/dev bulk-
+// uploads the mapping (CSV) to SYNC, idempotent by (user, lineage) (DL-031). Managed
+// via `membership.manage`, SCOPED to the unit's lineage (requireScopedPermission,
+// DL-066). `status` is CHECK-guarded (active|inactive) for soft removal; `role` is a
+// free-text membership label. Audited SEMANTICALLY by lib/memberships/service.mjs (in
+// AUTO_AUDIT_SKIP), mirroring the other member-platform standalone tables.
+model ClubMembership {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  orgUnitLineageKey String   @map("org_unit_lineage_key") @db.Uuid
+  role              String? // free-text membership label (e.g. "Member", "Volunteer")
+  status            String   @default("active") // active | inactive (CHECK in raw SQL)
+  joinedAt          DateTime @default(now()) @map("joined_at") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  user           User           @relation("ClubMembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  createdBy      User?          @relation("ClubMembershipCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, orgUnitLineageKey]) // one membership per (account, logical unit) — the importer's idempotency key
+  @@index([orgUnitLineageKey, status])
+  @@index([userId])
+  @@map("club_membership")
 }

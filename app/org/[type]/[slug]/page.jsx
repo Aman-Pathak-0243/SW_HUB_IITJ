@@ -1,12 +1,14 @@
-// Data-driven org DETAIL page (Session 5) — /org/{councils,clubs,hostels,messes}/[slug].
-// Resolves the published unit for the current year (lib/org/public.mjs) and hands
-// it to the single <OrgUnitPage> renderer. The `[type]` segment is only for tidy
-// URLs; the unit is resolved by its (year-unique) slug. force-dynamic so it
+// Data-driven org DETAIL page (Session 5; TABBED in M3) —
+// /org/{councils,clubs,hostels,messes}/[slug]. Resolves the published unit for the
+// current year (lib/org/public.mjs#getClubPageView — the base view PLUS the expanded
+// club/council tabs: announcements, events organized, documents, achievements) and
+// hands it to the single <OrgUnitTabs> renderer. The `[type]` segment is only for
+// tidy URLs; the unit is resolved by its (year-unique) slug. force-dynamic so it
 // always reflects the live current year rather than a build-time snapshot.
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
-import OrgUnitPage from "../../../components/OrgUnitPage";
-import { getPublicOrgUnit } from "../../../../lib/org/public.mjs";
+import OrgUnitTabs from "../../../components/OrgUnitTabs";
+import { getClubPageView } from "../../../../lib/org/public.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,7 @@ export default async function OrgUnitDetailPage({ params }) {
   let view = null;
   let errored = false;
   try {
-    view = await getPublicOrgUnit(slug);
+    view = await getClubPageView(slug);
   } catch (e) {
     errored = true; // a DB/read failure — distinct from "not published this year"
   }
@@ -26,7 +28,7 @@ export default async function OrgUnitDetailPage({ params }) {
         {errored ? (
           <div className="max-w-3xl mx-auto px-6 py-24 text-center text-gray-600">This page is temporarily unavailable. Please try again shortly.</div>
         ) : (
-          <OrgUnitPage view={view} />
+          <OrgUnitTabs view={view} />
         )}
       </main>
       <Footer />

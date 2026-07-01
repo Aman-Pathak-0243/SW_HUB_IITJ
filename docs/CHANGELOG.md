@@ -24,6 +24,57 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M3 (club/council pages + memberships) · 2026-07-01
+- **Club memberships (DL-075)** — a NEW standalone `club_membership` many-to-many
+  (`app_user` ↔ `org_unit_lineage`, durable across years, `UNIQUE(user, lineage)`,
+  `status` CHECK). [lib/memberships/service.mjs](../lib/memberships/service.mjs)
+  (`addMembership`/`removeMembership`/`setMembershipStatus`/`listMembershipsForUnit`/
+  `listUserMemberships`/`getMembershipCountForUnit`) + the pure client-safe
+  [lib/memberships/forms.mjs](../lib/memberships/forms.mjs) (`parseMembershipCsv`,
+  status vocab). Managed via a NEW scoped **`membership.manage`** permission
+  (coordinator/secretary/admin), gated at the unit's lineage (`requireScopedPermission`,
+  DL-066). An **idempotent bulk CSV importer** (`importClubMemberships`) syncs a
+  coordinator-submitted email list — idempotent by `(user, lineage)`, reports missing
+  accounts (never auto-creates), ONE summary audit row (DL-031).
+- **Club sub-content (DL-076)** — a NEW `content_type='club_doc'` (year-scoped, org-bound)
+  REUSES `page_block_payload` (markdown docs; no new payload table, DL-006), each doc its
+  own lineage (DL-041). Club-specific announcements & events bind to the club via
+  `content_item.orgUnitId`; all CRUD through the CMS service scoped to the club's lineage.
+  Public reads: [lib/org/docs.mjs](../lib/org/docs.mjs)#`listClubDocs`,
+  [lib/events/public.mjs](../lib/events/public.mjs)#`listClubEvents`/`listClubAnnouncements`.
+- **Safe markdown (DL-077)** — [lib/markdown/render.mjs](../lib/markdown/render.mjs): a
+  PURE, dependency-free, ESCAPE-FIRST `renderMarkdown` (HTML escaped before any markup →
+  injection structurally impossible) + scheme-validated links (`isSafeHref` blocks
+  `javascript:`/`data:` incl. control-char bypass) + `markdownPreview`. Reused by M4.
+- **Announcement sync-to-central (DL-078)** — additive `announcement_payload.sync_to_central`;
+  a club announcement is club-only by default and opts in to the central board. The central
+  read filters via the pure `isCentralAnnouncement` (central-or-synced); club listings group
+  past/current/upcoming via `groupByWindow` (DL-074).
+- **Tabbed club/council page + beacon (DL-079)** — ONE data-driven
+  [OrgUnitTabs](../app/components/OrgUnitTabs.jsx) (Client shell) over one aggregated
+  Server-Component read [lib/org/public.mjs](../lib/org/public.mjs)#`getClubPageView`:
+  Overview / Announcements / Upcoming / Past events / **Achievements (M4 stub)** / Resources /
+  Documents (hostels/messes keep Overview + Resources). Supersedes `OrgUnitPage`. "My clubs"
+  added to `/member`. The optional M8 **usage beacon** is now wired (`UsageBeacon` in the root
+  layout → `POST /api/usage`), closing KNOWN_ISSUES #41.
+- **Schema** — one additive forward migration `20260701120000_member_platform_m3`
+  (`club_membership` + FKs/unique/CHECK + `announcement_payload.sync_to_central`), applied by
+  the operator via `npm run db:migrate` (init untouched, DL-027). `ClubMembership` registered
+  in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`. `club_doc` content_type + `membership.manage`
+  permission are seed DATA (idempotent re-seed). **Permissions → 51.**
+- **Tests** — **448 static** (was 415; +`tests/markdown.test.mjs` 13, +`tests/memberships.test.mjs`
+  14, +migration/rbac M3 assertions) + a NEW live suite `tests/m3.db.test.mjs` (membership
+  idempotency + scoped 403 + PII read-gate deny + role-preservation, importer idempotency/missing,
+  club_doc CRUD + scoped, announcement sync-to-central, club events, `getClubPageView`). `next
+  lint` clean. The live suite is **pending the operator's `db:migrate`+`db:seed`** (the build env
+  blocked applying a live migration — KNOWN_ISSUES #42).
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (14 agents):
+  **4 raw → 3 confirmed-both + 1 single-vote → all 4 fixed (0 refuted):** (medium) `addMembership`
+  wiped an existing role on a status-only re-add → role preserved unless supplied; (low)
+  `parseMembershipCsv` line numbers off by blank/header lines → true file lines; (low) m3.db
+  teardown leaked the coordinator's `grant_role` audit row → tracked + cleaned; (low) missing
+  PII-roster deny-path test → added.
+
 ### Added/Changed — Session 11: Member Platform M7 + M8 spine (notifications/feedback + developer dashboard) · 2026-06-30
 - **M7 — notifications generalized (DL-069)** — the M0 `notification` queue gains a
   free-text `label`, keyset pagination (`listNotificationsPage`, createdAt+id cursor),

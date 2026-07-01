@@ -1,14 +1,67 @@
 # Current Status
 
-**Last updated:** 2026-06-30
-**Session:** 11 — **M7/M8 SPINE COMPLETE** (centralized notifications + feedback/support
-tickets + the developer dashboard: action-log export, usage analytics, per-table storage
-thresholds, bulk mail), on top of the **plugin + M0 + M2 + M1**. Sessions 1–10 remain
+**Last updated:** 2026-07-01
+**Session:** 11 — **M3 COMPLETE** (club/council TABBED detail pages + `club_membership`
+many-to-many + bulk CSV importer + markdown docs + club announcements/events + the wired
+usage beacon), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine**. Sessions 1–10 remain
 complete (deployable V2).
 **Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2, ✅ M1, ✅ M7, ✅ M8. **Next: M3** (club/council pages + memberships), then
-M4 → M5 → M6.
+✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3. **Next: M4** (Wall of Fame), then M5 → M6.
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M3: club/council pages + memberships)
+
+- **Club memberships (DL-075).** A NEW standalone **`club_membership`** many-to-many
+  (`app_user` ↔ `org_unit_lineage`) — durable across academic years (lineage-keyed, not
+  per-year), `UNIQUE(user, lineage)`, `status` CHECK (active|inactive). [lib/memberships/service.mjs](lib/memberships/service.mjs)
+  (add/remove/setStatus + `listMembershipsForUnit` [gated PII roster] + `getMembershipCountForUnit`
+  [public aggregate] + `listUserMemberships` [self "my clubs"]) + the pure client-safe
+  [lib/memberships/forms.mjs](lib/memberships/forms.mjs). A NEW **`membership.manage`** permission
+  (coordinator/secretary/admin) gates every mutation SCOPED to the unit's lineage
+  (`requireScopedPermission`, DL-066) BEFORE any disclosure; one semantic audit row each
+  (`ClubMembership` ∈ `AUTO_AUDIT_SKIP`). An **idempotent bulk CSV importer**
+  (`importClubMemberships`) syncs a coordinator-submitted email list — idempotent by
+  `(user, lineage)`, reports missing accounts (never auto-creates them), ONE summary audit row (DL-031).
+- **Club sub-content (DL-076).** A NEW `content_type='club_doc'` (year-scoped, org-bound) REUSES
+  `page_block_payload` (markdown docs; no new payload table, DL-006), each doc its OWN lineage
+  (DL-041). Club-specific **announcements** & **events** bind to the club via `content_item.orgUnitId`;
+  all CRUD flows through the CMS service scoped to the club's lineage (content.* + DL-066). Public
+  reads: [lib/org/docs.mjs](lib/org/docs.mjs)#`listClubDocs`, [lib/events/public.mjs](lib/events/public.mjs)#`listClubEvents`/`listClubAnnouncements`.
+- **Safe markdown (DL-077).** [lib/markdown/render.mjs](lib/markdown/render.mjs): a PURE,
+  dependency-free, **escape-FIRST** `renderMarkdown` (HTML escaped before any markup → injection is
+  structurally impossible) + scheme-validated links (`isSafeHref` blocks `javascript:`/`data:` incl.
+  control-char bypass) + `markdownPreview`. Reused by M4.
+- **Announcement sync-to-central (DL-078).** Additive `announcement_payload.sync_to_central`: a club
+  announcement is club-only by default and OPTS IN to also appear on the central board. The central
+  read (`listPublicAnnouncements`) filters via the pure `isCentralAnnouncement` (central-or-synced);
+  club listings group past/current/upcoming via `groupByWindow` (DL-074 reuse).
+- **Tabbed club/council page + beacon (DL-079).** ONE data-driven [OrgUnitTabs](app/components/OrgUnitTabs.jsx)
+  (Client shell) over one aggregated Server-Component read [lib/org/public.mjs](lib/org/public.mjs)#`getClubPageView`:
+  Overview / Announcements / Upcoming / Past events / **Achievements (M4 stub)** / Resources /
+  Documents (hostels/messes keep Overview + Resources). Custom team roles render for free via
+  `appointment.title_override`. Supersedes `OrgUnitPage`. "My clubs" added to `/member`. The optional
+  M8 **usage beacon** is now wired ([UsageBeacon](app/components/UsageBeacon.jsx) in the root layout →
+  `POST /api/usage`), closing KNOWN_ISSUES #41.
+- **Schema.** One additive forward migration `20260701120000_member_platform_m3` (`club_membership` +
+  FKs/unique/CHECK + `announcement_payload.sync_to_central`); init untouched (DL-027). `ClubMembership`
+  registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`. `club_doc` content_type + `membership.manage`
+  permission are seed DATA. **Permissions → 51.** (Operator applies `npm run db:migrate` then
+  `db:seed` on pull — both idempotent; the Prisma model now selects `sync_to_central`, so announcement
+  reads require the migration applied.)
+- **Tests.** **448 static** (was 415; +`tests/markdown.test.mjs` 13, +`tests/memberships.test.mjs` 14,
+  +migration/rbac M3 assertions) + a NEW live suite `tests/m3.db.test.mjs` (membership idempotency +
+  role-preservation + scoped 403 + PII read-gate deny, importer idempotency/missing, club_doc CRUD +
+  scoped, announcement sync-to-central, club events, `getClubPageView`). `npm run lint` clean. The
+  **live m3 suite is written but pending the operator's `db:migrate`+`db:seed`** — the build environment
+  blocked the agent from applying a live migration (KNOWN_ISSUES #42); run it once on a warm Neon,
+  isolated (per #39), after migrating.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (14 agents):
+  **4 raw → 3 confirmed-both + 1 single-vote → all 4 fixed (0 refuted):** (medium) `addMembership`
+  wiped an existing role on a status-only re-add → role now preserved unless explicitly supplied
+  (+ a live assertion); (low) `parseMembershipCsv` reported filtered-index line numbers → true file
+  lines (+ a static assertion); (low) the m3.db teardown leaked the coordinator's `grant_role` audit
+  row → tracked + cleaned; (low, single-vote) no negative-path test on the PII roster read → 401/403
+  deny assertions added.
 
 ## What is done (Session 11 — M7 + M8 spine: notifications/feedback + developer dashboard)
 
@@ -640,10 +693,11 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**415 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  green (**448 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
   live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
   media (3) + developer console (10) + users/roles (6) + M0 (8) + M2 (7) + M1 (6) +
-  **M7 (4) + M8 (3)** live tests. (The full live suite runs the DB suites in parallel against one Neon DB;
+  M7 (4) + M8 (3) + **M3 (`m3.db`, written — run after `db:migrate`+`db:seed`; KNOWN_ISSUES #42)**
+  live tests. (The full live suite runs the DB suites in parallel against one Neon DB;
   the stateful `year.db` suite — it mutates the shared current-year row — can show a
   transient P2025 under that contention and is re-confirmed green in isolation. M1 does
   not touch the year engine.)
@@ -657,6 +711,16 @@ module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
   transient "Can't reach database server" on a cold compute — re-run once if so (not
   a logic failure). The org live suite is the slowest (the importer makes many
   sequential audited tx round-trips).
+- **Club pages + memberships (M3):** club/council detail pages are ONE tabbed renderer
+  (`app/components/OrgUnitTabs.jsx`) over `lib/org/public.mjs#getClubPageView`. **Memberships**
+  are `lib/memberships/service.mjs` (a `club_membership` M-M keyed to `org_unit_lineage`), gated by
+  the scoped `membership.manage` (coordinator/secretary/admin) — reuse `addMembership`/
+  `importClubMemberships` (don't add a parallel roster). **Club markdown docs** are
+  `content_type='club_doc'` (reuses `page_block_payload`), rendered SAFELY via
+  `lib/markdown/render.mjs#renderMarkdown` (escape-first — reuse it for M4). **Club announcements/events**
+  bind to a club via `content_item.orgUnitId`; a club announcement opts into the central board via
+  `announcement_payload.sync_to_central` (`isCentralAnnouncement`). Group windowed listings with
+  `groupByWindow` (DL-074).
 - **M7/M8 spine:** centralized **notifications** (`lib/notifications/service.mjs` —
   `createNotification`/`listNotificationsPage`, labels, dedupe) + standalone **feedback**
   tickets (`lib/feedback/service.mjs`, public `POST /api/feedback`, `FB-NNNNN`) +

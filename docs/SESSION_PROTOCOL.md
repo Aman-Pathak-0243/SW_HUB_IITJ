@@ -32,10 +32,12 @@ context and no repeated work.
 > existing spine. Shipped so far: the developer-controlled **plugin** control plane,
 > **M0** (auth & account lifecycle), **M2** (RBAC categories + per-email permission
 > overrides + smart search), **M1** (user status active/inactive/revoked + the three
-> surfaces + scoped route RBAC), and the **M7/M8 spine** (centralized notifications +
+> surfaces + scoped route RBAC), the **M7/M8 spine** (centralized notifications +
 > feedback/support tickets + the developer dashboard: action-log export, usage
-> analytics, per-table storage thresholds, and bulk mail). **Next: M3** (club/council
-> pages + memberships), then M4 → M5 → M6.
+> analytics, per-table storage thresholds, and bulk mail), and **M3** (club/council
+> tabbed pages + `club_membership` M-M + bulk CSV importer + markdown docs + club
+> announcements/events + the wired usage beacon). **Next: M4** (Wall of Fame), then
+> M5 → M6.
 > Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).

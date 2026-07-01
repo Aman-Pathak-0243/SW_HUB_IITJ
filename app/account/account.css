@@ -157,3 +157,16 @@
 .mbr-surfaces { border-top: 1px solid #eef1f6; padding-top: 16px; margin-top: 4px; }
 .mbr-surfaces .acc-links { margin-top: 6px; }
 .mbr-foot { margin-top: 20px; }
+
+/* My clubs (M3) */
+.mbr-clubs { border-top: 1px solid #eef1f6; padding-top: 16px; margin-top: 16px; }
+.mbr-clubs ul { list-style: none; padding: 0; margin: 8px 0 0; }
+.mbr-club {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid #eef1f6; border-radius: 10px; margin-bottom: 8px;
+}
+.mbr-club-name { font-weight: 600; color: #003f87; }
+.mbr-club-name a { color: #003f87; text-decoration: none; }
+.mbr-club-name a:hover { text-decoration: underline; }
+.mbr-club-meta { font-size: 0.78rem; color: #5a6478; }
+.mbr-empty { color: #5a6478; font-size: 0.9rem; margin: 8px 0 0; }

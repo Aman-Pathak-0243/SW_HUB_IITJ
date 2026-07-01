@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import "../account/account.css";
 import { SignInCard } from "../account/_components/AuthClient";
 import { loadMemberContext } from "../../lib/member/server.mjs";
+import { listUserMemberships } from "../../lib/memberships/service.mjs";
 
 // The MEMBER (normal) view (M1, DL-065/066). Minimal by design — the rich member
 // pages (club memberships, profile, achievements) are M3/M6. This surface confirms
@@ -59,6 +60,15 @@ export default async function MemberPage() {
   const { member, surface, hasAdminAccess, access } = ctx;
   const statusClass = access.canParticipate ? "good" : "warn";
 
+  // "My clubs" (M3) — the member's club/society/chapter memberships, resolved to the
+  // current-year club name. Best-effort: a read failure degrades to an empty section.
+  let clubs = [];
+  try {
+    clubs = await listUserMemberships(member.id);
+  } catch {
+    clubs = [];
+  }
+
   return (
     <div className="acc-root">
       <div className="acc-card mbr-card">
@@ -74,6 +84,32 @@ export default async function MemberPage() {
             ? "Your account is active — you can browse the portal, see your achievements, and participate in events."
             : "Your account is inactive — you can browse the portal and see your achievements, but you cannot participate in events right now."}
         </p>
+
+        {/* My clubs (M3) — memberships across clubs/societies/chapters. */}
+        <div className="mbr-clubs">
+          <span className="mbr-label">My clubs &amp; societies</span>
+          {clubs.length ? (
+            <ul>
+              {clubs.map((c) => (
+                <li key={c.id} className="mbr-club">
+                  <span className="mbr-club-name">
+                    {c.unit?.slug ? (
+                      <Link href={`/org/${c.unit.typeKey ?? "clubs"}/${c.unit.slug}`}>{c.unit.name}</Link>
+                    ) : (
+                      c.unit?.name ?? "A club"
+                    )}
+                  </span>
+                  <span className="mbr-club-meta">
+                    {c.role ? `${c.role} · ` : ""}
+                    {c.status === "active" ? "Member" : "Inactive"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mbr-empty">You are not listed as a member of any club yet. A club coordinator can add you.</p>
+          )}
+        </div>
 
         {/* Surface routing (DL-066): show the back-office entry the member is entitled to. */}
         {(surface === "developer" || surface === "admin" || hasAdminAccess) && (

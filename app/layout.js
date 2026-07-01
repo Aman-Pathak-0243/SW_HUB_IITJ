@@ -2,6 +2,7 @@ import { Geist, Geist_Mono, Cormorant_Garamond, Outfit } from "next/font/google"
 import "./globals.css"
 import Loader from "@/loader/Loader"
 import Providers from "./providers"
+import UsageBeacon from "./components/UsageBeacon"
 
 // Font consolidation (Session 10, KNOWN_ISSUES #12). ALL fonts are now loaded once
 // here via next/font/google, which self-hosts them and emits optimized @font-face
@@ -31,6 +32,8 @@ export default function RootLayout({ children }) {
       >
         {/* ✅ Auth Context available to entire app */}
         <Providers>
+          {/* Hidden usage-analytics beacon (M8) — best-effort, inert when the plugin is off. */}
+          <UsageBeacon />
           <Loader>{children}</Loader>
         </Providers>
       </body>
