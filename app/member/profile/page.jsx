@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import "../../account/account.css";
 import { SignInCard } from "../../account/_components/AuthClient";
 import MemberProfile from "../../components/MemberProfile";
+import MemberNav from "../../components/MemberNav";
 import { loadMemberContext } from "../../../lib/member/server.mjs";
 import { getMemberProfileView } from "../../../lib/member/profile.mjs";
 
@@ -54,7 +55,9 @@ export default async function MemberProfilePage() {
   }
 
   return (
-    <div className="prof-page">
+    <>
+      <MemberNav current="/member/profile" />
+      <div className="prof-page">
       <div className="prof-page-head">
         <h1>My profile</h1>
         <Link href="/member">← Member home</Link>
@@ -64,6 +67,7 @@ export default async function MemberProfilePage() {
       ) : (
         <p className="prof-empty">Your profile is temporarily unavailable. Please try again shortly.</p>
       )}
-    </div>
+      </div>
+    </>
   );
 }

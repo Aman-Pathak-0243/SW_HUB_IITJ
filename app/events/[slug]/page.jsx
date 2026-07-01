@@ -86,6 +86,23 @@ export default async function EventDetailPage({ params }) {
       </>
     );
   }
+  // A revoked or view-disabled account (holding a still-valid JWT) must NOT see the
+  // login-only playground detail — mirror /events, /events/organized and /member, which
+  // all hold these states out (consolidation review B2; DL-065/066). Only `ok` proceeds.
+  if (ctx.state === "revoked" || ctx.state === "view-disabled") {
+    return (
+      <>
+        <Header />
+        <main className="min-h-screen bg-gray-50 pt-24 pb-20">
+          <p className="max-w-2xl mx-auto px-6 text-center text-gray-500">
+            The event playground is available to members. If you believe you should have access, contact a portal administrator.
+          </p>
+          <p className="mt-6 text-center"><Link href="/" className="text-[#003f87] underline">Back to the site</Link></p>
+        </main>
+        <Footer />
+      </>
+    );
+  }
   const canParticipate = ctx.state === "ok" ? ctx.access?.canParticipate === true : false;
   const userId = ctx.state === "ok" ? ctx.member.id : undefined;
 

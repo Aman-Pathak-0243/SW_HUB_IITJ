@@ -52,6 +52,13 @@ context and no repeated work.
 > Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).
+>
+> **Session 12 (2026-07-01) — consolidation / deploy-hardening (no new module):** the full
+> four-layer test gate (517 static + lint + build; every live suite per-file/single-fork on warm
+> Neon), single-fork nightly CI, a reusable route-render smoke (`scripts/route-smoke.mjs`), the
+> repeatable per-mode [WEBSITE_TESTING_SOP.md](WEBSITE_TESTING_SOP.md), a logged-in-member nav, and
+> **11 bug fixes** from a full-site per-role audit ([CONSOLIDATION_BUGLOG.md](CONSOLIDATION_BUGLOG.md),
+> DL-094/095). **The product is feature-complete and hardened; remaining work is operator/owner-owned.**
 
 Detailed scope, deliverables, dependencies, and acceptance criteria per session
 are in [MILESTONE_PLAN.md](MILESTONE_PLAN.md) (the living roadmap).

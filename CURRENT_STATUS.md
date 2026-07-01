@@ -1,17 +1,40 @@
 # Current Status
 
 **Last updated:** 2026-07-01
-**Session:** 11 — **M6 COMPLETE** (Member profiles & performance: a READ-ONLY aggregation
-module over the DURABLE ids M4/M5 store — a member PROFILE (identity/roles/affiliations/
-category-mapped events + registrations/upcoming/rank/achievements) with a self view + an
-admin view, PLUS per-stakeholder INSTITUTE CONTRIBUTION across a year for a member / club /
-custom entity), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine + M3 + M4 + M5**.
-Sessions 1–10 remain complete (deployable V2). **The full Session 11+ member-platform
-program (M0–M8) is now complete.**
-**Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3, ✅ M4, ✅ M5, ✅ M6. **Program complete — next is a
-consolidation / deploy-hardening pass** (see NEXT_TASK.md).
+**Session:** 12 — **CONSOLIDATION / DEPLOY-HARDENING COMPLETE** (no new module): the full
+four-layer test gate (static → live per-file/single-fork → route-render smoke → per-mode
+functional audit), a repeatable `docs/WEBSITE_TESTING_SOP.md`, a single-fork nightly CI live
+job, a small logged-in-member nav, and **11 bug fixes** from a full-site per-role audit
+(the rest documented-as-accepted). Built on the complete **M0–M8** member-platform program.
+**Project status:** ✅ Sessions 1–10 shipped; ✅ Session 11 program M0–M8 complete;
+✅ Session 12 consolidation/hardening complete. **Next: operator/owner backlog** (live-data
+imports + media migration + V1 secret rotation) — see NEXT_TASK.md.
 **Branch:** `portal-v2`
+
+## What is done (Session 12 — consolidation / deploy-hardening)
+
+- **Full test gate.** 517 static tests + `npm run lint` + `next build` clean. Every live suite
+  re-run PER-FILE, single-fork, on a warm Neon (`cms/year/org/events/resources/media/devconsole/
+  users/smoke` + `m0.db…m8.db`) — green. DB confirmed migrated (11 migrations, up to date) +
+  seeded (52 permissions / 11 roles / 13 content types; `member_platform` flag ON).
+- **CI (DL-094).** The nightly/secret-gated live job now warms Neon (`prisma migrate deploy`) and
+  runs `--pool=forks --poolOptions.forks.singleFork` — the whole live suite (m0–m8 + Sessions 1–10)
+  serialized, the documented KNOWN_ISSUES #39 remedy.
+- **Route-render smoke (DL-094).** `scripts/route-smoke.mjs` + `npm run test:routes` — hits every
+  route anonymously and fails on any 5xx; the reusable "is the hosted site up?" check.
+- **Testing SOP (DL-094).** `docs/WEBSITE_TESTING_SOP.md` — the repeatable per-mode full-site
+  procedure (11-role × 3-status matrix, feature-by-feature allow/deny checklist, plugin ON/OFF,
+  bug-log→fix→re-verify loop).
+- **Member nav (DL-094).** `MemberNav` + `SignOutButton` on `/member` + `/member/profile`.
+- **Full-site bug audit → 11 fixes (DL-095; `docs/CONSOLIDATION_BUGLOG.md`).** A per-feature ×
+  per-role adversarial audit found 21 confirmed defects → 11 fixed (B1 inactive+must-change lockout
+  via the new `requireLoggedInAccount` boundary; B2 the `/events/[slug]` revoked/view-disabled gate;
+  B3 the unstyled sign-in card; B4 capacity-raise waitlist promotion; B5 the non-destructive
+  membership re-import; B6 a shared CSV formula-injection guard `lib/csv/cell.mjs`; B7 the export
+  empty-roundId 500; B8 reopen-clears-note; B9 fail-closed export auditing; B10 the credited-club
+  link; B11 member sign-out) + 10 documented-as-accepted (KNOWN_ISSUES #45–#47 + minor items).
+  New static + m3/m5/m7 live regression assertions; the adversarial diff-review workflow found
+  **0 regressions**. No schema change (permissions stay 52, content types 13).
 
 ## What is done (Session 11 — M6: Member profiles & performance)
 

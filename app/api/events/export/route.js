@@ -28,8 +28,15 @@ export async function GET(req) {
   const eventItemId = searchParams.get("eventItemId");
   const kind = searchParams.get("kind") ?? "participants";
   const roundParam = searchParams.get("roundId");
-  // roundId: absent = all rounds; "overall" = the overall (round_id NULL) rows; else a uuid.
-  const roundId = roundParam == null ? undefined : roundParam === "overall" ? null : roundParam;
+  // roundId: absent/blank = all rounds; "overall" = the overall (round_id NULL) rows;
+  // else a uuid. A blank or malformed value used to reach the DB as an invalid uuid and
+  // 500 (consolidation review B7) — validate it here and return a friendly 422 instead.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let roundId;
+  if (roundParam == null || roundParam.trim() === "") roundId = undefined;
+  else if (roundParam === "overall") roundId = null;
+  else if (UUID_RE.test(roundParam)) roundId = roundParam;
+  else return NextResponse.json({ error: "Invalid roundId.", code: "BAD_ROUND_ID" }, { status: 422 });
 
   try {
     const { filename, contentType, content } = await exportEventCsv(eventItemId, kind, { userId: user.id }, { roundId });

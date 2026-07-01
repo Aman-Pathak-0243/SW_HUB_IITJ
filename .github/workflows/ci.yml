@@ -66,9 +66,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - name: Live-DB test suite
-        # Runs only when the DATABASE_URL secret is actually configured.
+      # Warm the Neon compute (it auto-suspends) and confirm the schema is applied
+      # before the suite runs, so cold-start latency isn't counted against the tests.
+      - name: Apply migrations (warm Neon)
         if: ${{ env.DATABASE_URL != '' }}
-        run: npm test
+        run: npx prisma migrate deploy
+      - name: Live-DB test suite (single-fork — covers m0–m8 + all Sessions 1–10 suites)
+        # Runs only when the DATABASE_URL secret is actually configured.
+        # SINGLE-FORK is required: vitest runs test files concurrently by default,
+        # and the stateful `year.db` suite mutates the shared current-year row, so a
+        # parallel run against one Neon DB shows transient P2025s (KNOWN_ISSUES #39).
+        # `--pool=forks --poolOptions.forks.singleFork` serializes every live suite —
+        # the whole member-platform program (m0.db … m8.db) plus cms/year/org/events/
+        # resources/media/devconsole/users/smoke — through a single worker.
+        if: ${{ env.DATABASE_URL != '' }}
+        run: npm test -- --pool=forks --poolOptions.forks.singleFork
         env:
           RUN_DB_TESTS: "1"

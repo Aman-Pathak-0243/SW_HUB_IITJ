@@ -10,6 +10,11 @@ import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { validateChangePasswordForm, passwordRequirements } from "../../../lib/admin/forms.mjs";
+// These components (esp. SignInCard) render on routes that do NOT import account.css —
+// the event playground (/events, /events/[slug], /events/organized). Import it here so
+// the card is styled everywhere it is used, not only on the /account + /member pages
+// (consolidation review B3). Next dedupes the shared import on pages that also load it.
+import "../account.css";
 
 function Card({ title, subtitle, children }) {
   return (

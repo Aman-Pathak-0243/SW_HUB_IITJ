@@ -6,6 +6,7 @@
 // blocks carry RAW markdown, rendered SAFELY here via lib/markdown/render.mjs
 // (escape-first, DL-077) — no HTML is ever produced upstream.
 import Image from "next/image";
+import Link from "next/link";
 import { renderMarkdown } from "../../lib/markdown/render.mjs";
 
 function fmtDate(d) {
@@ -87,11 +88,19 @@ function Credits({ credits }) {
   if (!clubs.length && !members.length) return null;
   return (
     <div className="flex flex-wrap gap-2 mt-3">
-      {clubs.map((c, i) => (
-        <span key={`c${i}`} className="text-xs font-semibold text-[#003f87] bg-blue-50 px-2.5 py-1 rounded-full">
-          🏛️ {c.name ?? "Club"}{c.role ? ` — ${c.role}` : ""}
-        </span>
-      ))}
+      {clubs.map((c, i) => {
+        const label = `🏛️ ${c.name ?? "Club"}${c.role ? ` — ${c.role}` : ""}`;
+        const cls = "text-xs font-semibold text-[#003f87] bg-blue-50 px-2.5 py-1 rounded-full";
+        // Link to the club's page when the shape carries a slug + type (consolidation
+        // review B10 — the docstring promised a link but the chip was a dead span).
+        return c.slug && c.typeKey ? (
+          <Link key={`c${i}`} href={`/org/${c.typeKey}/${c.slug}`} className={`${cls} hover:bg-blue-100`}>
+            {label}
+          </Link>
+        ) : (
+          <span key={`c${i}`} className={cls}>{label}</span>
+        );
+      })}
       {members.map((m, i) => (
         <span key={`m${i}`} className="text-xs font-semibold text-green-800 bg-green-50 px-2.5 py-1 rounded-full">
           👤 {m.name ?? "Member"}{m.role ? ` — ${m.role}` : ""}

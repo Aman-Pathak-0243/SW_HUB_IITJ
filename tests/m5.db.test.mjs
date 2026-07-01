@@ -238,6 +238,18 @@ describe.skipIf(!RUN)("Member platform M5 — Event Playground (live Neon)", () 
     await registration.setRegistrationStatus(m2reg.id, "cancelled", staffActor);
     const m3reg = await registration.getMyRegistration(eventItem.id, m3.id);
     expect(m3reg.status).toBe("confirmed");
+
+    // Raising CAPACITY also fills the waitlist (consolidation review B4 — a seat-CREATING
+    // path). m1 re-registers → waitlisted (cap 1, m3 confirmed); raising capacity to 2
+    // auto-promotes m1 from the waitlist (previously it was stranded).
+    const r1c = await registration.registerForEvent({ eventItemId: eventItem.id }, m1, { userId: m1.id });
+    expect(r1c.registration.status).toBe("waitlisted");
+    await settings.upsertEventSettings(eventItem.id, { capacity: 2 }, staffActor);
+    const m1reg = await registration.getMyRegistration(eventItem.id, m1.id);
+    expect(m1reg.status).toBe("confirmed");
+    const counts2 = await registration.getRegistrationCounts(eventItem.id);
+    expect(counts2.confirmed).toBe(2);
+    expect(counts2.waitlisted).toBe(0);
   });
 
   dbit("scores → per-round + overall ranking (standard competition rank); missing emails reported", async () => {

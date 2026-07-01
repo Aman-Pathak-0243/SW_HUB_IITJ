@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import "../account/account.css";
 import { SignInCard } from "../account/_components/AuthClient";
+import MemberNav from "../components/MemberNav";
 import { loadMemberContext } from "../../lib/member/server.mjs";
 import { listUserMemberships } from "../../lib/memberships/service.mjs";
 
@@ -70,7 +71,9 @@ export default async function MemberPage() {
   }
 
   return (
-    <div className="acc-root">
+    <>
+      <MemberNav current="/member" />
+      <div className="acc-root">
       <div className="acc-card mbr-card">
         <h1>Welcome{member.name ? `, ${member.name}` : ""}</h1>
         <p className="acc-sub">{member.email}</p>
@@ -129,6 +132,7 @@ export default async function MemberPage() {
 
         <div className="acc-links mbr-foot"><Link href="/">Back to the site</Link></div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

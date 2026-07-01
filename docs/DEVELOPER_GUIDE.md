@@ -64,8 +64,9 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (**307 static tests**; the live DB suites self-skip without `RUN_DB_TESTS`) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (**344 total**: smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 / dev-console 10 / users 6; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
+| `npm test` | Run the Vitest suite (**517 static tests**; the live DB suites self-skip without `RUN_DB_TESTS`) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test -- --pool=forks --poolOptions.forks.singleFork` | Include the live Neon DB tests. **Run single-fork (or per-file)** — vitest runs files in parallel by default and the stateful `year.db` suite then flakes against one Neon DB (KNOWN_ISSUES #39). Suites: smoke / cms / year / org / events / resources / media / devconsole / users + `m0.db…m8.db`. Slow (remote Neon latency); warm with `npm run db:migrate` first. |
+| `npm run test:routes` | **Route-render smoke** — `scripts/route-smoke.mjs` hits every route of a running server (default `http://localhost:3000`; `BASE_URL=…` for a deployed host) as an anonymous visitor and fails on any 5xx. Start `npm run dev` first. See [WEBSITE_TESTING_SOP.md](WEBSITE_TESTING_SOP.md) Layer 2. |
 | `npm run lint` | ESLint (`eslint .`; Next 16 removed `next lint`). Config: `eslint.config.mjs` (`backups/**` ignored). |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "../../../../lib/auth/session.mjs";
+import { requireLoggedInAccount } from "../../../../lib/auth/session.mjs";
 import { changeOwnPassword } from "../../../../lib/users/admin.mjs";
 import { withAuditContext } from "../../../../lib/cms/audit-context.mjs";
 import { assertFeatureEnabled, MEMBER_PLATFORM_FLAG } from "../../../../lib/platform/flags.mjs";
@@ -23,7 +23,12 @@ export async function POST(req) {
 
   let user;
   try {
-    user = await requireUser(); // authentication + live active-account check (401/403)
+    // Admit any LOGINABLE account (active OR inactive) — an inactive account is
+    // force-redirected here by the must-change middleware and must be able to complete
+    // its OWN forced change. The active-only requireUser() 403'd such accounts into a
+    // permanent lockout (consolidation review B1); requireLoggedInAccount() still rejects
+    // `revoked` and does not gate on the member-view toggle (a credential op, not a view).
+    user = await requireLoggedInAccount();
   } catch (e) {
     return NextResponse.json({ error: e.message, code: e.code }, { status: e.status ?? 401 });
   }

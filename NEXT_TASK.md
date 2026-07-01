@@ -1,29 +1,41 @@
 # Next Task
 
-**As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
-M1, the M7/M8 spine, M3, M4, M5, and now M6** (Member profiles & performance). **The full
-Session 11+ member-platform program (M0–M8) is COMPLETE.** The next session is a
-**consolidation / deploy-hardening + full-gate pass** (no new module).
+**As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the full M0–M8
+member-platform program.** **Session 12 completed the consolidation / deploy-hardening +
+full-gate pass** (no new module): the four-layer test gate, single-fork CI, the route-render
+smoke, `docs/WEBSITE_TESTING_SOP.md`, the member nav, and **11 bug fixes** from a full-site
+per-role audit. **The product is feature-complete and hardened; the remaining work is
+operator/owner-owned** (below), plus an OPTIONAL scoped-coordinator surface.
 
-> ### ▶️ NEXT — Program consolidation, full test gate & deploy hardening (no new module)
-> The M0–M8 feature program is done; this session hardens + ships it. Suggested scope
-> (pick per priority, run in automode at ultracode, keep the protocol):
-> 1. **Full test gate on a warm Neon.** Run the ENTIRE live suite PER-FILE (or single-fork)
->    to avoid the #39 parallel-`year.db` flake, and confirm the full static suite (516) +
->    `npm run lint` + `next build` are green. Neon is currently SLOW (~30–60s/live test on a
->    cold/loaded compute) — budget for it; run per-file, warm it first with `npm run db:migrate`.
-> 2. **CI:** extend `.github/workflows/ci.yml` so the member-platform live suites (m0–m8) run
->    in the nightly/secret-gated live job, single-fork.
-> 3. **Member surface polish + navigation:** the member experience now spans `/member`,
->    `/member/profile`, `/events`, `/wall-of-fame`, club pages — consider a small member
->    header/nav so a logged-in member can move between them (today `/member` links to profile;
->    the rest are reached by URL). Optional.
-> 4. **Scoped-coordinator surfaces (KNOWN_ISSUES #43):** a dedicated scoped view for a
->    club-scoped `event.manage` coordinator (and, by extension, a scoped Contribution/profile
->    view) — the seam exists (`assertEventManage`), only the nav gating is global today.
-> 5. **Operator/owner backlog:** the live-data imports + media migration + V1 secret rotation
->    (see OPERATIONS_RUNBOOK.md, KNOWN_ISSUES #18/#19) remain owner-owned.
-> **First:** confirm the operator ran `npm run db:migrate` + `npm run db:seed` (idempotent).
+> ### ▶️ NEXT — Operator/owner backlog + optional scoped-coordinator surface
+> There is no pending developer feature work. Remaining items:
+> 1. **Operator (run when convenient — OPERATIONS_RUNBOOK.md):** populate the live year —
+>    `npm run db:import:org` → `db:import:events` → `db:import:resources` (#27); then the media
+>    migration `npm run db:migrate:media -- --apply` + the safe `/public` prune (#18, runbook §3.1).
+>    Optionally `npm install nodemailer` + set `MAIL_*` to enable bulk mail (#40/#45).
+> 2. **Owner (anytime):** rotate/remove the V1 leaked secrets in `README.md` + purge history
+>    (#1), then drop the `.gitleaks.toml` by-SHA allowlist; consider rotating the Neon password (#19).
+> 3. **OPTIONAL dev work — scoped-coordinator surfaces (KNOWN_ISSUES #43):** a dedicated scoped
+>    admin view for a club-scoped `event.manage` coordinator (and a scoped Contribution/profile
+>    view) — the `assertEventManage` seam exists; only the nav gating is global today. This is
+>    the one remaining "nice to have" if a future session wants it.
+> **First (any session):** confirm the operator ran `npm run db:migrate` + `npm run db:seed`
+> (idempotent), and run the full gate per the SOP (static + lint + build + live per-file/single-fork).
+
+> ### ✅ Session 12 done — Consolidation / deploy-hardening (no new module)
+> Ran the full test gate (517 static + lint + `next build`; every live suite per-file single-fork on
+> warm Neon — green). Extended CI to warm Neon + run the live job single-fork (m0–m8 + Sessions 1–10;
+> the #39 remedy). Added a reusable route-render smoke (`scripts/route-smoke.mjs`, `npm run test:routes`)
+> and a repeatable per-mode full-site procedure (`docs/WEBSITE_TESTING_SOP.md`). Added a small
+> logged-in-member nav (`MemberNav` + `SignOutButton`) on `/member` + `/member/profile`. A per-feature ×
+> per-role adversarial audit found 21 confirmed defects → **11 fixed, 10 documented-as-accepted**
+> (`docs/CONSOLIDATION_BUGLOG.md`; DL-094/095): B1 inactive+must-change lockout (new
+> `requireLoggedInAccount` boundary), B2 `/events/[slug]` revoked/view-disabled gate, B3 unstyled
+> sign-in card, B4 capacity-raise waitlist promotion, B5 non-destructive membership re-import, B6 a
+> shared CSV formula-injection guard, B7 export empty-roundId 500, B8 reopen-clears-note, B9
+> fail-closed export auditing, B10 credited-club link, B11 member sign-out. New static + m3/m5/m7 live
+> regression assertions; the adversarial diff-review found **0 regressions**. **No schema change**
+> (permissions stay 52, content types 13).
 
 > ### ✅ Session 11 done — M6 (Member profiles & performance)
 > Built inside the `member_platform` plugin, on the full M0–M5 spine — a **READ-ONLY

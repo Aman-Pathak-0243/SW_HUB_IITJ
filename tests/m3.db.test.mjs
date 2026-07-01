@@ -189,6 +189,23 @@ describe.skipIf(!RUN)("Member platform M3 — club pages + memberships (live Neo
     expect(auditRows).toBeGreaterThanOrEqual(2);
   });
 
+  dbit("importClubMemberships re-sync is NON-destructive: keeps a manually-set role + status (B5)", async () => {
+    const u = await newMember("imp-nd");
+    // seed via the importer as active + role "Member"
+    const s1 = await memberships.importClubMemberships({ orgUnitLineageKey: lineageA, csv: `email,role\n${u.email},Member` }, actor);
+    expect(s1.summary.created).toBe(1);
+    // an admin manually promotes to "Captain" AND deactivates this member
+    await memberships.addMembership({ userId: u.id, orgUnitLineageKey: lineageA, role: "Captain", status: "inactive" }, actor);
+    // re-import the roster WITHOUT a role for this member (email only) — must NOT clobber
+    await memberships.importClubMemberships({ orgUnitLineageKey: lineageA, csv: `email,role\n${u.email}` }, actor);
+    const row = await prismaBase.clubMembership.findUnique({
+      where: { userId_orgUnitLineageKey: { userId: u.id, orgUnitLineageKey: lineageA } },
+      select: { role: true, status: true },
+    });
+    expect(row.role).toBe("Captain"); // role NOT wiped by the re-import
+    expect(row.status).toBe("inactive"); // NOT silently reactivated
+  });
+
   dbit("club_doc: create → publish → appears in listClubDocs; unpublish hides it", async () => {
     const { item } = await content.createDraft(
       { contentType: "club_doc", academicYearId: currentYear.id, orgUnitId: unitA.id, slug: `zz-m3-doc-${randomUUID().slice(0, 8)}`, title: "Club Charter", payload: { blockKind: "markdown", body: "# Charter\n\n- rule one\n- rule two" } },

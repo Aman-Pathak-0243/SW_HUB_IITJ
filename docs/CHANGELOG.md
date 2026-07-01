@@ -24,6 +24,58 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 12: Consolidation / deploy-hardening + full-site test gate (no new module) · 2026-07-01
+- **Program complete → hardening pass.** The M0–M8 member-platform program is done; this session
+  ships no new feature module. It runs the full test gate, extends CI, adds a repeatable full-site
+  testing procedure, and fixes the bugs a per-mode audit surfaced (treating the site as if hosted).
+- **Full gate.** 517 static tests + `npm run lint` + `next build` clean; every live suite re-run
+  PER-FILE, single-fork, on a warm Neon (Sessions-1–10 `cms/year/org/events/resources/media/
+  devconsole/users/smoke` + `m0.db…m8.db`).
+- **CI (DL-094).** `.github/workflows/ci.yml` — the nightly/secret-gated live job now warms Neon
+  (`prisma migrate deploy`) and runs `--pool=forks --poolOptions.forks.singleFork`, serializing the
+  whole live suite (the documented KNOWN_ISSUES #39 remedy) so m0–m8 run cleanly.
+- **Route-render smoke (DL-094).** New `scripts/route-smoke.mjs` + `npm run test:routes` — hits every
+  route as an anonymous visitor and fails on any 5xx (gated pages must render a sign-in/denied screen
+  or redirect, never crash); resolves one real org-unit/event/user id for the dynamic routes.
+- **Testing SOP (DL-094).** New `docs/WEBSITE_TESTING_SOP.md` — a four-layer, per-mode full-site
+  procedure (the 11-role × 3-status matrix, a feature-by-feature allow/deny checklist, plugin ON/OFF,
+  and a bug-log→fix→re-verify loop) so any future developer can re-run this exact pass.
+- **Member navigation (DL-094).** New `app/components/MemberNav.jsx` + a client `SignOutButton`, wired
+  into `/member` + `/member/profile` (Home / My profile / Events / Wall of Fame / Announcements /
+  public site / sign-out) — the member surfaces were previously reachable only by URL (NEXT_TASK #3).
+- **Full-site bug audit → 11 fixes (DL-095; full log `docs/CONSOLIDATION_BUGLOG.md`).** A per-feature ×
+  per-role adversarial audit found 21 confirmed defects; 11 fixed, 10 documented-as-accepted:
+  - **B1 (high)** the forced-password-change route (`/api/account/password`) used the active-only
+    `requireUser()`, permanently locking out an **inactive + must-change** account → a new
+    `requireLoggedInAccount()` boundary (admits active+inactive, rejects revoked, ignores the
+    member-view toggle).
+  - **B2 (high)** `/events/[slug]` leaked the login-only detail to **revoked / view-disabled**
+    accounts → added the gate the list/organized/member surfaces already had.
+  - **B3 (high)** the `SignInCard` rendered **unstyled** on the `/events*` routes → `AuthClient` now
+    imports `account.css`.
+  - **B4 (medium)** raising an event's **capacity** stranded the waitlist → new
+    `promoteWaitlistForCapacity()` fills the opened seats (all when set to unlimited).
+  - **B5 (medium)** the bulk **membership re-import** wiped a manually-set role and reactivated a
+    deactivated member → the update is now non-destructive (role only when the CSV row supplies one;
+    status defaults apply to NEW members only).
+  - **B6 (medium)** CSV exports didn't neutralize **spreadsheet formula-injection** → one shared
+    `lib/csv/cell.mjs#csvCell` (RFC-4180 quoting + a `'`-prefix on formula-leading STRING cells) now
+    backs the event downloads, the audit export, and the table dumps.
+  - **B7 (low)** a blank `roundId` export param 500'd → the route validates it (422).
+  - **B8 (low)** reopening a resolved ticket left a **stale resolution note** → cleared on reopen.
+  - **B9 (hardening)** `exportTable`'s guaranteed audit row swallowed its own failure → now
+    fail-closed (a full-table dump is never returned untracked).
+  - **B10 (low)** the credited-club chip was a dead `<span>` → now links to the club page.
+  - **B11 (low)** the member UI had no **sign-out** → added.
+- **Regression tests.** New static CSV formula-injection cases; new live assertions for the
+  non-destructive importer (m3), capacity-raise promotion (m5), and reopen-clears-note (m7). The
+  adversarial diff-review workflow found **0 regressions** in the fixes.
+- **Accepted / documented (KNOWN_ISSUES #45–#47):** synchronous bulk mail (a job queue is out of
+  scope; operator-gated), the "participated includes waitlisted" contribution semantic, and nav
+  dead-ends reachable only via non-standard custom grants (pages fail closed).
+- **Operator:** no schema change this session; `npm run db:migrate` + `npm run db:seed` after pulling
+  stay idempotent.
+
 ### Added/Changed — Session 11: Member Platform M6 (Member profiles & performance) · 2026-07-01
 - **A READ-ONLY aggregation module over the durable M4/M5 ids (DL-090)** — NO new table,
   permission, migration, or mutation. Reads `achievement_credit.userId|orgUnitLineageKey`,

@@ -68,10 +68,12 @@ describe.skipIf(!RUN)("Member platform M7 — feedback + notifications (live Neo
     await expect(feedback.setFeedbackStatus(t.id, { status: "bogus" }, actor)).rejects.toMatchObject({ status: 422 });
     const resolved = await feedback.setFeedbackStatus(t.id, { status: "resolved", note: "done" }, actor);
     expect(resolved.feedback.resolvedAt).toBeTruthy();
-    // re-open → resolution fields CLEARED (Session-11 review fix)
+    // re-open → resolution fields CLEARED (Session-11 review fix) INCLUDING the stale
+    // resolution note (consolidation review B8 — the note was previously left behind).
     const reopened = await feedback.setFeedbackStatus(t.id, { status: "in_progress" }, actor);
     expect(reopened.feedback.resolvedAt).toBeNull();
     expect(reopened.feedback.resolvedByUserId).toBeNull();
+    expect(reopened.feedback.resolutionNote ?? null).toBeNull();
     await feedback.setFeedbackStatus(t.id, { status: "dismissed", note: "n/a" }, actor);
     await expect(feedback.assignFeedback(t.id, actor)).rejects.toMatchObject({ status: 409, code: "FEEDBACK_CLOSED" });
   });

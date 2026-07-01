@@ -174,6 +174,20 @@ describe("M5 csv — pure builders (RFC-4180-ish quoting)", () => {
     expect(csvCell(null)).toBe("");
     expect(csvCell(true)).toBe("true");
   });
+  it("neutralizes spreadsheet formula-injection in STRING cells (consolidation review B6)", () => {
+    // A string beginning = + - @ (or a leading tab/CR) is prefixed with a single quote so
+    // Excel/Sheets render it as text, never execute it. Quoting still applies afterwards.
+    expect(csvCell("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)");
+    expect(csvCell("+1234567")).toBe("'+1234567");
+    expect(csvCell("-2+3")).toBe("'-2+3");
+    expect(csvCell("@cmd")).toBe("'@cmd");
+    expect(csvCell("=HYPERLINK(x),y")).toBe('"\'=HYPERLINK(x),y"'); // prefixed AND quoted (comma)
+    // Real numbers/booleans are our own typed values — NOT prefixed (a negative score stays -5).
+    expect(csvCell(-5)).toBe("-5");
+    expect(csvCell(0)).toBe("0");
+    // A plain string that merely contains (but doesn't start with) a trigger is untouched.
+    expect(csvCell("a=b")).toBe("a=b");
+  });
   it("toCsv writes a header + rows", () => {
     const csv = toCsv([{ key: "a", label: "A" }, { key: "b", label: "B" }], [{ a: 1, b: 2 }, { a: 3, b: "x,y" }]);
     expect(csv.split("\n")).toEqual(["A,B", "1,2", '3,"x,y"']);
