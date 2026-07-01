@@ -1,13 +1,69 @@
 # Current Status
 
 **Last updated:** 2026-07-01
-**Session:** 11 — **M3 COMPLETE** (club/council TABBED detail pages + `club_membership`
-many-to-many + bulk CSV importer + markdown docs + club announcements/events + the wired
-usage beacon), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine**. Sessions 1–10 remain
-complete (deployable V2).
+**Session:** 11 — **M4 COMPLETE** (Wall of Fame / student achievements: a new
+`content_type='achievement'` with typed scalars + a `blocks` JSONB of HYBRID ordered blocks,
+a standalone `achievement_credit` member-OR-club mapping, a public `/wall-of-fame` + the
+per-club Achievements tab), on top of the **plugin + M0 + M2 + M1 + M7/M8 spine + M3**.
+Sessions 1–10 remain complete (deployable V2).
 **Project status:** ✅ Sessions 1–10 shipped; ▶️ Session 11 program: ✅ plugin, ✅ M0,
-✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3. **Next: M4** (Wall of Fame), then M5 → M6.
+✅ M2, ✅ M1, ✅ M7, ✅ M8, ✅ M3, ✅ M4. **Next: M5** (Event Playground), then M6.
 **Branch:** `portal-v2`
+
+## What is done (Session 11 — M4: Wall of Fame / student achievements)
+
+- **Achievement content (DL-080).** A NEW **`content_type='achievement'`** — year-scoped,
+  **NOT org-bound** — driven through the ordinary CMS service (create/edit/publish via the
+  `content.*` admin actions; no parallel pipeline). Its OWN payload table
+  **`achievement_payload`** (1:1 with `content_revision`) holds typed scalars (`category`,
+  `achievement_date`, `hero_media_id`) + a **`blocks` JSONB** of HYBRID ordered blocks
+  (markdown / markdown+image / banner / link / gallery, DL-016). The pure client-safe
+  [lib/achievements/forms.mjs](lib/achievements/forms.mjs) (`normalizeBlocks`/
+  `normalizeAchievementPayload`/`creditTargetKind`) validates + normalizes blocks and runs
+  server-side via a NEW generic-handler **`coercePayload`** hook (throws 422 on a bad block).
+  Markdown is stored RAW and rendered by the escape-first [renderMarkdown](lib/markdown/render.mjs)
+  (DL-077); link urls reuse `isSafeHref`. Media reuse `resolveDeliveryUrl` + `cloudinaryAutoUrl` (DL-053).
+- **Contribution mapping (DL-081).** A NEW standalone **`achievement_credit`** table crediting
+  one achievement to a **MEMBER (`app_user`)** *or* a **CLUB (`org_unit_lineage`)** — each row
+  EXACTLY ONE target (a raw-SQL CHECK) + two per-target uniques; durable ids so a member's and a
+  club's contributions are trackable across a year (feeds M6). [lib/achievements/credits.mjs](lib/achievements/credits.mjs)#`setAchievementCredits`
+  REPLACES the credit set idempotently (authorize `content.update` at the achievement's YEAR
+  scope FIRST; ONE semantic audit summary row; missing emails REPORTED not created).
+  `AchievementCredit` ∈ `AUTO_AUDIT_SKIP`. Registry action `achievement.credits.set` (scoped).
+- **Central curation + public surfaces (DL-082).** Achievements are institute-level; they reuse
+  the **`content.*`** permission set (**NO new permission — still 51**) and credit management
+  authorizes at the YEAR scope, so a unit-scoped coordinator is 403 (verified live). Public
+  reads ([lib/achievements/public.mjs](lib/achievements/public.mjs)): `listWallOfFame` /
+  `getAchievementBySlug` / `listClubAchievements` — Server-Component, BATCHED (no N+1),
+  PII-minimized (credited members appear by display **NAME only** — the app_user uuid is never
+  serialized to the client). Public **`/wall-of-fame`** (plugin-gated, fail-closed) + the M3 club
+  page's **Achievements tab** filled by `getClubPageView` → `view.achievements` (keyed on the
+  club's DURABLE lineage). Shared renderer [AchievementCard](app/components/AchievementCard.jsx)
+  (+ a `Wall of Fame` header nav link).
+- **Shared-handler fix (DL-083).** The generic `writePayload` now uses **`UPDATE`** (not `upsert`)
+  on a partial edit (`isCreate:false`) — the payload row always pre-exists on edit, and Prisma
+  STATICALLY requires the `upsert.create` branch to carry NOT-NULL columns (e.g. `announcement.body`).
+  This was a **latent M3 bug** the FIRST live run of `tests/m3.db.test.mjs` surfaced (the
+  club-announcement sync test edits `{syncToCentral:true}` alone) — now fixed; **KNOWN_ISSUES #42
+  cleared** (the M3 live suite is green).
+- **Schema.** One additive forward migration `20260701130000_member_platform_m4`
+  (`achievement_payload` + `achievement_credit` + FKs/uniques + the exactly-one-target CHECK),
+  applied to Neon via `migrate deploy`; init untouched (DL-027). `AchievementPayload` +
+  `AchievementCredit` registered in `TABLE_BY_MODEL`; `AchievementCredit` added to `AUTO_AUDIT_SKIP`.
+  The `achievement` content_type is seed DATA. **Permissions unchanged (51); content types → 12.**
+- **Tests.** **466 static** (was 448; +`tests/achievements.test.mjs` — block/credit validators,
+  ordering, block resolution; +the M4 migration block; +the content-type allowlist) + a NEW live
+  suite `tests/m4.db.test.mjs` (**6/6 green** on warm Neon, isolated per #39): create (hybrid
+  blocks) → publish → wall + blocks round-trip + unpublish-hides, block-validation 422 (+ unsafe
+  link), credits member+club + one-target rule + missing-email + idempotent replace, central-scope
+  403 (coordinator) / 401, the club slice + `getClubPageView` Achievements tab (+ the PII no-`userId`
+  assertion), non-achievement guard. The **M3 live suite re-ran 10/10 green** after the DL-083 fix.
+  `npm run lint` + `next build` clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (8 agents):
+  **1 raw → 1 confirmed-by-both (0 single-vote) → fixed:** (low) the public achievement shape
+  serialized each credited member's internal `app_user` uuid to anonymous browsers via the client
+  `OrgUnitTabs` (contradicting the display-NAME-only invariant) → the `userId` is dropped from the
+  public members shape + a live regression assertion added.
 
 ## What is done (Session 11 — M3: club/council pages + memberships)
 

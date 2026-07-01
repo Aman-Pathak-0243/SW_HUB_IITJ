@@ -1,9 +1,29 @@
 # Next Task
 
 **As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the plugin, M0, M2,
-M1, the M7/M8 spine, and now M3** (club/council tabbed pages + `club_membership` M-M + bulk
-CSV importer + markdown docs + club announcements/events + the wired usage beacon). Next
-session: **M4** (Wall of Fame), built inside the plugin — then M5 → M6.
+M1, the M7/M8 spine, M3, and now M4** (Wall of Fame / student achievements). Next session:
+**M5** (Centralized Event Playground — the largest module, likely 2 sessions), built inside
+the plugin — then M6.
+
+> ### ✅ Session 11 done — M4 (Wall of Fame / student achievements)
+> Built inside the `member_platform` plugin, on the M0–M3/M7/M8 spine. Delivered: a NEW
+> **`content_type='achievement'`** (year-scoped, **NOT org-bound**) via the CMS spine (DL-037)
+> with its OWN **`achievement_payload`** table = typed scalars (`category`/`achievementDate`/
+> `heroMediaId`) + a **`blocks` JSONB** of HYBRID ordered blocks (markdown / markdown+image /
+> banner / link / gallery, DL-016/080), validated+normalized by the pure client-safe
+> `lib/achievements/forms.mjs` via a NEW generic-handler **`coercePayload`** hook; markdown via
+> the escape-first `renderMarkdown` (DL-077), media via `cloudinaryAutoUrl` (DL-053). A NEW
+> standalone **`achievement_credit`** table (member **OR** club, exactly-one-target CHECK + two
+> per-target uniques, DL-081) with `setAchievementCredits` (replace-all, audited, authorize
+> `content.update` at the YEAR scope — central curation, DL-082). Public **`/wall-of-fame`**
+> (Server Component, plugin-gated, PII-minimized) + the M3 club page's **Achievements tab**
+> filled via `getClubPageView`. Reuses `content.*` — **NO new permission (still 51)**; migration
+> `20260701130000_member_platform_m4` (additive, applied). **466 static + `tests/m4.db.test.mjs`
+> 6/6 green** (m3.db re-ran 10/10 green after a shared-handler fix); 8-agent review (1 confirmed →
+> a public-shape `userId` PII leak → fixed + regression-locked). **Fixed a latent M3 bug (DL-083):**
+> the generic `writePayload` now `UPDATE`s (not `upsert`s) on a partial edit — **KNOWN_ISSUES #42
+> cleared**. **Operator:** after pulling, `npm run db:migrate` then `npm run db:seed` (idempotent;
+> adds the `achievement` content type — no new permission).
 
 > ### ✅ Session 11 done — M3 (club/council pages + memberships)
 > Built inside the `member_platform` plugin, on the M0–M2/M1/M7/M8 spine. Delivered: a NEW

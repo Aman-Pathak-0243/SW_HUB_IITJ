@@ -656,6 +656,37 @@ Migration `20260701120000_member_platform_m3` (additive: `club_membership` + FKs
   `EXPANDED_UNIT_TYPES` (club/council); hostels/messes keep Overview + Resources. `OrgUnitPage` is removed.
   The M8 **usage beacon** is wired in the root layout (`app/components/UsageBeacon.jsx` → `POST /api/usage`).
 
+## Member platform — M4: Wall of Fame / student achievements (Session 11)
+
+Migration `20260701130000_member_platform_m4` (additive: `achievement_payload` + `achievement_credit`
++ FKs/uniques/CHECK). After pulling: `npm run db:migrate` then `npm run db:seed` (idempotent; +the
+`achievement` content type — **no new permission**, still 51). Achievements reuse the `content.*` set.
+
+- **Achievement content (DL-080).** A NEW `content_type='achievement'` (year-scoped, **NOT** org-bound)
+  driven through the ordinary CMS service (create/edit/publish via the `content.*` admin actions). Own
+  payload table `achievement_payload` = typed scalars (`category`, `achievementDate`, `heroMediaId`) + a
+  `blocks` **JSONB** of HYBRID ordered blocks. Block kinds: `markdown` (`body`), `markdown_image`
+  (`mediaId` + `body?` + `imagePosition`), `banner` (`mediaId` + `caption?`), `link` (`url` + `label?`),
+  `gallery` (`mediaIds[]` + `caption?`). The pure client-safe **`lib/achievements/forms.mjs`**
+  (`normalizeBlocks`/`normalizeAchievementPayload`/`creditTargetKind`) validates + normalizes and is run
+  server-side via the generic handler's NEW `coercePayload` hook (throws 422 on a bad block) — no parallel
+  pipeline. Markdown renders via `lib/markdown/render.mjs` (escape-first, DL-077); link urls reuse `isSafeHref`.
+- **Credits / mapping (DL-081).** `lib/achievements/credits.mjs#setAchievementCredits(itemId, credits, actor)`
+  REPLACES an achievement's credit set (idempotent; audited — ONE summary row). Each credit is
+  `{ userId | email | orgUnitLineageKey, role?, sortOrder? }` and targets EXACTLY ONE of a member OR a club
+  (a DB CHECK + `creditTargetKind` + two per-target uniques). Missing emails are reported (never
+  auto-created). `AchievementCredit` is in `AUTO_AUDIT_SKIP`. Registry action `achievement.credits.set` (scoped).
+- **Central curation (DL-082).** Achievements are institute-level (not org-bound), so credit management
+  authorizes `content.update` at the achievement's YEAR scope — an UNSCOPED grant (staff/admin) passes; a
+  unit-scoped coordinator is 403. Public reads (`lib/achievements/public.mjs`): `listWallOfFame({yearId?, category?})`,
+  `getAchievementBySlug`, `listClubAchievements(orgUnitLineageKey)` — all Server-Component, batched, PII-minimized
+  (members by display name only). Surfaces: **`/wall-of-fame`** (plugin-gated) + the club page's **Achievements**
+  tab (`getClubPageView` → `view.achievements` by the club's durable lineage). Shared renderer:
+  `app/components/AchievementCard.jsx` (`compact` for the tab).
+- **Shared-handler fix (DL-083).** `writePayload` now uses `UPDATE` (not `upsert`) on a partial edit
+  (`isCreate:false`) — the payload row always pre-exists on edit, and Prisma statically requires the
+  `upsert.create` branch to carry NOT-NULL columns. Fixes a latent M3 bug the first live run surfaced.
+
 ## Project map
 
 See [CURRENT_ARCHITECTURE.md](CURRENT_ARCHITECTURE.md) for the full tree. Quick

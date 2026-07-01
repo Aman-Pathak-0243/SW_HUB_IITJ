@@ -230,6 +230,8 @@ model User {
   authorizedSendersCreated AuthorizedSender[] @relation("AuthorizedSenderCreatedBy")
   clubMemberships        ClubMembership[]  @relation("ClubMembershipUser")
   clubMembershipsCreated ClubMembership[]  @relation("ClubMembershipCreatedBy")
+  achievementCredits     AchievementCredit[] @relation("AchievementCreditUser")
+  achievementCreditsCreated AchievementCredit[] @relation("AchievementCreditCreatedBy")
 
   @@index([status])
   @@map("app_user")
@@ -370,6 +372,7 @@ model OrgUnitLineage {
   roleAssignments     RoleAssignment[]
   permissionOverrides UserPermissionOverride[]
   clubMemberships     ClubMembership[]
+  achievementCredits  AchievementCredit[]
 
   @@index([firstSeenYearId])
   @@map("org_unit_lineage")
@@ -612,7 +615,8 @@ model ContentItem {
   createdBy      User?          @relation("ContentItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy      User?          @relation("ContentItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  revisions ContentRevision[]
+  revisions          ContentRevision[]
+  achievementCredits AchievementCredit[] @relation("AchievementCreditItem")
 
   @@unique([contentType, academicYearId, lineageKey]) // one item per logical doc per year
   // Public-listing hot path is served by the raw-SQL partial index
@@ -649,6 +653,7 @@ model ContentRevision {
   flagship      FlagshipEventPayload?
   resource      ResourcePayload?
   pageBlock     PageBlockPayload?
+  achievement   AchievementPayload?
   missionPoints ClubMissionPoint[]
   mealTimings   MessMealTiming[]
   media         ContentMedia[]
@@ -877,6 +882,7 @@ model MediaAsset {
   flagshipImages     FlagshipEventPayload[] @relation("FlagshipImage")
   resourceFiles      ResourcePayload[]      @relation("ResourceFile")
   pageBlockPrimaries PageBlockPayload[]     @relation("PageBlockPrimary")
+  achievementHeros   AchievementPayload[]   @relation("AchievementHero")
   contentMedia       ContentMedia[]         @relation("ContentMediaAsset")
 
   @@index([storageProvider])
@@ -1187,4 +1193,64 @@ model ClubMembership {
   @@index([orgUnitLineageKey, status])
   @@index([userId])
   @@map("club_membership")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M4 (Wall of Fame / student achievements)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Typed 1:1 payload for the NEW content_type='achievement' (M4, DL-080) — a
+// year-scoped, NOT-org-bound CMS content item (a central Wall-of-Fame entry). It
+// follows the DL-037 rule (a new module is a content_type via the CMS spine, with
+// its OWN payload table like event/announcement/resource). Typed scalars live in
+// columns; the HYBRID ORDERED BLOCKS (markdown / markdown+image / banner / link /
+// gallery) live in the `blocks` JSONB (DL-016) — validated + normalized by the pure
+// lib/achievements/blocks.mjs (mirrored client+server, DL-051) and rendered SAFELY
+// via lib/markdown/render.mjs (escape-first, DL-077). Media are referenced by id
+// (media_asset) and delivered through resolveDeliveryUrl / cloudinaryAutoUrl (DL-053).
+model AchievementPayload {
+  revisionId      String    @id @map("revision_id") @db.Uuid
+  category        String? // free-text facet (e.g. "Sports", "Academic", "Hackathon")
+  achievementDate DateTime? @map("achievement_date") @db.Timestamptz
+  heroMediaId     String?   @map("hero_media_id") @db.Uuid
+  blocks          Json?     @db.JsonB
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  hero     MediaAsset?     @relation("AchievementHero", fields: [heroMediaId], references: [id], onDelete: SetNull)
+
+  @@index([heroMediaId])
+  @@map("achievement_payload")
+}
+
+// The achievement contribution mapping (M4, DL-081) — a STANDALONE many-to-many
+// crediting one achievement to a USER *or* a CLUB (org_unit_lineage), so a member's
+// and a club's contributions are trackable within/across a year (feeds M6 profiles).
+// It is operational relational data (DL-038 "own table" rule), NOT CMS content. Each
+// row credits EXACTLY ONE of {user, club} (a raw-SQL CHECK enforces it); `role` is a
+// free-text label (e.g. "Winner", "Organizing club"). Managed by the achievement's
+// content.update authority, SCOPED to its year (lib/achievements/credits.mjs); audited
+// SEMANTICALLY there (in AUTO_AUDIT_SKIP). userId + orgUnitLineageKey are DURABLE ids,
+// so credits survive an academic-year rollover even though the achievement item is
+// year-scoped (M6 reads across years by user / lineage).
+model AchievementCredit {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  achievementItemId String   @map("achievement_item_id") @db.Uuid
+  userId            String?  @map("user_id") @db.Uuid
+  orgUnitLineageKey String?  @map("org_unit_lineage_key") @db.Uuid
+  role              String?
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  achievement    ContentItem     @relation("AchievementCreditItem", fields: [achievementItemId], references: [id], onDelete: Cascade)
+  user           User?           @relation("AchievementCreditUser", fields: [userId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  createdBy      User?           @relation("AchievementCreditCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([achievementItemId, userId]) // one credit per (achievement, member)
+  @@unique([achievementItemId, orgUnitLineageKey]) // one credit per (achievement, club)
+  @@index([userId])
+  @@index([orgUnitLineageKey])
+  @@index([achievementItemId])
+  @@map("achievement_credit")
 }

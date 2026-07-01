@@ -24,6 +24,42 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 11: Member Platform M4 (Wall of Fame / student achievements) · 2026-07-01
+- **Achievement content type (DL-080)** — a NEW `content_type='achievement'` (year-scoped,
+  NOT org-bound) driven through the ordinary CMS service, with its OWN
+  [achievement_payload](../prisma/schema.prisma) table = typed scalars (`category`,
+  `achievementDate`, `heroMediaId`) + a `blocks` JSONB of HYBRID ordered blocks (markdown /
+  markdown+image / banner / link / gallery). The pure client-safe
+  [lib/achievements/forms.mjs](../lib/achievements/forms.mjs) validates + normalizes blocks and
+  runs server-side via a NEW `coercePayload` hook on the generic content-type handler
+  ([lib/cms/content-types.mjs](../lib/cms/content-types.mjs)); markdown rendered by the
+  escape-first [renderMarkdown](../lib/markdown/render.mjs) (DL-077); media via `cloudinaryAutoUrl` (DL-053).
+- **Achievement ↔ contributor mapping (DL-081)** — a NEW standalone `achievement_credit` table
+  crediting one achievement to a MEMBER (`app_user`) *or* a CLUB (`org_unit_lineage`), each row
+  EXACTLY ONE target (a raw-SQL CHECK) + two per-target uniques.
+  [lib/achievements/credits.mjs](../lib/achievements/credits.mjs)#`setAchievementCredits` replaces
+  the set idempotently (authorize `content.update` at the achievement's YEAR scope FIRST; ONE
+  semantic audit summary row; missing emails reported, never auto-created). Feeds M6.
+- **Central curation + public surfaces (DL-082)** — achievements reuse the `content.*` permission
+  set (**NO new permission — still 51**); a unit-scoped coordinator is 403 (central curation).
+  [lib/achievements/public.mjs](../lib/achievements/public.mjs): `listWallOfFame` /
+  `getAchievementBySlug` / `listClubAchievements` (Server-Component, batched, PII-minimized —
+  members by display NAME only). Public [/wall-of-fame](../app/wall-of-fame/page.jsx) (plugin-gated)
+  + the club page's Achievements tab filled by `getClubPageView`; shared
+  [AchievementCard](../app/components/AchievementCard.jsx) + a `Wall of Fame` header nav link.
+- **Shared-handler fix (DL-083)** — the generic `writePayload` now uses `UPDATE` (not `upsert`)
+  on a partial edit; Prisma statically requires the `upsert.create` branch to carry NOT-NULL
+  payload columns, which broke a partial edit (surfaced by the first live run of the M3 suite —
+  KNOWN_ISSUES #42 now cleared).
+- **Schema** — one additive forward migration `20260701130000_member_platform_m4` (applied to
+  Neon); `AchievementPayload` + `AchievementCredit` in `TABLE_BY_MODEL`; `AchievementCredit` in
+  `AUTO_AUDIT_SKIP`; the `achievement` content_type is seed data (content types → 12).
+- **Tests** — **466 static** (was 448; `tests/achievements.test.mjs` + migration/allowlist) + a NEW
+  live suite `tests/m4.db.test.mjs` (6/6 green on warm Neon, isolated per #39); the M3 live suite
+  re-ran 10/10 green after the DL-083 fix. `npm run lint` + `next build` clean.
+- **Adversarial review** — a 6-dimension × 2-verifier workflow (8 agents): 1 confirmed
+  (a public-shape `userId` PII leak to anonymous clients) → fixed + a live regression assertion.
+
 ### Added/Changed — Session 11: Member Platform M3 (club/council pages + memberships) · 2026-07-01
 - **Club memberships (DL-075)** — a NEW standalone `club_membership` many-to-many
   (`app_user` ↔ `org_unit_lineage`, durable across years, `UNIQUE(user, lineage)`,

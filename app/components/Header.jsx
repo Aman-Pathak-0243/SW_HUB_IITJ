@@ -68,6 +68,7 @@ const Header = () => {
     { label: "Messes",           href: "/messes" },
     { label: "Flagship Events",  href: "/Flagship-events" },
     { label: "Announcements",    href: "/announcements" },
+    { label: "Wall of Fame",     href: "/wall-of-fame" },
     { label: "Team",             href: "/Team" },
     { label: "Contact Us",       href: "/Contact-Us" },
   ];

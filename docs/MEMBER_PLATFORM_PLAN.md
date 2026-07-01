@@ -97,13 +97,27 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
   (coordinators submit; admin syncs), idempotent (DL-031). **Tests:** membership
   import dedup, tab reads, scoped edit gating.
 
-## M4 — Wall of Fame (achievements)
-- `content_type='achievement'` (year-scoped) with **hybrid ordered blocks** (markdown /
-  markdown+image / banner / link / gallery) in `page_block_payload.data` JSONB (DL-016)
-  or a normalized child table (pick + doc); **sanitize markdown**. Public
-  `/wall-of-fame` Server Component + per-club slice. **achievement ↔ user/club**
-  mapping for performance tracking. Reuse media + `cloudinaryAutoUrl`. **Tests:**
-  handler round-trip, block validation, sanitize, publish→visible.
+## M4 — Wall of Fame (achievements) — ✅ Session 11 (DL-080/081/082/083)
+- **Shipped:** `content_type='achievement'` (year-scoped, NOT org-bound) via the CMS
+  spine with its OWN `achievement_payload` table = typed scalars (`category`,
+  `achievement_date`, `hero_media_id`) + a `blocks` **JSONB** of HYBRID ordered blocks
+  (markdown / markdown+image / banner / link / gallery), validated + normalized by the
+  pure client-safe `lib/achievements/forms.mjs` through a generic-handler `coercePayload`
+  hook (DL-080). Markdown rendered by the escape-first `renderMarkdown` (DL-077); link
+  urls reuse `isSafeHref`. Media reuse `resolveDeliveryUrl` + `cloudinaryAutoUrl` (DL-053).
+- **Mapping:** a STANDALONE `achievement_credit` table crediting one achievement to a
+  MEMBER *or* a CLUB (`org_unit_lineage`) — each row exactly one target (a DB CHECK) +
+  two per-target uniques; `setAchievementCredits` replaces the set (audited, one summary
+  row), authorized `content.update` at the achievement's YEAR scope (DL-081/082). Feeds M6.
+- **Surfaces:** public `/wall-of-fame` (Server Component, `listWallOfFame`, plugin-gated,
+  PII-minimized) + the per-club Achievements tab filled by `getClubPageView` via
+  `listClubAchievements(lineageKey)` (durable lineage). Reuse `content.*` — NO new permission.
+- **Fixed en route (DL-083):** the generic `writePayload` now uses `UPDATE` on a partial
+  edit (a latent M3 bug the first `m3.db` live run surfaced — the `upsert.create` branch
+  requires NOT-NULL payload columns).
+- **Tests:** static (`achievements.test.mjs` — block/credit validators, ordering, block
+  resolution) + live (`m4.db.test.mjs` — create→publish→wall, block-validation 422,
+  credits/one-target/central-scope, club slice + tab).
 
 ## M5 — Centralized Event Playground (largest; ~2 sessions)
 - **ONE playground** (upgrade `/events`), **login-only**, hosting any event type
@@ -182,7 +196,7 @@ or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
 | M1 | User status (active/inactive/revoked) + surfaces | ✅ Session 11 (DL-065/066/067) |
 | M2 | RBAC categories + per-email overrides + search | ✅ Session 11 (DL-062/063/064) |
 | M3 | Club pages + memberships | ✅ Session 11 (DL-075/076/077/078/079) |
-| M4 | Wall of Fame | ⬜ |
+| M4 | Wall of Fame | ✅ Session 11 (DL-080/081/082/083) |
 | M5 | Centralized Event Playground | ⬜ |
 | M6 | Member profiles & performance | ⬜ |
 | M7 | Notifications + feedback + announcements | ✅ Session 11 (DL-069/070/074) |

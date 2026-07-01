@@ -19,6 +19,9 @@ const dedup = dedupFolder ? readFileSync(join(migrationsDir, dedupFolder, "migra
 const m3Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m3"));
 const m3 = m3Folder ? readFileSync(join(migrationsDir, m3Folder, "migration.sql"), "utf8") : "";
 
+const m4Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m4"));
+const m4 = m4Folder ? readFileSync(join(migrationsDir, m4Folder, "migration.sql"), "utf8") : "";
+
 const TABLES = [
   "app_user", "auth_account", "verification_token", "academic_year", "role",
   "permission", "role_permission", "org_unit_lineage", "role_assignment",
@@ -202,5 +205,36 @@ describe("Session 11 / M3 forward migration (club pages + memberships)", () => {
   it("the schema declares the ClubMembership model + the sync_to_central field via @@map/@map", () => {
     expect(schema).toContain('@@map("club_membership")');
     expect(schema).toMatch(/syncToCentral\s+Boolean\?\s+@map\("sync_to_central"\)/);
+  });
+});
+
+describe("Session 11 / M4 forward migration (Wall of Fame)", () => {
+  it("the migration file exists", () => {
+    expect(m4Folder, "missing _member_platform_m4 migration").toBeTruthy();
+  });
+
+  it("creates achievement_payload (1:1 with content_revision) with a blocks JSONB + hero FK", () => {
+    expect(m4).toMatch(/CREATE TABLE "achievement_payload"/);
+    expect(m4).toMatch(/"blocks"\s+JSONB/);
+    expect(m4).toMatch(/achievement_payload_revision_id_fkey[\s\S]*REFERENCES "content_revision"\("id"\) ON DELETE CASCADE/);
+    expect(m4).toMatch(/achievement_payload_hero_media_id_fkey[\s\S]*REFERENCES "media_asset"\("id"\) ON DELETE SET NULL/);
+  });
+
+  it("creates achievement_credit with FKs to content_item, app_user, and org_unit_lineage", () => {
+    expect(m4).toMatch(/CREATE TABLE "achievement_credit"/);
+    expect(m4).toMatch(/achievement_credit_item_fkey[\s\S]*REFERENCES "content_item"\("id"\) ON DELETE CASCADE/);
+    expect(m4).toMatch(/achievement_credit_user_id_fkey[\s\S]*REFERENCES "app_user"\("id"\) ON DELETE CASCADE/);
+    expect(m4).toMatch(/achievement_credit_lineage_fkey[\s\S]*REFERENCES "org_unit_lineage"\("lineage_key"\) ON DELETE RESTRICT/);
+  });
+
+  it("has the per-target uniques + the exactly-one-target CHECK (additive, not an init rewrite)", () => {
+    expect(m4).toMatch(/CREATE UNIQUE INDEX "achievement_credit_item_user_uq"[\s\S]*"achievement_item_id", "user_id"/);
+    expect(m4).toMatch(/CREATE UNIQUE INDEX "achievement_credit_item_lineage_uq"[\s\S]*"achievement_item_id", "org_unit_lineage_key"/);
+    expect(m4).toMatch(/achievement_credit_one_target_chk[\s\S]*= 1/);
+  });
+
+  it("the schema declares the two M4 models via @@map", () => {
+    expect(schema).toContain('@@map("achievement_payload")');
+    expect(schema).toContain('@@map("achievement_credit")');
   });
 });

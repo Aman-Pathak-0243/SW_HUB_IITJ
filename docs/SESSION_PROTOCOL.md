@@ -34,10 +34,12 @@ context and no repeated work.
 > overrides + smart search), **M1** (user status active/inactive/revoked + the three
 > surfaces + scoped route RBAC), the **M7/M8 spine** (centralized notifications +
 > feedback/support tickets + the developer dashboard: action-log export, usage
-> analytics, per-table storage thresholds, and bulk mail), and **M3** (club/council
+> analytics, per-table storage thresholds, and bulk mail), **M3** (club/council
 > tabbed pages + `club_membership` M-M + bulk CSV importer + markdown docs + club
-> announcements/events + the wired usage beacon). **Next: M4** (Wall of Fame), then
-> M5 → M6.
+> announcements/events + the wired usage beacon), and **M4** (Wall of Fame:
+> `content_type='achievement'` with hybrid JSONB blocks + the `achievement_credit`
+> member-or-club mapping + public `/wall-of-fame` + the per-club Achievements tab).
+> **Next: M5** (Centralized Event Playground — the largest module, ~2 sessions), then M6.
 > Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).

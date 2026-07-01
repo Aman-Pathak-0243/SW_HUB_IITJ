@@ -15,6 +15,7 @@ import Image from "next/image";
 import { formatTime } from "../../lib/org/normalize.mjs";
 import { renderMarkdown } from "../../lib/markdown/render.mjs";
 import ResourcesSection from "./ResourcesSection";
+import AchievementCard from "./AchievementCard";
 
 function mediaUrl(view, id) {
   return id ? view.media?.[id]?.url ?? null : null;
@@ -249,14 +250,27 @@ function DocsTab({ docs }) {
   );
 }
 
-function AchievementsTab() {
+function AchievementsTab({ achievements }) {
+  if (!achievements?.length) {
+    return (
+      <Empty>
+        No achievements recorded for this club yet.{" "}
+        <Link href="/wall-of-fame" className="text-[#003f87] font-semibold underline">See the institute Wall of Fame →</Link>
+      </Empty>
+    );
+  }
   return (
-    <Empty>
-      <div className="bg-blue-50 rounded-xl p-6 max-w-2xl">
-        <h3 className="text-lg font-bold text-[#003f87] mb-1">Achievements &amp; Wall of Fame</h3>
-        <p className="text-gray-600">This club&apos;s recognitions and student achievements will appear here soon (coming in the Wall of Fame module).</p>
+    <Section title={null}>
+      <p className="text-sm text-gray-500 mb-4">
+        This club&apos;s recognitions — part of the institute{" "}
+        <Link href="/wall-of-fame" className="text-[#003f87] font-semibold underline">Wall of Fame</Link>.
+      </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {achievements.map((a) => (
+          <AchievementCard key={a.id} achievement={a} compact />
+        ))}
       </div>
-    </Empty>
+    </Section>
   );
 }
 
@@ -270,7 +284,7 @@ export default function OrgUnitTabs({ view }) {
     return <div className="max-w-3xl mx-auto px-6 py-24 text-center text-gray-600">This page is not available for the current year.</div>;
   }
 
-  const { unit, profile, resources = [], expanded, events, announcements, docs = [], memberCount = 0 } = view;
+  const { unit, profile, resources = [], expanded, events, announcements, docs = [], achievements = [], memberCount = 0 } = view;
   const payload = profile?.payload ?? {};
   const heroId = payload.heroMediaId || payload.logoMediaId || payload.buildingMediaId || payload.imageMediaId;
   const heroUrl = mediaUrl(view, heroId);
@@ -337,7 +351,7 @@ export default function OrgUnitTabs({ view }) {
         {activeTab === "announcements" && <AnnouncementsTab grouped={announcements} />}
         {activeTab === "upcoming" && <EventsTab list={events?.upcoming} kind="upcoming" />}
         {activeTab === "past" && <EventsTab list={events?.past} kind="past" />}
-        {activeTab === "achievements" && <AchievementsTab />}
+        {activeTab === "achievements" && <AchievementsTab achievements={achievements} />}
         {activeTab === "resources" && <ResourcesSection resources={resources} />}
         {activeTab === "docs" && <DocsTab docs={docs} />}
       </div>
