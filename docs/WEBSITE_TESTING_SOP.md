@@ -115,6 +115,16 @@ in each mode" check. **Warm Neon first**, then run **per file** (or single-fork)
 the whole set in one default (parallel) process, because the stateful `year.db` suite
 mutates the shared current-year row and races the others (KNOWN_ISSUES #39).
 
+> **Fastest way to run this locally — Docker Postgres (Session 13).** Instead of Neon, run a
+> local `postgres:16` (identical engine, all guards intact — SQLite cannot host the triggers /
+> citext / partial uniques / `FOR UPDATE SKIP LOCKED`, so it is not an option):
+> ```bash
+> cp env.test.example .env.test        # once (git-ignored)
+> npm run db:local:up && npm run db:local:setup && npm run test:db   # 19/19 green in ~20s
+> ```
+> `npm run test:db` runs every live suite **per-file** (auto-discovered) against `.env.test`.
+> Full details in [TESTING_STRATEGY.md](TESTING_STRATEGY.md) § "Local Postgres for testing (Docker)".
+
 ```bash
 npm run db:migrate     # warm + confirm schema
 

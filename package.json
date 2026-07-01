@@ -21,7 +21,15 @@
     "db:console": "dotenv -e .env.local -- node scripts/devconsole.mjs",
     "cli": "dotenv -e .env.local -- node scripts/dev-cli.mjs",
     "db:reset": "dotenv -e .env.local -- prisma migrate reset",
-    "db:studio": "dotenv -e .env.local -- prisma studio"
+    "db:studio": "dotenv -e .env.local -- prisma studio",
+    "db:local:up": "docker compose up -d --wait",
+    "db:local:down": "docker compose down",
+    "db:local:reset": "docker compose down -v && docker compose up -d --wait",
+    "db:migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
+    "db:seed:test": "dotenv -e .env.test -- node prisma/seed.mjs",
+    "db:local:setup": "npm run db:migrate:test && npm run db:seed:test",
+    "test:db": "dotenv -e .env.test -- node scripts/test-db.mjs",
+    "db:studio:test": "dotenv -e .env.test -- prisma studio"
   },
   "prisma": {
     "seed": "dotenv -e .env.local -- node prisma/seed.mjs"
