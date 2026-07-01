@@ -58,7 +58,24 @@ context and no repeated work.
 > Neon), single-fork nightly CI, a reusable route-render smoke (`scripts/route-smoke.mjs`), the
 > repeatable per-mode [WEBSITE_TESTING_SOP.md](WEBSITE_TESTING_SOP.md), a logged-in-member nav, and
 > **11 bug fixes** from a full-site per-role audit ([CONSOLIDATION_BUGLOG.md](CONSOLIDATION_BUGLOG.md),
-> DL-094/095). **The product is feature-complete and hardened; remaining work is operator/owner-owned.**
+> DL-094/095).
+>
+> **Session 13 (2026-07-01) — scoped-coordinator surface + client delivery docs (DL-096):** built the one
+> remaining OPTIONAL dev item — a STANDALONE **`/coordinator`** back office (its own scope-aware
+> `loadCoordinatorContext`, NOT under the global `/admin` gate) that closes KNOWN_ISSUES #43: a club-scoped
+> coordinator SEES and runs their unit's events / members / contribution, driven by a NEW inverse-of-the-
+> resolver scoped-grant discovery (`lib/rbac/grants.mjs`, reusing `resolveEffectivePermissions`) + the
+> existing `assertEventManage` / `assertActorPermission` seams — no new permission/table/migration
+> (permissions 52, content types 13). 530 static + `coordinator.db` 5/5. Also produced the full
+> client-facing **delivery documentation set** (see [DELIVERABLES_INDEX.md](../DELIVERABLES_INDEX.md)).
+> **The product is now feature-complete, hardened, and delivery-documented; remaining work is
+> operator/owner-owned.**
+
+There is a **THREE-surface** logged-in model (Session 11–13): the public **member** view (`/member`,
+plugin-gated, admits inactive), the global **admin/developer** back office (`/admin`, active-only, global
+RBAC), and the scoped **coordinator** back office (`/coordinator`, active-only, driven by SCOPED grants via
+`lib/rbac/grants.mjs`). The mutation authority is unchanged — every write still goes through the one
+`/api/admin/action` registry (or a gated route) and re-authorizes at the true scope.
 
 Detailed scope, deliverables, dependencies, and acceptance criteria per session
 are in [MILESTONE_PLAN.md](MILESTONE_PLAN.md) (the living roadmap).

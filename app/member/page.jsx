@@ -58,7 +58,7 @@ export default async function MemberPage() {
     );
   }
 
-  const { member, surface, hasAdminAccess, access } = ctx;
+  const { member, surface, hasAdminAccess, coordinates, access } = ctx;
   const statusClass = access.canParticipate ? "good" : "warn";
 
   // "My clubs" (M3) — the member's club/society/chapter memberships, resolved to the
@@ -119,6 +119,16 @@ export default async function MemberPage() {
             <p className="mbr-empty">You are not listed as a member of any club yet. A club coordinator can add you.</p>
           )}
         </div>
+
+        {/* Coordinator surface (DL-096): a member who coordinates a club/council (a SCOPED
+            event.manage / membership.manage grant) gets a link to their scoped back office,
+            even without global admin access (KNOWN_ISSUES #43). */}
+        {coordinates && (
+          <div className="mbr-surfaces">
+            <span className="mbr-label">Units you coordinate</span>
+            <div className="acc-links"><Link href="/coordinator">Manage your club / council →</Link></div>
+          </div>
+        )}
 
         {/* Surface routing (DL-066): show the back-office entry the member is entitled to. */}
         {(surface === "developer" || surface === "admin" || hasAdminAccess) && (

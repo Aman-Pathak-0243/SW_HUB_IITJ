@@ -24,6 +24,47 @@ update protocol in [README.md](README.md)).
 - Critical finding logged: secrets are committed in `README.md` and must be
   rotated/removed (see `docs/SECURITY.md`).
 
+### Added/Changed — Session 13: Scoped-coordinator surface (`/coordinator`) + client delivery docs · 2026-07-01
+- **Closed KNOWN_ISSUES #43 (DL-096).** A club-scoped coordinator (`role_assignment` with `event.manage`
+  / `membership.manage` SCOPED to an `org_unit_lineage`) could already DISPATCH the scoped mutations
+  (the `/api/admin/action` route only `requireUser()`s; each service re-authorizes at scope) but was
+  invisible to the GLOBAL admin nav — so they had no SURFACE. This session ships that surface.
+- **New standalone `/coordinator` back office.** Its own never-throws `loadCoordinatorContext`
+  (`unauthenticated`/`inactive`/`no-access`/`ok`), NOT nested under the hardened `/admin` gate;
+  plugin-INDEPENDENT and ACTIVE-ONLY (back-office parity with `loadAdminContext`). Pages: landing
+  (**My units**), **Events** (list of the coordinator's organized events → a per-event manage page:
+  registration settings, rounds CRUD, the registrations roster + add/status/remove, score & attendance
+  replace-sheets, the coordinator's own **closure report** submit, and CSV downloads), **Members**
+  (roster + add/status/remove + a non-destructive bulk CSV import), and **Contribution** (the M6
+  `getClubContribution` slice for their OWN units, via the shared `ContributionSummary`). Central-only
+  actions — organizer tagging, custom entities, closure **review** — stay `requireGlobal` and are
+  absent from the surface (and still fail-closed in the service if reached).
+- **Scoped-grant discovery — the inverse of the RBAC resolver (`lib/rbac/grants.mjs`, new).**
+  `scopedLineagesFor(user, assignments, overrides, permKeys, year)` enumerates the lineages where a user
+  holds a permission as a SCOPED (non-global) grant, built ON `resolveEffectivePermissions` at each
+  candidate lineage → exact live parity (deny-wins, developer/grants_all short-circuit, year-dimension
+  `inScope`). `listManageableLineages` resolves them to the current-year unit display. A minimal,
+  behaviour-preserving extraction in `lib/rbac/authorize.mjs` (`loadUserRbacInputs`, the un-memoized
+  loader the cached hot-path `loadUserRbac` now delegates to) lets a non-request caller/test reuse it.
+- **`lib/events/manage.mjs` (new).** `listEventsForManager(lineageKeys)` (events an organizing lineage
+  of theirs is tagged on) + `getManagedEvent(eventItemId, actor)` — GATED by `assertEventManage` FIRST
+  (the per-event authority), then composing the existing gated sub-reads so the page renders LIVE data
+  (the admin `EventsClient` submits blind). A `coordinates` flag on `loadMemberContext` + a `/member`
+  link route a coordinator to the surface without global admin.
+- **No schema/permission/migration/mutation change** — permissions stay **52**, content types **13**.
+- **Tests.** **530 static** (was 517; +`tests/coordinator.test.mjs` 13 — the pure `scopedLineagesFor`
+  parity) + `tests/coordinator.db.test.mjs` **5/5 green** on warm Neon (own-club-only, global/inactive/
+  member → nothing, `listEventsForManager` scope-limited, `getManagedEvent` 403 on another club).
+  `scripts/route-smoke.mjs` extended with the `/coordinator` routes. m5/m1 live re-run green (the RBAC
+  extraction is behaviour-preserving). `npm run lint` + `next build` clean. 5-dimension × 2-verifier
+  adversarial review.
+- **Client delivery documentation set (repo root).** `Notebook.md` (the whole platform), `USER_MANUAL.md`
+  (features + the 11-role × 3-status access matrix + how-to guides incl. the event-organizing engine),
+  `RESOURCES.md` (Neon/Cloudinary/host capacity + sizing rationale + where to check live prices),
+  `INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`.
+- **Operator:** read-only feature — no migration/seed change; `npm run db:migrate` + `npm run db:seed`
+  after pulling stay idempotent.
+
 ### Added/Changed — Session 12: Consolidation / deploy-hardening + full-site test gate (no new module) · 2026-07-01
 - **Program complete → hardening pass.** The M0–M8 member-platform program is done; this session
   ships no new feature module. It runs the full test gate, extends CI, adds a repeatable full-site

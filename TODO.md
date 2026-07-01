@@ -131,7 +131,17 @@ Full-site hardening treating the app as if hosted; details in [docs/CONSOLIDATIO
 - [x] Member nav: `MemberNav` + client `SignOutButton` on `/member` + `/member/profile` (NEXT_TASK #3)
 - [x] Full-site per-role audit → **21 confirmed defects → 11 fixed** (B1–B11) + **10 documented-as-accepted** (KNOWN_ISSUES #45–#47 + minor): the inactive+must-change lockout (new `requireLoggedInAccount`), the `/events/[slug]` revoked/view-disabled gate, the unstyled sign-in card, capacity-raise waitlist promotion, the non-destructive membership importer, a shared CSV formula-injection guard (`lib/csv/cell.mjs`), the export empty-roundId 500, reopen-clears-note, fail-closed export auditing, the credited-club link, member sign-out
 - [x] New static (CSV-injection) + m3/m5/m7 live regression assertions; adversarial diff-review found **0 regressions**; no schema change
-- [ ] OPTIONAL (future): scoped-coordinator admin surface reusing `assertEventManage` (KNOWN_ISSUES #43)
+- [x] OPTIONAL (future): scoped-coordinator admin surface reusing `assertEventManage` (KNOWN_ISSUES #43) — **done in Session 13 (DL-096)**
+
+## Session 13 — Scoped-coordinator surface + delivery docs ✅ (DL-096)
+The one remaining OPTIONAL dev item, plus the client-facing hand-over documentation.
+- [x] Standalone **`/coordinator`** surface (own `loadCoordinatorContext`, NOT under the global `/admin` gate; plugin-independent + active-only): landing (my units), events list → per-event manage (settings/rounds/registrations/scores/attendance/closure-submit + CSV), members (roster + add/status/remove + non-destructive CSV import), contribution (M6 club slice via `ContributionSummary`)
+- [x] **`lib/rbac/grants.mjs`** — inverse-of-the-resolver scoped-grant discovery (`scopedLineagesFor` reuses `resolveEffectivePermissions` for exact parity; `listManageableLineages` resolves to current-year unit display) + a behaviour-preserving extraction `loadUserRbacInputs` in `lib/rbac/authorize.mjs`
+- [x] **`lib/events/manage.mjs`** — `listEventsForManager(lineageKeys)` + `getManagedEvent(eventItemId, actor)` (gated by `assertEventManage`, composes the existing gated sub-reads → live data)
+- [x] Central-only actions (organizer tagging, custom entities, closure **review**) stay `requireGlobal` and are absent from the surface; every action re-authorizes via the existing seams. **No new permission/table/migration/mutation** (52 perms, 13 content types)
+- [x] `coordinates` flag on `loadMemberContext` + a `/member` link
+- [x] Tests: **530 static** (+`coordinator.test.mjs` 13) + `coordinator.db.test.mjs` **5/5 green**; m5/m1 re-run green; route-smoke + `/coordinator` routes; `lint` + `build` clean; 5-dimension × 2-verifier review
+- [x] Delivery docs (repo root): `Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`, `INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`
 
 ## Operator-owned (out-of-band — see OPERATIONS_RUNBOOK.md)
 - [ ] Run `db:import:org` → `db:import:events` → `db:import:resources` against 2025-26 (#27)

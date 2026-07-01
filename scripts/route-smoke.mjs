@@ -46,6 +46,11 @@ const STATIC_ROUTES = [
   // ── event playground (login-only when plugin ON) ──
   { path: "/events", kind: "events (login-only when plugin ON)" },
   { path: "/events/organized", kind: "events" },
+  // ── scoped-coordinator surface (sign-in card when anon; must NOT 5xx) ──
+  { path: "/coordinator", kind: "coordinator (sign-in when anon)" },
+  { path: "/coordinator/events", kind: "coordinator (gated)" },
+  { path: "/coordinator/members", kind: "coordinator (gated)" },
+  { path: "/coordinator/contribution", kind: "coordinator (gated)" },
   // ── admin surfaces (sign-in / denied when anon — must NOT 5xx) ──
   { path: "/admin", kind: "admin (gated)" },
   { path: "/admin/content", kind: "admin (gated)" },
@@ -96,6 +101,11 @@ async function resolveDynamicRoutes() {
   await probe("/admin/users/[id]", async () => {
     const u = await prisma.user.findFirst({ select: { id: true } });
     if (u?.id) rows.push({ path: `/admin/users/${u.id}`, kind: "admin (gated, user profile)" });
+  });
+  // One event item id — the scoped-coordinator manage page (gated; anon renders sign-in).
+  await probe("/coordinator/events/[eventId]", async () => {
+    const ev = await prisma.contentItem.findFirst({ where: { contentType: "event" }, select: { id: true } });
+    if (ev?.id) rows.push({ path: `/coordinator/events/${ev.id}`, kind: "coordinator (gated, event manage)" });
   });
   await prisma.$disconnect().catch(() => {});
   return rows;

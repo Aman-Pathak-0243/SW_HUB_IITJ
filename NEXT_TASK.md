@@ -1,26 +1,43 @@
 # Next Task
 
 **As of:** 2026-07-01 · Sessions 1–10 complete. **Session 11 shipped the full M0–M8
-member-platform program.** **Session 12 completed the consolidation / deploy-hardening +
-full-gate pass** (no new module): the four-layer test gate, single-fork CI, the route-render
-smoke, `docs/WEBSITE_TESTING_SOP.md`, the member nav, and **11 bug fixes** from a full-site
-per-role audit. **The product is feature-complete and hardened; the remaining work is
-operator/owner-owned** (below), plus an OPTIONAL scoped-coordinator surface.
+member-platform program.** **Session 12 completed the consolidation / deploy-hardening.**
+**Session 13 built the one remaining OPTIONAL dev item — the standalone `/coordinator`
+scoped surface (closes KNOWN_ISSUES #43) — and the full client-facing delivery
+documentation set.** **The product is now feature-complete, hardened, and delivery-
+documented; the ONLY remaining work is operator/owner-owned** (below). There is NO
+pending developer feature work.
 
-> ### ▶️ NEXT — Operator/owner backlog + optional scoped-coordinator surface
-> There is no pending developer feature work. Remaining items:
+> ### ▶️ NEXT — Operator/owner backlog ONLY (no developer work remains)
 > 1. **Operator (run when convenient — OPERATIONS_RUNBOOK.md):** populate the live year —
 >    `npm run db:import:org` → `db:import:events` → `db:import:resources` (#27); then the media
 >    migration `npm run db:migrate:media -- --apply` + the safe `/public` prune (#18, runbook §3.1).
 >    Optionally `npm install nodemailer` + set `MAIL_*` to enable bulk mail (#40/#45).
 > 2. **Owner (anytime):** rotate/remove the V1 leaked secrets in `README.md` + purge history
 >    (#1), then drop the `.gitleaks.toml` by-SHA allowlist; consider rotating the Neon password (#19).
-> 3. **OPTIONAL dev work — scoped-coordinator surfaces (KNOWN_ISSUES #43):** a dedicated scoped
->    admin view for a club-scoped `event.manage` coordinator (and a scoped Contribution/profile
->    view) — the `assertEventManage` seam exists; only the nav gating is global today. This is
->    the one remaining "nice to have" if a future session wants it.
+> 3. **Client hand-over:** follow `CLIENT_INSTRUCTIONS.md` (the go-live runbook) and share the
+>    delivery docs (`DELIVERABLES_INDEX.md` lists them all).
 > **First (any session):** confirm the operator ran `npm run db:migrate` + `npm run db:seed`
 > (idempotent), and run the full gate per the SOP (static + lint + build + live per-file/single-fork).
+> **If a future session wants to WIDEN the coordinator surface:** the `/coordinator` shell +
+> `getManagedEvent` (compose-the-gated-reads) + `listManageableLineages` are the template for a
+> scoped Content or Appointments view — reuse `assertActorPermission` at the unit's scope (DL-096).
+
+> ### ✅ Session 13 done — Scoped-coordinator surface + delivery docs (DL-096)
+> Closed KNOWN_ISSUES #43 with a STANDALONE **`/coordinator`** back office (its own scope-aware
+> `loadCoordinatorContext`, NOT under the global `/admin` gate): a club-scoped coordinator SEES and
+> runs their unit's **events** (settings/rounds/registrations/scores/attendance/closure-submit + CSV),
+> **members** (roster + non-destructive CSV import), and **contribution** (M6 club slice). Driven by a
+> NEW inverse-of-the-resolver **scoped-grant discovery** (`lib/rbac/grants.mjs#listManageableLineages`,
+> reusing `resolveEffectivePermissions` for exact parity) + `lib/events/manage.mjs`
+> (`listEventsForManager` / `getManagedEvent`, gated by `assertEventManage`). Central-only actions
+> (organizer tagging, entities, closure review) stay `requireGlobal` and are absent. **No new
+> permission/table/migration/mutation** (permissions 52, content types 13). **530 static
+> (+`coordinator.test.mjs` 13) + `coordinator.db.test.mjs` 5/5 green** (m5/m1 re-run green — the RBAC
+> extraction is behaviour-preserving); route-smoke extended; 5-dimension × 2-verifier review. Plus the
+> client delivery docs: `Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`, `INVESTOR_EMAIL.md`,
+> `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`. **Operator:** no
+> migration/seed change (read-only feature); `npm run db:migrate` + `npm run db:seed` stay idempotent.
 
 > ### ✅ Session 12 done — Consolidation / deploy-hardening (no new module)
 > Ran the full test gate (517 static + lint + `next build`; every live suite per-file single-fork on

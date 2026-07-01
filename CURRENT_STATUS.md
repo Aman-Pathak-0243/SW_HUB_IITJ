@@ -1,15 +1,66 @@
 # Current Status
 
 **Last updated:** 2026-07-01
-**Session:** 12 — **CONSOLIDATION / DEPLOY-HARDENING COMPLETE** (no new module): the full
-four-layer test gate (static → live per-file/single-fork → route-render smoke → per-mode
-functional audit), a repeatable `docs/WEBSITE_TESTING_SOP.md`, a single-fork nightly CI live
-job, a small logged-in-member nav, and **11 bug fixes** from a full-site per-role audit
-(the rest documented-as-accepted). Built on the complete **M0–M8** member-platform program.
+**Session:** 13 — **SCOPED-COORDINATOR SURFACE** (the one remaining OPTIONAL dev item, DL-096):
+a STANDALONE **`/coordinator`** back office that closes **KNOWN_ISSUES #43** — a club-scoped
+coordinator can now SEE and run their unit's **events** (settings/rounds/registrations/scores/
+attendance/closure-submit + CSV), **members** (roster + non-destructive CSV import), and
+**contribution** (the M6 club slice) — built entirely on the existing `assertEventManage` /
+`assertActorPermission` seams + the one mutation route, plus a NEW inverse-of-the-resolver
+scoped-grant discovery (`lib/rbac/grants.mjs`). Also produced the full client-facing
+**delivery documentation set** (`Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`,
+`INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`).
 **Project status:** ✅ Sessions 1–10 shipped; ✅ Session 11 program M0–M8 complete;
-✅ Session 12 consolidation/hardening complete. **Next: operator/owner backlog** (live-data
-imports + media migration + V1 secret rotation) — see NEXT_TASK.md.
+✅ Session 12 consolidation/hardening complete; ✅ Session 13 scoped-coordinator surface +
+delivery docs complete. **The product is feature-complete, hardened, and delivery-documented;
+the remaining work is operator/owner-owned** (live-data imports + media migration + V1 secret
+rotation) — see NEXT_TASK.md.
 **Branch:** `portal-v2`
+
+## What is done (Session 13 — scoped-coordinator surface + delivery docs)
+
+- **`/coordinator` — a standalone scoped back office (DL-096; closes KNOWN_ISSUES #43).** A club-
+  scoped coordinator (a `role_assignment` with `event.manage` / `membership.manage` SCOPED to an
+  `org_unit_lineage`) was invisible to the GLOBAL admin nav (`loadAdminContext` resolves at `{}`), so
+  they could only DISPATCH scoped mutations programmatically. Session 13 ships the missing SURFACE — a
+  standalone `/coordinator` area (its own never-throws `loadCoordinatorContext`, NOT under the hardened
+  `/admin` gate), plugin-INDEPENDENT and ACTIVE-ONLY (back-office parity), where a coordinator manages
+  THEIR unit's **events** (per-event: settings, rounds, registrations roster + add/status/remove, score
+  & attendance replace-sheets, own **closure report** submit, CSV downloads), **members** (roster +
+  add/status/remove + non-destructive bulk CSV import), and **contribution** (the M6 `getClubContribution`
+  slice via the shared `ContributionSummary`). Central-only actions (organizer tagging, custom entities,
+  closure **review**) stay `requireGlobal` and are absent from the surface.
+- **Scoped-grant discovery — the inverse of the resolver (`lib/rbac/grants.mjs`).** `scopedLineagesFor`
+  enumerates the lineages a user holds a permission at as a SCOPED grant, built ON
+  `resolveEffectivePermissions` at each candidate lineage → exact live parity (deny-wins, developer/
+  grants_all short-circuit, year-dimension `inScope`); `listManageableLineages` resolves them to
+  current-year unit display. A minimal, behaviour-preserving extraction in `lib/rbac/authorize.mjs`
+  (`loadUserRbacInputs`, the un-memoized loader the cached hot-path `loadUserRbac` now delegates to)
+  lets a non-request caller/test load the same RBAC inputs.
+- **`lib/events/manage.mjs`.** `listEventsForManager(lineageKeys)` (events an organizing lineage of
+  theirs is tagged on = exactly the `assertEventManage` scoped set) + `getManagedEvent(eventItemId,
+  actor)` (GATED by `assertEventManage` FIRST — the per-event authority — then composing the existing
+  gated sub-reads so the page shows LIVE data, unlike the blind admin `EventsClient`).
+- **No schema/permission/migration/mutation change.** Every action re-authorizes via the existing seams;
+  permissions stay **52**, content types **13**. A `coordinates` flag on `loadMemberContext` + a
+  `/member` link route a coordinator to the surface without global admin.
+- **Tests.** **530 static** (was 517; +`tests/coordinator.test.mjs` 13 — the pure `scopedLineagesFor`
+  parity: deny-wins, global-vs-scoped, year dimension, developer short-circuit, revoked) +
+  `tests/coordinator.db.test.mjs` **5/5 green** on warm Neon (a coordinator sees ONLY their club with
+  {events,members} caps; a global staff / an inactive coordinator / a plain member see nothing;
+  `listEventsForManager` is scope-limited; `getManagedEvent` 403s on another club's event, ok for the
+  organizing coordinator + global staff). Route-smoke extended with the 4 `/coordinator` routes + the
+  dynamic manage page. m5/m1 live re-run green (the RBAC extraction is behaviour-preserving). `npm run
+  lint` + `next build` clean.
+- **Delivery documentation set (client-facing, repo root).** `Notebook.md` (the whole platform —
+  architecture, data model, RBAC, every module, ops), `USER_MANUAL.md` (features + the 11-role ×
+  3-status access matrix + how-to guides incl. the event-organizing engine), `RESOURCES.md` (Neon/
+  Cloudinary/host capacity + sizing rationale + where to check live prices), `INVESTOR_EMAIL.md` +
+  `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md` (every markdown + a one-line description), and
+  `CLIENT_INSTRUCTIONS.md` (the hand-over / go-live runbook).
+- **Adversarial review** — a 5-dimension finder → per-finding 2-verifier workflow (scope-safety,
+  global-only leakage, RBAC parity, correctness, client/UX); findings triaged + addressed (see the
+  CHANGELOG entry).
 
 ## What is done (Session 12 — consolidation / deploy-hardening)
 
