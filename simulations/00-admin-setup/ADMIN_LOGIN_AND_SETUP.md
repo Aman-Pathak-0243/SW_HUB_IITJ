@@ -75,6 +75,23 @@ on the site as a signed-in member. Log back out.
 
 ---
 
+## Step 5 (optional) — Designate club coordinators
+
+If a club will run its **own** events (rather than a central admin running everything), map its
+coordinator so they get their own scoped management surface at `/coordinator`.
+
+1. Sidebar → **Coordinators** (`/admin/coordinators`).
+2. Find the club, enter the coordinator's **member email**, and click **Map to this club**.
+
+⚠ **A person can coordinate only one club per academic year** — if you try to map someone who
+already coordinates another club, it's blocked (revoke the first to move them). A club can have
+several coordinators (different people).
+
+✅ **Verify:** the coordinator now appears under that club, and when they sign in they can open
+`/coordinator` and manage that club's events (registration, rounds, scores, attendance).
+
+---
+
 ## You're ready
 
 - **Simulation 1 (any event):** [../simulation-1-general/README.md](../simulation-1-general/README.md)

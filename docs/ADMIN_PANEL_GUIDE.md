@@ -33,11 +33,31 @@ a "no access" panel if your roles don't include it):
 | Content (events, announcements, resources, profiles) | `/admin/content` | `content.*` |
 | Organization (units, people, appointments) | `/admin/organization` | `org_unit.*`, `appointment.*`, `position.manage` |
 | Academic Years (years, transition wizard, lock) | `/admin/years` | `year.*` |
+| Event Playground (registration, rounds, scores, attendance, closure) | `/admin/events` | `event.manage` |
 | Media library | `/admin/media` | `media.*` |
 | Users & Roles | `/admin/users` | `user.*`, `role.*` |
+| Coordinators (map each coordinator → one club) | `/admin/coordinators` | `role.assign`, `role.read` |
 | Password Management (account/reset requests) | `/admin/requests` | `notification.read` |
 | Plugins (member-platform on/off) | `/admin/plugins` | `dev.console` (toggle: developer) |
 | Developer Console (status, audit, backups) | `/admin/console` | `dev.console`, `audit.read`, `backup.*` |
+
+---
+
+## 1a. Event Playground & Coordinators
+
+**Event Playground (`/admin/events`)** — pick an event, then manage its registration window
+/ capacity, rounds, organizers, scores, attendance and closure review. The **registered
+participants**, the per-round **attendance**, and the per-round **scores** are shown as
+**searchable, collapsible lists** (tick attendance with checkboxes; type points per participant;
+change/remove a registration inline) — no ids to copy. CSV downloads are available for
+participants / ranking / scores / attendance. The same lists appear on the scoped
+**`/coordinator`** surface for a club's own coordinator.
+
+**Coordinators (`/admin/coordinators`)** — map each coordinator to a club: pick a club, enter a
+member's email, and "Map to this club". This grants the club-scoped `coordinator` role so they
+can run their club's events. **A person can coordinate only one club per academic year** — a
+second mapping is blocked (revoke the first to move them). *(One PIC per club and one Secretary
+per council are enforced separately by the Organization module's position rules.)*
 
 ---
 

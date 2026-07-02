@@ -7,14 +7,17 @@ and any bug found was fixed and documented.
 
 ## Overall verdict
 
-**✅ All scenarios pass — 45 / 45 automated checks.** Two findings surfaced during testing;
-both are resolved (see [BUGS_AND_FIXES.md](BUGS_AND_FIXES.md)).
+**✅ All scenarios pass — 107 / 107 automated checks.** Two findings surfaced in the earlier
+event/quiz pass; both are resolved (see [BUGS_AND_FIXES.md](BUGS_AND_FIXES.md)). The later
+role-matrix + coordinator-mapping pass found **no new bugs**.
 
 | Report | Scenario | Checks | Result |
 |---|---|---|---|
 | [01-hackathon-test.md](01-hackathon-test.md) | Hackathon — 50 members, 2 rounds, manual scoring | 28 | ✅ 28/28 |
 | [02-quiz-test.md](02-quiz-test.md) | Live quiz — 50 members, 5 questions, answer-key auto-scoring | 6 | ✅ 6/6 |
 | [03-kit-scenarios-test.md](03-kit-scenarios-test.md) | General event · Coding contest · Robotics championship · Collaboration | 11 | ✅ 11/11 |
+| [04-role-matrix-test.md](04-role-matrix-test.md) | **Every role** × permissions / events / collaboration / admin-access / participation | 58 | ✅ 58/58 |
+| [05-coordinator-mapping-test.md](05-coordinator-mapping-test.md) | One-coordinator-per-club rule + map-by-email + move-after-revoke | 4 | ✅ 4/4 |
 | [BUGS_AND_FIXES.md](BUGS_AND_FIXES.md) | Findings F-1, F-2 — noted, fixed, documented | — | ✅ resolved |
 
 ## How these tests were run
@@ -30,6 +33,8 @@ RUN_SIM=1 ./node_modules/.bin/dotenv -e .env.local -- ./node_modules/.bin/vitest
   tests/event-simulation.test.mjs \
   tests/quiz-simulation.test.mjs \
   tests/kit-simulations.test.mjs \
+  tests/role-matrix.test.mjs \
+  tests/coordinator-one-club.test.mjs \
   --pool=forks --poolOptions.forks.singleFork
 ```
 
