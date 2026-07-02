@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { FiMenu, FiX } from "react-icons/fi";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 const WavingFlag = () => {
   return (
@@ -47,6 +48,10 @@ const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
+  // Auth-aware nav CTA: signed-in users get a "Profile" link, everyone else "Login".
+  const { data: session, status } = useSession();
+  const isAuthed = status === "authenticated";
+  const firstName = session?.user?.name?.trim().split(/\s+/)[0];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -456,7 +461,13 @@ const Header = () => {
               </Link>
             ))}
 
-            <Link href="/login" className="nav-login-btn">Login</Link>
+            {isAuthed ? (
+              <Link href="/profile" className="nav-login-btn">
+                {firstName ? `Hi, ${firstName}` : "Profile"}
+              </Link>
+            ) : (
+              <Link href="/login" className="nav-login-btn">Login</Link>
+            )}
           </nav>
         </div>
 
@@ -483,7 +494,13 @@ const Header = () => {
                 </Link>
               ))}
 
-              <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link login">Login</Link>
+              {isAuthed ? (
+                <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link login">
+                  {firstName ? `Hi, ${firstName} — My Profile` : "My Profile"}
+                </Link>
+              ) : (
+                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link login">Login</Link>
+              )}
             </div>
           </div>
         )}
