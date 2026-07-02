@@ -68,6 +68,8 @@ and **milestone plan** for Portal V2.0.
 | [MILESTONE_PLAN.md](MILESTONE_PLAN.md) | **The roadmap — Sessions 1–10 (done) + the Session 11+ program** |
 | [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md) | **Session 11+ durable design — accounts/RBAC/club pages/event playground/dashboards (module-by-module)** |
 | [simulations/EVENT_SIMULATION.md](simulations/EVENT_SIMULATION.md) | **Organizer's manual + a full 50-participant, 2-round event simulation (registration/waitlist/scoring/leaderboard/attendance/profiles) — 28/28 checks passed** |
+| [../simulations/README.md](../simulations/README.md) | **Client self-service simulation kit** — bulk-import sheet + copy-paste manuals for running quiz / hackathon / coding / robotics events end-to-end (verified) |
+| [../test_simulation/README.md](../test_simulation/README.md) | **Simulation test report** — what was executed against the DB following the kit, per-scenario PASS/FAIL, and any bugs found + fixed |
 
 ### Root-level tracking files (live status, updated every milestone)
 

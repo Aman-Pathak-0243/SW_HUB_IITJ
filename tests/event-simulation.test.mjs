@@ -95,6 +95,10 @@ describe.skipIf(!RUN)("full event simulation (50 members, 2 rounds)", () => {
 
     // ── PHASE 1: create + publish the event ────────────────────────────────
     section("PHASE 1 · CREATE THE EVENT");
+    // Reproducibility: start from a FRESH event each run so the capacity → waitlist →
+    // auto-promote sequence is always valid (deleting the event cascades its
+    // registrations/scores/attendance/rounds/settings). Fixes re-run drift (Finding F-2).
+    await prisma.contentItem.deleteMany({ where: { slug: EVENT_SLUG, contentType: "event" } });
     let event = await prisma.contentItem.findFirst({ where: { slug: EVENT_SLUG, contentType: "event" }, select: { id: true, status: true } });
     if (!event) {
       const eventDate = new Date(Date.now() + 14 * 86400000).toISOString();

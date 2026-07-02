@@ -65,6 +65,8 @@ Create **Round 1** (Event Playground → Rounds → **Create round**, Name: `Rou
 
 ✅ **Verify:** After each **Reveal**, the leaderboard re-ranks; after Q5 the top scorer is near ~4000 pts. **End** finalizes the Round 1 quiz leaderboard.
 
+> **⚠ Required to combine rounds (verified — Finding F-1):** the quiz leaderboard does **not** automatically feed the event's overall ranking or profiles (quiz answers and round scores are separate systems). After **End**, open **Scores → Round 1 — Quiz**, and type in each participant's final quiz total (rescale if you like, e.g. ÷30 to a ~0–100 scale). Then Round 1 counts in the combined leaderboard and in profiles. Skip this only if you want the quiz to stand alone.
+
 ---
 
 ## 5. Round 2 — Coding challenge (manual rubric)

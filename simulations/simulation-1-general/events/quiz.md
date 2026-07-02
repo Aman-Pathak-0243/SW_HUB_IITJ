@@ -102,6 +102,10 @@ We ran this exact fixture with 50 participants (all 6 automated checks passed):
 | Winner | **Participant 03**, with **3998 points** |
 | Profiles | All 50 participants' profiles listed the quiz afterwards |
 
-Each participant's profile (`/profile` and `/member/profile`) automatically shows this quiz after it runs — no extra step.
+Each participant's profile (`/profile` and `/member/profile`) automatically **lists this quiz** (their participation) after it runs.
 
-**✅ Verify:** Open any participant's profile and confirm the "Tech Trivia Live Quiz" appears with their points and rank.
+> **⚠ Important — where quiz scores live.** A live quiz and a manually-scored event round are **two independent scoring systems.** Quiz points/ranks live on the **quiz leaderboard** (the live board on the host/player pages). A **pure quiz does NOT put points or a rank into the member's profile or the event's overall ranking** — those only reflect **manual round scores** (`Scores` sheet). This was verified in testing (see [`../../../test_simulation/03-kit-scenarios-test.md`](../../../test_simulation/03-kit-scenarios-test.md), Finding F-1).
+>
+> **To also show quiz results in profiles / a combined event ranking:** after the quiz, read each player's score from the quiz leaderboard and enter it into a **manual round** (e.g. a round named "Aptitude Quiz") via the **Scores** sheet. Then the profile and the overall leaderboard include it. The Coding Contest fixture shows this pattern end-to-end.
+
+**✅ Verify:** Open any participant's profile and confirm the "Tech Trivia Live Quiz" appears in their event list. (Points/rank appear in the profile only if you recorded the quiz as a manual round, per the note above.)

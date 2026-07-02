@@ -33,7 +33,8 @@
     "db:seed:test": "dotenv -e .env.test -- node prisma/seed.mjs",
     "db:local:setup": "npm run db:migrate:test && npm run db:seed:test",
     "test:db": "dotenv -e .env.test -- node scripts/test-db.mjs",
-    "db:studio:test": "dotenv -e .env.test -- prisma studio"
+    "db:studio:test": "dotenv -e .env.test -- prisma studio",
+    "sim:clean": "dotenv -e .env.local -- node scripts/clean-sim.mjs"
   },
   "prisma": {
     "seed": "dotenv -e .env.local -- node prisma/seed.mjs"

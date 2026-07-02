@@ -119,6 +119,18 @@ Host the quiz from the event's live host page: **`/events/<slug>/live/host`**. P
 
 ---
 
+## Step 4b — Record the quiz result as Round 1's score (required to combine rounds)
+
+> **⚠ Important — this step is required, and was verified in testing.** The live quiz and the manual round-score sheet are **two independent scoring systems.** The quiz leaderboard (from Step 4) does **not** automatically flow into the event's overall leaderboard or into members' profiles — those read the **Scores** sheets only. (See [`../../test_simulation/03-kit-scenarios-test.md`](../../test_simulation/03-kit-scenarios-test.md), Finding **F-1**.) So to make Round 1 count toward the combined result, you record it once:
+
+1. **Admin → Event Playground** → your event → **Rounds** → **Create round**, Name: `Round 1 — Aptitude Quiz`.
+2. Read each participant's **final quiz score** from the Step-4 quiz leaderboard.
+3. Open the **Scores** sheet for **Round 1 — Aptitude Quiz** and type each participant's quiz total (you may rescale, e.g. divide by 30 to bring ~1000-point quiz scores onto a ~0–100 scale so the two rounds weigh evenly). **Save.**
+
+✅ **Verify:** the overall leaderboard (Step 6) now includes Round 1, and each participant's **profile** shows points + a rank. *(Skip this step if you're happy to keep the quiz standalone — then the quiz result lives only on the quiz leaderboard.)*
+
+---
+
 ## Step 5 — Run Round 2 (manually-scored coding round)
 
 Round 2 is judged by you against a rubric.
