@@ -174,6 +174,12 @@ export default async function EventDetailPage({ params }) {
               registrationClosesAt={reg.registrationClosesAt}
               registrationClosed={reg.registrationClosed}
             />
+            {/* Session 16 — live quiz & live leaderboard (login-only, DL-104/108). */}
+            <p className="mt-3">
+              <Link href={`/events/${ev.slug}/live`} className="inline-flex items-center gap-1 text-[#003f87] font-medium hover:underline">
+                🔴 Live quiz &amp; leaderboard →
+              </Link>
+            </p>
           </div>
 
           {ev.summary && <p className="text-lg text-gray-700 mb-4">{ev.summary}</p>}

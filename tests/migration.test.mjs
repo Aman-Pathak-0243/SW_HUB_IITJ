@@ -25,6 +25,9 @@ const m4 = m4Folder ? readFileSync(join(migrationsDir, m4Folder, "migration.sql"
 const m5Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m5"));
 const m5 = m5Folder ? readFileSync(join(migrationsDir, m5Folder, "migration.sql"), "utf8") : "";
 
+const quizFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_quiz"));
+const quiz = quizFolder ? readFileSync(join(migrationsDir, quizFolder, "migration.sql"), "utf8") : "";
+
 const TABLES = [
   "app_user", "auth_account", "verification_token", "academic_year", "role",
   "permission", "role_permission", "org_unit_lineage", "role_assignment",
@@ -287,5 +290,38 @@ describe("Session 11 / M5 forward migration (Centralized Event Playground)", () 
 
   it("indexes (event, round, user) for the scoring hot path (DL-087 perf)", () => {
     expect(m5).toMatch(/CREATE INDEX "event_score_item_round_user_idx"[\s\S]*"event_item_id", "round_id", "user_id"/);
+  });
+});
+
+describe("Session 16 forward migration (live quizzes & leaderboards)", () => {
+  it("the migration file exists", () => {
+    expect(quizFolder, "expected a *_member_platform_quiz migration").toBeTruthy();
+    expect(quiz.length).toBeGreaterThan(0);
+  });
+
+  it("creates the four quiz tables keyed on the event content_item (additive, not an init rewrite)", () => {
+    for (const t of ["quiz_question", "quiz_session", "quiz_participant", "quiz_answer"]) {
+      expect(quiz.includes(`CREATE TABLE "${t}"`), `missing CREATE TABLE "${t}"`).toBe(true);
+      expect(schema.includes(`@@map("${t}")`), `missing @@map("${t}")`).toBe(true);
+    }
+  });
+
+  it("has the one-live-session-per-event partial unique + the status CHECK", () => {
+    expect(quiz).toMatch(/CREATE UNIQUE INDEX "quiz_session_one_live_uq"[\s\S]*WHERE "status" <> 'ended'/);
+    expect(quiz).toMatch(/quiz_session_status_chk[\s\S]*'pending', 'active', 'reveal', 'ended'/);
+  });
+
+  it("makes each answer one-shot via a (session, question, user) unique", () => {
+    expect(quiz).toMatch(/CREATE UNIQUE INDEX "quiz_answer_session_question_user_uq"[\s\S]*"session_id", "question_id", "user_id"/);
+  });
+
+  it("keys questions/sessions on content_item with cascade delete", () => {
+    expect(quiz).toMatch(/quiz_question_item_fkey[\s\S]*REFERENCES "content_item"\("id"\) ON DELETE CASCADE/);
+    expect(quiz).toMatch(/quiz_session_item_fkey[\s\S]*REFERENCES "content_item"\("id"\) ON DELETE CASCADE/);
+  });
+
+  it("guards the question points + time-limit bounds (matches the pure normalizer)", () => {
+    expect(quiz).toMatch(/quiz_question_points_chk[\s\S]*"points" >= 0/);
+    expect(quiz).toMatch(/quiz_question_time_limit_chk[\s\S]*"time_limit_seconds" > 0 AND "time_limit_seconds" <= 3600/);
   });
 });

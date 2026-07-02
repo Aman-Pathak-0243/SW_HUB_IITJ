@@ -245,6 +245,10 @@ model User {
   eventAttendancesCreated   EventAttendance[]    @relation("EventAttendanceCreatedBy")
   eventClosureSubmitted     EventClosureReport[] @relation("EventClosureSubmittedBy")
   eventClosureReviewed      EventClosureReport[] @relation("EventClosureReviewedBy")
+  quizQuestionsCreated      QuizQuestion[]       @relation("QuizQuestionCreatedBy")
+  quizSessionsCreated       QuizSession[]        @relation("QuizSessionCreatedBy")
+  quizParticipations        QuizParticipant[]    @relation("QuizParticipantUser")
+  quizAnswers               QuizAnswer[]         @relation("QuizAnswerUser")
 
   @@index([status])
   @@map("app_user")
@@ -638,6 +642,8 @@ model ContentItem {
   eventScores         EventScore[]         @relation("EventScoreItem")
   eventAttendances    EventAttendance[]    @relation("EventAttendanceItem")
   eventClosureReports EventClosureReport[] @relation("EventClosureReportItem")
+  quizQuestions       QuizQuestion[]       @relation("QuizQuestionItem")
+  quizSessions        QuizSession[]        @relation("QuizSessionItem")
 
   @@unique([contentType, academicYearId, lineageKey]) // one item per logical doc per year
   // Public-listing hot path is served by the raw-SQL partial index
@@ -1494,4 +1500,111 @@ model EventClosureReport {
   @@unique([eventItemId, submittedById])
   @@index([eventItemId])
   @@map("event_closure_report")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 16 (Live Quizzes & Live Leaderboards, Tier B)
+// ──────────────────────────────────────────────────────────────────────────
+// The LIVE-QUIZ subsystem is part of an event's OPERATIONAL subsystem (like
+// rounds/scores, DL-087): STANDALONE tables keyed on the DURABLE event
+// content_item id, gated by the SAME `event.manage` seam (DL-086) — so NO new
+// permission and NO new content type (DL-104). Organizer authoring/control is
+// authorized by assertEventManage; member play is login-only via
+// assertCanParticipate (like registration, DL-086). All four tables are in
+// AUTO_AUDIT_SKIP: organizer question/session mutations write ONE semantic audit
+// row via their services; member joins/answers are durable rows (NOT audited) —
+// the M5 registration/score pattern. The server-authoritative timer (DL-106)
+// lives on quiz_session.question_started_at. Real-time fan-out is an in-process
+// broadcaster with OPTIONAL Redis pub/sub (DL-107) — no schema coupling.
+
+// An event's question bank (authored ahead of time; reusable across sessions).
+model QuizQuestion {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId      String   @map("event_item_id") @db.Uuid
+  prompt           String
+  // Ordered answer options [{ id, text }, ...] (JSONB), validated + normalized by
+  // the PURE lib/quiz/forms.mjs#normalizeQuestion (mirrored server-side, DL-051).
+  options          Json     @db.JsonB
+  // Which option id(s) are correct — a text[] so single- OR multi-select works.
+  correctOptionIds String[] @map("correct_option_ids")
+  points           Int      @default(1000)
+  timeLimitSeconds Int      @default(20) @map("time_limit_seconds")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById      String?  @map("created_by") @db.Uuid
+
+  event           ContentItem   @relation("QuizQuestionItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  createdBy       User?         @relation("QuizQuestionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  sessionsCurrent QuizSession[] @relation("QuizSessionCurrentQuestion")
+  answers         QuizAnswer[]  @relation("QuizAnswerQuestion")
+
+  @@index([eventItemId])
+  @@map("quiz_question")
+}
+
+// One LIVE run of an event's quiz. A partial-unique (raw SQL) allows at most one
+// non-ended session per event. pending=lobby; active=a question is open + timing;
+// reveal=answers closed (correct answer + leaderboard shown); ended.
+model QuizSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId       String    @map("event_item_id") @db.Uuid
+  status            String    @default("pending") // pending | active | reveal | ended (CHECK)
+  currentQuestionId String?   @map("current_question_id") @db.Uuid
+  // SERVER-AUTHORITATIVE timer (DL-106): stamped when a question opens; an answer is
+  // accepted only within time_limit_seconds of it. NEVER client-supplied.
+  questionStartedAt DateTime? @map("question_started_at") @db.Timestamptz
+  startedAt         DateTime? @map("started_at") @db.Timestamptz
+  endedAt           DateTime? @map("ended_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  createdById       String?   @map("created_by") @db.Uuid
+
+  event           ContentItem       @relation("QuizSessionItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  currentQuestion QuizQuestion?     @relation("QuizSessionCurrentQuestion", fields: [currentQuestionId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("QuizSessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  participants    QuizParticipant[] @relation("QuizParticipantSession")
+  answers         QuizAnswer[]      @relation("QuizAnswerSession")
+
+  @@index([eventItemId])
+  @@map("quiz_session")
+}
+
+// Lobby membership — one row per (session, member); upserted when a member joins the
+// live stream. Durable row, NOT audited. Feeds the "N players" count + leaderboard set.
+model QuizParticipant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+  session QuizSession @relation("QuizParticipantSession", fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation("QuizParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@map("quiz_participant")
+}
+
+// One answer per (session, question, member) — the UNIQUE makes each answer one-shot
+// (a second/late submission is rejected). Server-scored (is_correct, points_awarded,
+// response_ms). Durable row, NOT audited (the member is the actor; the row is the record).
+model QuizAnswer {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId         String   @map("session_id") @db.Uuid
+  questionId        String   @map("question_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  selectedOptionIds String[] @map("selected_option_ids")
+  isCorrect         Boolean  @default(false) @map("is_correct")
+  pointsAwarded     Float    @default(0) @map("points_awarded")
+  responseMs        Int?     @map("response_ms")
+  answeredAt        DateTime @default(now()) @map("answered_at") @db.Timestamptz
+
+  session  QuizSession  @relation("QuizAnswerSession", fields: [sessionId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation("QuizAnswerQuestion", fields: [questionId], references: [id], onDelete: Cascade)
+  user     User         @relation("QuizAnswerUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId, userId])
+  @@index([sessionId, userId])
+  @@map("quiz_answer")
 }

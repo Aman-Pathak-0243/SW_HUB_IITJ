@@ -1,31 +1,35 @@
 # Next Task
 
-**As of:** 2026-07-02 · **Session 14 shipped the quick-wins bundle + `systemRequirements.md`;
-Session 15 shipped inline edit-on-public-page (DL-103).** ONE deferred developer feature remains
-(live quizzes + real-time), plus the operator backlog below.
+**As of:** 2026-07-02 · **Session 16 shipped live quizzes + live leaderboards (SSE + optional Redis, DL-104..108) —
+the LAST deferred developer feature.** All Session-11+ modules (M0–M8) AND every deferred dev item (inline edit,
+live quizzes) are now complete. **The remaining work is operator/owner-owned** (below).
 
 > ### ▶️ FIRST — migrations
-> The Session-14 migration `20260702120000_event_allowed_registrant_roles` is **already applied +
-> validated on the local Docker Postgres** (`npm run db:migrate`). Ensure it is applied in each OTHER
-> environment before relying on the allowed-registrant-roles gate. Session 15 added **no** migration.
-> Run the full gate per the SOP (static + lint + build + live per-file/single-fork).
+> Session 16 added **`20260702130000_member_platform_quiz`** (4 quiz tables) — **already applied + validated on
+> the local Docker Postgres**. The Session-14 `20260702120000_event_allowed_registrant_roles` is likewise applied
+> locally. **In each OTHER environment run `npm run db:migrate`** before using the live-quiz / allowed-roles
+> features. No seed change (no new permission/content type). Run the full gate per the SOP (static + lint + build +
+> live per-file/single-fork). **Redis is OPTIONAL** — live quizzes run single-instance without it; for the
+> multi-instance Tier-B path start the `redis` service in `docker-compose.prod.yml`, set `REDIS_URL`, and
+> `npm install ioredis` (KNOWN_ISSUES #51).
 
-> ### ✅ Session 15 done — Inline edit-on-public-page (DL-103)
-> Deferred #1 is COMPLETE: a role + jurisdiction-gated Edit affordance on the public event / club-profile /
-> wall-of-fame pages posting the existing `content.edit` / new `content.editAndPublish` actions (re-authorized
-> at scope). Files: `lib/cms/inline.mjs` (pure specs + `buildEditPatch`), `app/components/InlineEditor.jsx`,
-> `lib/cms/content.mjs` (`resolveInlineEditCapability` + `editAndPublish`), the `content.editAndPublish`
-> registry action, + scope threading in `getPlaygroundEvent`/`loadProfile` and the 3 pages. Review fixed a
-> HIGH (foreign-draft publish → `409 DRAFT_OPEN`) + a LOW (dead no-op guard).
+> ### ✅ Session 16 done — Live quizzes & live leaderboards (SSE + optional Redis, DL-104..108)
+> The last deferred feature is COMPLETE. **NO new permission, NO new content type** — the quiz is an event's
+> operational subsystem gated by the existing `event.manage` seam; member play is login-only via
+> `assertCanParticipate`. New: `lib/quiz/{forms,questions,sessions,answers,leaderboard}.mjs`,
+> `lib/realtime/{redis,broadcast,sse}.mjs`, SSE routes `app/api/live/*`, pages `/events/[slug]/live[/host]`,
+> client components `LiveQuiz{Player,Host}` + `LiveRegistrationBoard` + `useEventSource`, 9 `quiz.*` registry
+> actions, migration `20260702130000_member_platform_quiz`, `docker-compose.prod.yml`, `REDIS_URL`. **Server-
+> authoritative timer** (host-paced, no scheduler); **leaderboard read authoritatively from Postgres** (the review
+> removed an unsafe Redis cache); live **registration** leaderboard as the first transport step. 580 static +
+> `quiz.db` 9 + `inline.db` 1 (the deferred Session-15 `DRAFT_OPEN` test) green; 18-agent review (authz clean) →
+> 6 findings all addressed.
 
-> ### ▶️ NEXT — the last deferred developer feature
-> 1. **Live quizzes + live leaderboards (self-hosted SSE + Redis — the CHOSEN real-time path, `systemRequirements.md` §10, Tier B).**
->    New quiz domain (question/session/answer models keyed on the durable event id, per-answer write path,
->    server-authoritative timer, a Redis-cached running-score aggregate) + an SSE transport. Sizing = 4 vCPU/8 GB
->    + a Redis container. Registration concurrency is already DB-safe (deferred capacity trigger + SKIP LOCKED);
->    a live REGISTRATION leaderboard is a cheap first step on the same transport.
-> 2. **(Optional) Widen inline editing** — add live-DB coverage for `editAndPublish` (esp. the `DRAFT_OPEN`
->    refusal), and extend the inline field set (mission points list, media, dates) if the operator wants it.
+> ### ▶️ NEXT — no developer feature work remains
+> The product is feature-complete. If a future session wants to EXTEND the live quizzes, natural follow-ups (all
+> optional): a per-option answer distribution at reveal; a quiz "results" export (CSV) reusing the downloads
+> pattern; wiring the host controls into the `/coordinator` surface; and, only for a large concurrent audience,
+> exercising the Redis pub/sub path (install `ioredis` + `REDIS_URL`, verify cross-instance fan-out).
 
 > ### ▶️ ALSO — Operator/owner backlog (unchanged)
 > 1. **Operator (run when convenient — OPERATIONS_RUNBOOK.md):** populate the live year —

@@ -1,6 +1,30 @@
 # Current Status
 
 **Last updated:** 2026-07-02
+**Session:** 16 — **LIVE QUIZZES & LIVE LEADERBOARDS (self-hosted SSE + optional Redis, Tier B; DL-104..108).**
+The last deferred developer feature. A live-quiz + live-leaderboard subsystem on the chosen self-hosted **SSE**
+transport, built on the existing event spine with **NO new permission and NO new content type** (permissions
+stay **52**, content types **13**): a quiz is part of an event's operational subsystem, so organizer authoring/
+control is gated by the SAME `event.manage` seam and member play is login-only via `assertCanParticipate` —
+exactly like event registration. Four new tables keyed on the durable event id (forward migration
+`20260702130000_member_platform_quiz`, applied + validated on the local Docker Postgres): `quiz_question`
+(bank), `quiz_session` (one live run; a partial-unique = one non-ended session/event; the **server-authoritative**
+`question_started_at`), `quiz_participant` (lobby), `quiz_answer` (one per session·question·member — a UNIQUE
+makes each answer one-shot; server-scored). The **server-authoritative timer** is host-paced with no scheduler
+(an answer is accepted only within the limit measured from the server's stamp; correctness never leaks before
+reveal). Real-time is an in-process **broadcaster** + **SSE** (`lib/realtime/*` + `app/api/live/*`) with **Redis
+OPTIONAL + LAZY/INJECTABLE** (the nodemailer pattern) for cross-instance pub/sub — the build + whole test suite
+run with NO `ioredis` and NO `REDIS_URL`. The **leaderboard is read authoritatively from Postgres** (one indexed
+`groupBy`). A live **registration** leaderboard is the cheap first step on the same transport. New
+`docker-compose.prod.yml` (hardened Postgres 16 + loopback Redis 7) + `REDIS_URL` in `env.example`/systemRequirements.
+**580 static + lint + build green;** new live suites `quiz.db` (9) + `inline.db` (1, the deferred Session-15
+`editAndPublish` `DRAFT_OPEN` test) green on the local Docker Postgres; m5/events live re-run green. A 6-dimension
+× 2-verifier adversarial review (18 agents; **authz/anti-cheat clean**) found **6 → all addressed**, chiefly
+**removing an unsafe Redis leaderboard cache** that could corrupt ranks (Postgres is now the single source of
+truth; Redis stays for fan-out), plus guards on question delete/edit mid-session, an SSE stale-snapshot `rev`
+guard, and a heartbeat-interval fix. **The M0–M8 program + all deferred dev features are now complete.**
+
+**Prior session:**
 **Session:** 15 — **INLINE EDIT-ON-PUBLIC-PAGE (DL-103).** A logged-in stakeholder with scoped
 `content.update` can now fix a wrong detail **directly on a public page** — the event detail, a
 club/council profile (vision/Instagram), and each wall-of-fame achievement — via a small modal, no

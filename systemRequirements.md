@@ -306,10 +306,20 @@ quizzes/leaderboards, $0 external, everything on the VM. This **fixes the target
 (4 vCPU / 8 GB / 60 GB SSD + a Redis 7 container) whenever the live-quiz feature is turned on:
 run the Next app **single-instance under PM2** (or add sticky sessions), keep long-lived SSE
 connections open through the proxy (§7 headers), and use Redis for pub/sub fan-out + a cached
-leaderboard so rankings are never recomputed per viewer. The **live-quiz domain itself**
-(question/session/answer models, per-answer write path, server-authoritative timer,
-running-score aggregate) is new application work regardless of transport, and is scheduled
-after the current quick-wins bundle.
+leaderboard so rankings are never recomputed per viewer.
+
+> **SHIPPED (Session 16, 2026-07-02).** The live-quiz domain — `quiz_question` /
+> `quiz_session` / `quiz_participant` / `quiz_answer` keyed on the durable event id, a
+> per-answer write path with a **server-authoritative timer**, and a **Redis-cached
+> running-score leaderboard** — plus the **SSE transport** (`lib/realtime/*` +
+> `app/api/live/*`) and a live **registration** leaderboard as the first step on the same
+> transport. **Redis is OPTIONAL** and LAZY + INJECTABLE (the nodemailer pattern): without
+> `REDIS_URL` + `ioredis` the app runs single-instance with an in-process broadcaster + a
+> Postgres leaderboard fallback (fine for hundreds of viewers on local Postgres, §9). Turn
+> Redis on for the large-concurrent-audience Tier-B path: start the **`redis` service in
+> [`docker-compose.prod.yml`](docker-compose.prod.yml)** (loopback-bound), set `REDIS_URL`
+> (§5), and `npm install ioredis`. The quiz is gated by the existing `event.manage` seam —
+> no new permission/content type.
 
 ---
 

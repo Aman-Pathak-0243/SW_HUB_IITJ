@@ -143,6 +143,21 @@ The one remaining OPTIONAL dev item, plus the client-facing hand-over documentat
 - [x] Tests: **530 static** (+`coordinator.test.mjs` 13) + `coordinator.db.test.mjs` **5/5 green**; m5/m1 re-run green; route-smoke + `/coordinator` routes; `lint` + `build` clean; 5-dimension × 2-verifier review
 - [x] Delivery docs (repo root): `Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`, `INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`
 
+## Session 16 — Live quizzes & live leaderboards (SSE + optional Redis, Tier B) ✅ (2026-07-02)
+The last deferred developer feature; details in the CHANGELOG + DL-104..108.
+- [x] Schema: `QuizQuestion`/`QuizSession`/`QuizParticipant`/`QuizAnswer` + forward migration `20260702130000_member_platform_quiz` (one-live partial unique, one-shot answer unique, CHECKs) applied+validated on local Postgres; all 4 in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`
+- [x] Pure `lib/quiz/forms.mjs` — `normalizeQuestion`/patch, **server-authoritative** `scoreAnswer` (flat + speed bonus), `isSelectionCorrect`, `canTransition`, `computeLeaderboard`/`publicLeaderboard` (mirrored + tested)
+- [x] Services: `questions.mjs` (author, gated by `assertEventManage`, audited; refuses editing a LIVE question + deleting an ANSWERED one), `sessions.mjs` (lifecycle + server timer + `rev` + publish), `answers.mjs` (login-only, `assertCanParticipate`, one-shot, server window), `leaderboard.mjs` (**Postgres-authoritative**)
+- [x] Realtime `lib/realtime/*`: in-process `broadcast` + `sse` (snapshot + heartbeat + abort cleanup + monotonic `rev`) + **lazy/injectable** `redis` (pub/sub only; nodemailer pattern)
+- [x] SSE routes `app/api/live/{quiz/[sessionId],registration/[eventItemId],quiz/answer}`; 9 `quiz.*` registry actions; live-stream/answer rate limiters
+- [x] UI: `LiveQuizPlayer`/`LiveQuizHost`/`LiveRegistrationBoard` + `useEventSource`; pages `/events/[slug]/live` (+ `/host`, gated); "Live quiz" link on the event detail
+- [x] Live **registration** leaderboard (DL-108) — `registerForEvent`/cancel/organizer-changes publish best-effort counts
+- [x] `docker-compose.prod.yml` (hardened Postgres 16 + loopback Redis 7); `REDIS_URL` in `env.example` + systemRequirements §10 (SHIPPED)
+- [x] Added the deferred Session-15 live-DB test (`tests/inline.db.test.mjs`: `editAndPublish` `DRAFT_OPEN` refusal + fork/publish)
+- [x] Tests: 580 static (+`quiz.test.mjs` 25, +`realtime.test.mjs` 7, +migration block 6) + `quiz.db` 9 + `inline.db` 1 green; lint + build green; m5/events live re-run green
+- [x] Adversarial review (6 dimensions × 2 verifiers, 18 agents; authz clean) → 6 findings all addressed (removed unsafe Redis leaderboard cache; delete/edit guards; SSE `rev`; heartbeat fix)
+- [ ] **Operator:** run `npm run db:migrate` in each environment (adds the 4 quiz tables). Redis OPTIONAL — for multi-instance: start the prod-compose `redis`, set `REDIS_URL`, `npm install ioredis` (KNOWN_ISSUES #51)
+
 ## Session 15 — Inline edit-on-public-page ✅ (2026-07-02)
 - [x] `lib/cms/inline.mjs` — pure editable-field specs + `buildEditPatch` + `patchHasChanges` (mirrored + tested)
 - [x] `lib/cms/content.mjs` — `resolveInlineEditCapability` (scope parity with the service) + `editAndPublish` (authorize-first, refuses `DRAFT_OPEN`)
@@ -151,8 +166,8 @@ The one remaining OPTIONAL dev item, plus the client-facing hand-over documentat
 - [x] Wire events/[slug], org/[type]/[slug] (club/council profile), wall-of-fame; thread scope via `getPlaygroundEvent` + `loadProfile`
 - [x] +6 static tests (542); prisma generate + lint + build green; Session-14 migration applied+validated on local Postgres
 - [x] Adversarial review (3 lenses) → 2 confirmed bugs fixed (HIGH foreign-draft publish; LOW dead no-op guard)
-- [ ] Add live-DB coverage for `editAndPublish` (esp. the `DRAFT_OPEN` refusal + scoped-coordinator edit)
-- [ ] **Deferred (next):** live quizzes + leaderboards (SSE + Redis, Tier B) — the last deferred dev feature
+- [x] Add live-DB coverage for `editAndPublish` (the `DRAFT_OPEN` refusal) — done in Session 16 (`tests/inline.db.test.mjs`)
+- [x] **Deferred → DONE (Session 16):** live quizzes + leaderboards (SSE + optional Redis, Tier B) — the last deferred dev feature
 
 ## Session 14 — Quick-wins bundle + VM hosting spec ✅ (2026-07-02)
 - [x] `systemRequirements.md` — single-VM hosting spec (Docker Postgres 16, TLS/proxy, PM2, backups, Tier-A/B sizing; self-hosted SSE + Redis chosen for live quizzes)

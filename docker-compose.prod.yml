@@ -1,0 +1,71 @@
+# PRODUCTION single-VM services (systemRequirements.md §6 + §10, DL-107). Runs the
+# hardened Postgres 16 AND the Redis 7 the Tier-B live-quiz path uses, both bound to
+# 127.0.0.1 ONLY (never exposed publicly — the app connects over loopback; ufw allows
+# 22/80/443 only, §12). The committed test compose (docker-compose.yml) stays scoped to
+# local testing; this is the production topology.
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#   # then, from the app: npm run db:migrate && npm run db:seed && npm run build && pm2 start "npm run start" --name student-welfare
+#
+# REDIS IS OPTIONAL: the app is fully functional without it (single-instance in-process
+# SSE fan-out + a Postgres leaderboard fallback, DL-107). Start Redis only when live
+# quizzes are turned on for a large concurrent audience, set REDIS_URL, and
+# `npm install ioredis`. Without ioredis/REDIS_URL the app ignores this container.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: iitj-prod-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iitj
+      # Prefer a Docker secret / host secret store over a plaintext env in production.
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      POSTGRES_DB: iitj
+    ports:
+      - "127.0.0.1:5432:5432"   # loopback ONLY — never publish 5432 publicly
+    volumes:
+      - iitj-prod-pgdata:/var/lib/postgresql/data
+      - ./backups:/backups       # pg_dump target (systemRequirements §11)
+    shm_size: "256mb"
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "work_mem=16MB"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iitj -d iitj"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    secrets:
+      - pg_password
+
+  # Redis 7 — pub/sub fan-out across app instances + a cached leaderboard sorted set, so
+  # rankings are never recomputed per viewer (DL-107, systemRequirements §10 "Approach B").
+  # Loopback-bound; not exposed. Persistence is optional (appendonly) — the leaderboard is
+  # rebuildable from Postgres, so a Redis restart is non-fatal.
+  redis:
+    image: redis:7-alpine
+    container_name: iitj-prod-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"   # loopback ONLY — never publish 6379 publicly (§12)
+    command: ["redis-server", "--save", "60", "1000", "--appendonly", "no"]
+    volumes:
+      - iitj-prod-redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+secrets:
+  pg_password:
+    file: ./secrets/pg_password.txt
+
+volumes:
+  iitj-prod-pgdata:
+  iitj-prod-redisdata:

@@ -90,7 +90,23 @@ context and no repeated work.
 > `resolveInlineEditCapability` (scope parity with the service, so the button can't over-grant) +
 > `editAndPublish` (authorize-first; **refuses `409 DRAFT_OPEN`** so it never publishes a foreign WIP draft).
 > 542 static + lint + build green; a 3-lens adversarial review found + fixed 2 bugs. No new migration.
-> **Deferred (last dev item):** live quizzes + real-time (SSE + Redis, Tier B).
+>
+> **Session 16 (2026-07-02) — live quizzes & live leaderboards (self-hosted SSE + optional Redis, Tier B;
+> DL-104..108):** the LAST deferred developer feature. A live-quiz + live-leaderboard subsystem on the chosen
+> **SSE** transport, built on the event spine with **NO new permission and NO new content type** — a quiz is an
+> event's operational subsystem (gated by the existing `event.manage` seam), member play is login-only via
+> `assertCanParticipate`. Four tables keyed on the durable event id (`quiz_question`/`quiz_session`/
+> `quiz_participant`/`quiz_answer`; migration `20260702130000_member_platform_quiz`, applied+validated on the
+> local Docker Postgres; one-live + one-shot uniques). **Server-authoritative timer** (host-paced, no scheduler;
+> correctness never leaks before reveal). Real-time = in-process **broadcaster** + **SSE** (`lib/realtime/*` +
+> `app/api/live/*`) with **Redis OPTIONAL + LAZY/INJECTABLE** (nodemailer pattern) for cross-instance pub/sub;
+> the **leaderboard is Postgres-authoritative** (one indexed `groupBy`). Live **registration** leaderboard as the
+> first transport step; new `docker-compose.prod.yml` (Postgres 16 + Redis 7) + `REDIS_URL`. 580 static + lint +
+> build green; `quiz.db` 9 + `inline.db` 1 (the deferred Session-15 `DRAFT_OPEN` test) green on local Postgres;
+> an 18-agent 6-dimension × 2-verifier review (authz clean) found **6 → all addressed** (chiefly removing an
+> unsafe Redis leaderboard cache; question delete/edit-mid-session guards; an SSE stale-snapshot `rev` guard; a
+> heartbeat fix). **The M0–M8 program + every deferred developer feature are now COMPLETE; remaining work is
+> operator/owner-owned.**
 
 There is a **THREE-surface** logged-in model (Session 11–13): the public **member** view (`/member`,
 plugin-gated, admits inactive), the global **admin/developer** back office (`/admin`, active-only, global

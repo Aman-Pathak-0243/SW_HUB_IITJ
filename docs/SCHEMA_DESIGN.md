@@ -1481,6 +1481,35 @@ this document in sync with the code:
   Applied to Neon via `prisma migrate deploy`. No table/column change (DL-036).
   Raw-SQL trigger functions remain **6** (this only corrects one body).
 
+### Session 16 schema addendum — live quizzes & leaderboards (forward migration)
+
+`20260702130000_member_platform_quiz` (additive; applied + validated on the local
+Docker Postgres). Four STANDALONE operational tables keyed on the DURABLE event
+`content_item` id — part of an event's operational subsystem (like the M5
+`event_*` tables), gated by the SAME `event.manage` seam, so **NO new permission
+and NO new content type** (permissions stay **52**, content types **13**; DL-104):
+
+- **`quiz_question`** — an event's question bank: `prompt`, `options` JSONB
+  (`[{id,text}]`), `correct_option_ids` `TEXT[]`, `points`, `time_limit_seconds`,
+  `sort_order`. CHECKs: `points >= 0`, `0 < time_limit_seconds <= 3600`. FK →
+  `content_item` ON DELETE CASCADE.
+- **`quiz_session`** — one live run: `status` CHECK(`pending|active|reveal|ended`),
+  `current_question_id` (FK → `quiz_question` ON DELETE SET NULL), the
+  **server-authoritative** `question_started_at`, `started_at`, `ended_at`. A
+  **partial unique** `quiz_session_one_live_uq (event_item_id) WHERE status <> 'ended'`
+  allows at most one non-ended session per event (DL-105).
+- **`quiz_participant`** — lobby membership, `UNIQUE(session_id, user_id)`; durable,
+  not audited.
+- **`quiz_answer`** — one answer per `(session_id, question_id, user_id)` (a UNIQUE
+  makes each answer one-shot), server-scored (`is_correct`, `points_awarded`,
+  `response_ms`); durable, not audited.
+
+All four are registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP` (organizer
+question/session mutations are audited SEMANTICALLY by `lib/quiz/*`; member
+joins/answers are durable rows). No raw-SQL trigger added (trigger functions remain
+**6**). Real-time fan-out is an in-process broadcaster with OPTIONAL Redis pub/sub
+(`lib/realtime/*`, DL-107) — no schema coupling.
+
 ---
 
 *Generated from the Session-1 schema-design workflow (9 agents, all adversarial
