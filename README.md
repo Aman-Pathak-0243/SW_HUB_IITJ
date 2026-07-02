@@ -111,6 +111,7 @@ The `docs/` directory is the single source of truth. Start at
 | Review the security posture | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | See the architecture & decisions | [`docs/CURRENT_ARCHITECTURE.md`](docs/CURRENT_ARCHITECTURE.md) · [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) |
 | See production sizing / server requirements | [`systemRequirements.md`](systemRequirements.md) |
+| **Run event simulations / hand a self-service kit to the client** | [`simulations/README.md`](simulations/README.md) |
 
 **Live tracking files** (repository root, updated every milestone):
 [`CURRENT_STATUS.md`](CURRENT_STATUS.md) · [`TODO.md`](TODO.md) ·
