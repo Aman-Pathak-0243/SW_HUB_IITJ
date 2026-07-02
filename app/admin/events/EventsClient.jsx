@@ -13,6 +13,7 @@
 // event detail pages. Keep it functional; do not invent data we don't have.
 import React, { useMemo, useState } from "react";
 import { Badge, ConfirmButton, Field, useAdminAction } from "../_components/ui";
+import { RegisteredList, AttendanceChecklist, ScoreSheet } from "../_components/EventRoster";
 import { REGISTRANT_ROLE_OPTIONS } from "../../../lib/events/forms.mjs";
 
 // datetime-local <input> gives "YYYY-MM-DDTHH:mm"; we forward it verbatim (or "").
@@ -92,9 +93,9 @@ function EventManager({ event, run, busy }) {
       <SettingsSection eventItemId={eventItemId} settings={event.settings ?? null} run={run} busy={busy} />
       <RoundsSection eventItemId={eventItemId} run={run} busy={busy} />
       <OrganizersSection eventItemId={eventItemId} run={run} busy={busy} />
-      <RegistrationsSection eventItemId={eventItemId} run={run} busy={busy} />
-      <ScoresSection eventItemId={eventItemId} run={run} busy={busy} />
-      <AttendanceSection eventItemId={eventItemId} run={run} busy={busy} />
+      <RegistrationsSection eventItemId={eventItemId} roster={event.roster ?? []} rosterHasMore={event.rosterHasMore} run={run} busy={busy} />
+      <ScoresSection eventItemId={eventItemId} roster={event.roster ?? []} rounds={event.rounds ?? []} scores={event.scores ?? []} />
+      <AttendanceSection eventItemId={eventItemId} roster={event.roster ?? []} rounds={event.rounds ?? []} attendance={event.attendance ?? []} />
       <ClosureSection run={run} busy={busy} />
     </>
   );
@@ -574,321 +575,78 @@ function EntitiesSection({ entities, run, busy }) {
   );
 }
 
-// ── Registrations: add by email + set-status / remove by registration id + CSV ──
-function RegistrationsSection({ eventItemId, run, busy }) {
+// ── Registrations: add by email + a RENDERED, searchable, collapsible roster with
+//    inline per-row status/remove (no id-pasting) + CSV ──
+function RegistrationsSection({ eventItemId, roster = [], rosterHasMore = false, run, busy }) {
   const [add, setAdd] = useState({ email: "", status: "confirmed", teamName: "" });
-  const [manage, setManage] = useState({ id: "", status: "confirmed" });
 
   const doAdd = () => {
     run(
       "event.registration.add",
-      {
-        input: {
-          eventItemId,
-          email: add.email,
-          status: add.status,
-          teamName: add.teamName,
-        },
-      },
-      { success: "Saved." }
+      { input: { eventItemId, email: add.email, status: add.status, teamName: add.teamName } },
+      { success: "Registrant added." }
     )
       .then(() => setAdd({ email: "", status: "confirmed", teamName: "" }))
       .catch(() => {});
   };
 
-  const doSetStatus = () => {
-    if (!manage.id) return;
-    run(
-      "event.registration.setStatus",
-      { id: manage.id, status: manage.status },
-      { success: "Saved." }
-    ).catch(() => {});
-  };
-
-  const doRemove = () => {
-    if (!manage.id) return;
-    run("event.registration.remove", { id: manage.id }, { success: "Saved." }).catch(() => {});
-  };
-
-  const csv = (kind) =>
-    `/api/events/export?eventItemId=${encodeURIComponent(eventItemId)}&kind=${kind}`;
+  const csv = (kind) => `/api/events/export?eventItemId=${encodeURIComponent(eventItemId)}&kind=${kind}`;
 
   return (
     <section className="adm-card" style={{ marginTop: 16 }}>
       <h3>Registrations</h3>
-      <p>
-        Add a registrant by email, or change status / remove one by its{" "}
-        <strong>registration id</strong> (copy it from the event detail page).
-      </p>
+      <p>Add a registrant by email, or manage each one inline from the participant list below.</p>
 
       <div className="adm-form">
         <h4 style={{ fontSize: "0.85rem", fontWeight: 700 }}>Add registrant</h4>
         <div className="adm-checks" style={{ gridTemplateColumns: "1fr 150px 1fr" }}>
           <Field label="Member email">
-            <input
-              className="adm-input"
-              placeholder="member@iitjammu.ac.in"
-              value={add.email}
-              onChange={(e) => setAdd({ ...add, email: e.target.value })}
-            />
+            <input className="adm-input" placeholder="member@iitjammu.ac.in" value={add.email} onChange={(e) => setAdd({ ...add, email: e.target.value })} />
           </Field>
           <Field label="Status">
-            <select
-              className="adm-select"
-              value={add.status}
-              onChange={(e) => setAdd({ ...add, status: e.target.value })}
-            >
+            <select className="adm-select" value={add.status} onChange={(e) => setAdd({ ...add, status: e.target.value })}>
               <option value="confirmed">Confirmed</option>
               <option value="waitlisted">Waitlisted</option>
             </select>
           </Field>
           <Field label="Team name (optional)">
-            <input
-              className="adm-input"
-              value={add.teamName}
-              onChange={(e) => setAdd({ ...add, teamName: e.target.value })}
-            />
+            <input className="adm-input" value={add.teamName} onChange={(e) => setAdd({ ...add, teamName: e.target.value })} />
           </Field>
         </div>
-        <button className="adm-btn primary" disabled={busy || !add.email} onClick={doAdd}>
-          Add registrant
-        </button>
+        <button className="adm-btn primary" disabled={busy || !add.email} onClick={doAdd}>Add registrant</button>
       </div>
 
-      <hr style={{ margin: "18px 0", border: 0, borderTop: "1px solid var(--adm-border)" }} />
-
-      <div className="adm-form">
-        <h4 style={{ fontSize: "0.85rem", fontWeight: 700 }}>Set status / remove by id</h4>
-        <div className="adm-checks" style={{ gridTemplateColumns: "1fr 170px" }}>
-          <Field label="Registration id">
-            <input
-              className="adm-input"
-              placeholder="paste a registration id…"
-              value={manage.id}
-              onChange={(e) => setManage({ ...manage, id: e.target.value })}
-            />
-          </Field>
-          <Field label="Status">
-            <select
-              className="adm-select"
-              value={manage.status}
-              onChange={(e) => setManage({ ...manage, status: e.target.value })}
-            >
-              <option value="confirmed">Confirmed</option>
-              <option value="waitlisted">Waitlisted</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </Field>
-        </div>
-        <div className="adm-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="adm-btn primary" disabled={busy || !manage.id} onClick={doSetStatus}>
-            Set status
-          </button>
-          <ConfirmButton
-            className="adm-btn danger sm"
-            confirm="Remove this registration?"
-            busy={busy || !manage.id}
-            onConfirm={doRemove}
-          >
-            Remove registration
-          </ConfirmButton>
-        </div>
-      </div>
+      <RegisteredList eventItemId={eventItemId} registrations={roster} hasMore={rosterHasMore} />
 
       <div className="adm-pill-row" style={{ marginTop: 14 }}>
-        <a className="adm-btn ghost sm" href={csv("participants")}>
-          Download participants CSV
-        </a>
-        <a className="adm-btn ghost sm" href={csv("ranking")}>
-          Download ranking CSV
-        </a>
+        <a className="adm-btn ghost sm" href={csv("participants")}>Download participants CSV</a>
+        <a className="adm-btn ghost sm" href={csv("ranking")}>Download ranking CSV</a>
       </div>
     </section>
   );
 }
 
-// A round picker used by Scores and Attendance: "Overall" (roundId null) or a
-// pasted round id. Returns the roundId string ("" means Overall) via onChange.
-function RoundPicker({ mode, roundId, onModeChange, onRoundIdChange }) {
-  return (
-    <div className="adm-checks" style={{ gridTemplateColumns: "170px 1fr", alignItems: "end" }}>
-      <Field label="Round">
-        <select
-          className="adm-select"
-          value={mode}
-          onChange={(e) => onModeChange(e.target.value)}
-        >
-          <option value="overall">Overall (no round)</option>
-          <option value="round">Specific round id</option>
-        </select>
-      </Field>
-      {mode === "round" && (
-        <Field label="Round id">
-          <input
-            className="adm-input"
-            placeholder="paste a round id…"
-            value={roundId}
-            onChange={(e) => onRoundIdChange(e.target.value)}
-          />
-        </Field>
-      )}
-    </div>
-  );
-}
-
-// Parse an "email,points[,note]" textarea into [{ email, points, note? }].
-// Skips blank lines and lines missing an email or a numeric points value.
-function parseScores(text) {
-  const out = [];
-  for (const raw of text.split(/\n+/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const parts = line.split(",");
-    const email = (parts[0] ?? "").trim();
-    const points = parseFloat((parts[1] ?? "").trim());
-    if (!email || Number.isNaN(points)) continue;
-    const note = parts.slice(2).join(",").trim();
-    const row = { email, points };
-    if (note) row.note = note;
-    out.push(row);
-  }
-  return out;
-}
-
-// ── Scores: round picker + email,points textarea (a replace-set) + CSV ──
-function ScoresSection({ eventItemId, run, busy }) {
-  const [mode, setMode] = useState("overall");
-  const [roundId, setRoundId] = useState("");
-  const [text, setText] = useState("");
-
-  const parsed = useMemo(() => parseScores(text), [text]);
-
-  const save = () => {
-    const rid = mode === "round" ? roundId.trim() : null;
-    if (mode === "round" && !rid) return;
-    run(
-      "event.scores.set",
-      { eventItemId, roundId: rid, scores: parsed },
-      { success: "Saved." }
-    ).catch(() => {});
-  };
-
-  const csvRound = mode === "round" ? (roundId.trim() || "") : "overall";
-  const csv = `/api/events/export?eventItemId=${encodeURIComponent(eventItemId)}&kind=scores&roundId=${encodeURIComponent(csvRound)}`;
-
+// ── Scores: a per-round, searchable, collapsible per-participant points sheet ──
+function ScoresSection({ eventItemId, roster = [], rounds = [], scores = [] }) {
   return (
     <section className="adm-card" style={{ marginTop: 16 }}>
       <h3>Scores</h3>
-      <p>
-        A <strong>replace-set</strong> for the chosen round (or Overall). Paste one{" "}
-        <span className="adm-code">email,points</span> per line — an optional third comma-separated
-        field is treated as a note.
-      </p>
+      <p>Pick a round (or Overall), then type each participant&apos;s points (an optional note per row). Saving is a <strong>replace-set</strong> for that round — a blank cell means unscored.</p>
       <div className="adm-form">
-        <RoundPicker
-          mode={mode}
-          roundId={roundId}
-          onModeChange={setMode}
-          onRoundIdChange={setRoundId}
-        />
-        <Field
-          label={`Scores (email,points[,note] per line) — ${parsed.length} valid`}
-        >
-          <textarea
-            className="adm-textarea"
-            rows={6}
-            placeholder={"alice@iitjammu.ac.in,42\nbob@iitjammu.ac.in,37,tie-break winner"}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-        </Field>
-        <div className="adm-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
-            className="adm-btn primary"
-            disabled={busy || (mode === "round" && !roundId.trim())}
-            onClick={save}
-          >
-            Save scores (replace set)
-          </button>
-          <a className="adm-btn ghost sm" href={csv}>
-            Download scores CSV
-          </a>
-        </div>
+        <ScoreSheet eventItemId={eventItemId} rounds={rounds} scores={scores} registrations={roster} />
       </div>
     </section>
   );
 }
 
-// Parse a textarea of emails (one per line / comma-separated) into
-// [{ email, present: true }].
-function parseAttendance(text) {
-  const seen = new Set();
-  const out = [];
-  for (const raw of text.split(/[\n,;]+/)) {
-    const email = raw.trim();
-    if (!email || seen.has(email)) continue;
-    seen.add(email);
-    out.push({ email, present: true });
-  }
-  return out;
-}
-
-// ── Attendance: round picker + emails textarea (all present=true) + CSV ──
-function AttendanceSection({ eventItemId, run, busy }) {
-  const [mode, setMode] = useState("overall");
-  const [roundId, setRoundId] = useState("");
-  const [text, setText] = useState("");
-
-  const parsed = useMemo(() => parseAttendance(text), [text]);
-
-  const save = () => {
-    const rid = mode === "round" ? roundId.trim() : null;
-    if (mode === "round" && !rid) return;
-    run(
-      "event.attendance.mark",
-      { eventItemId, roundId: rid, attendance: parsed },
-      { success: "Saved." }
-    ).catch(() => {});
-  };
-
-  const csvRound = mode === "round" ? (roundId.trim() || "") : "overall";
-  const csv = `/api/events/export?eventItemId=${encodeURIComponent(eventItemId)}&kind=attendance&roundId=${encodeURIComponent(csvRound)}`;
-
+// ── Attendance: a per-round, searchable, collapsible present/absent checklist ──
+function AttendanceSection({ eventItemId, roster = [], rounds = [], attendance = [] }) {
   return (
     <section className="adm-card" style={{ marginTop: 16 }}>
       <h3>Attendance</h3>
-      <p>
-        Mark attendees <strong>present</strong> for the chosen round (or Overall). Paste emails, one
-        per line or comma-separated.
-      </p>
+      <p>Choose a round (or Overall), then tick who is <strong>present</strong>. Saving replaces that round&apos;s sheet, so the full list is submitted in one go.</p>
       <div className="adm-form">
-        <RoundPicker
-          mode={mode}
-          roundId={roundId}
-          onModeChange={setMode}
-          onRoundIdChange={setRoundId}
-        />
-        <Field label={`Emails to mark present — ${parsed.length} unique`}>
-          <textarea
-            className="adm-textarea"
-            rows={5}
-            placeholder={"alice@iitjammu.ac.in\nbob@iitjammu.ac.in"}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-        </Field>
-        <div className="adm-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
-            className="adm-btn primary"
-            disabled={busy || parsed.length === 0 || (mode === "round" && !roundId.trim())}
-            onClick={save}
-          >
-            Mark present
-          </button>
-          <a className="adm-btn ghost sm" href={csv}>
-            Download attendance CSV
-          </a>
-        </div>
+        <AttendanceChecklist eventItemId={eventItemId} rounds={rounds} attendance={attendance} registrations={roster} />
       </div>
     </section>
   );

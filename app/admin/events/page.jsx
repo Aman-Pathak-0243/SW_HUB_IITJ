@@ -3,6 +3,9 @@ import { loadAdminContent } from "../../../lib/admin/reads.mjs";
 import { getCurrentYearId } from "../../../lib/year/context.mjs";
 import { listEventEntities } from "../../../lib/events/organizers.mjs";
 import { getEventSettings } from "../../../lib/events/settings.mjs";
+import { listRegistrations } from "../../../lib/events/registration.mjs";
+import { listRounds } from "../../../lib/events/rounds.mjs";
+import { listAttendance, listScores } from "../../../lib/events/scoring.mjs";
 import { ModuleDenied } from "../_components/parts";
 import EventsClient from "./EventsClient";
 
@@ -27,10 +30,22 @@ export default async function AdminEventsPage() {
       yearId ? loadAdminContent({ yearId, contentType: "event", includeArchived: false }, actor) : Promise.resolve([]),
       listEventEntities({ status: "active" }),
     ]);
-    // Preload each event's operational settings so the Settings form SEEDS from the stored
-    // values (capacity / window / allowed roles) rather than submitting blank — otherwise a
-    // save/"Go live now" would silently clobber a coordinator's role restriction (DL-097 review).
-    events = await Promise.all(events.map(async (ev) => ({ ...ev, settings: await getEventSettings(ev.id) })));
+    // Preload each event's operational settings (so the Settings form SEEDS from stored values,
+    // DL-097 review) AND its live roster / rounds / attendance so the client can RENDER the
+    // registered-participant list and a per-round attendance checklist (no id-pasting). Bounded:
+    // events per year are few; the roster is capped at 1000 (hasMore flags a truncated list).
+    events = await Promise.all(
+      events.map(async (ev) => {
+        const [settings, reg, rounds, attendance, scores] = await Promise.all([
+          getEventSettings(ev.id),
+          listRegistrations({ eventItemId: ev.id, take: 1000 }, actor).catch(() => ({ entries: [], hasMore: false })),
+          listRounds(ev.id).catch(() => []),
+          listAttendance(ev.id, { actor }).catch(() => []),
+          listScores(ev.id, { actor }).catch(() => []),
+        ]);
+        return { ...ev, settings, roster: reg.entries ?? [], rosterHasMore: !!reg.hasMore, rounds, attendance, scores };
+      })
+    );
   } catch (e) {
     console.error("[/admin/events] load failed:", e?.message ?? e);
   }
