@@ -230,6 +230,29 @@ npm run test:db            # run every live-DB suite against it
 See [`docs/TESTING_STRATEGY.md`](docs/TESTING_STRATEGY.md) for the full gate and
 why the live suites run per-file.
 
+### Event simulations (client dry-runs + proof)
+
+A self-service kit lets you (or the client) run realistic events end-to-end before
+hosting anything for real — bulk-import participants, then follow copy-paste manuals
+for a quiz, hackathon, coding contest, robotics championship, or a two-club
+collaboration. See [`simulations/README.md`](simulations/README.md).
+
+Those flows are also proven by executable harnesses (guarded by `RUN_SIM`, so the
+normal suites skip them). Against a seeded local DB:
+
+```bash
+RUN_SIM=1 ./node_modules/.bin/dotenv -e .env.local -- ./node_modules/.bin/vitest run \
+  tests/event-simulation.test.mjs tests/quiz-simulation.test.mjs tests/kit-simulations.test.mjs \
+  --pool=forks --poolOptions.forks.singleFork
+# latest run: 45/45 checks, reproducible
+
+npm run sim:clean            # optional: report the demo data these leave behind
+npm run sim:clean -- --apply # optional: delete it (matches the `sim` naming only)
+```
+
+The per-scenario results and any bugs found + fixed are recorded in
+[`test_simulation/README.md`](test_simulation/README.md).
+
 ---
 
 ## Deployment
@@ -339,6 +362,7 @@ docker-compose.prod.yml   Production Postgres + optional Redis
 | `db:import:*` / `db:seed:flagship` / `db:migrate:media` | Data importers / media migration |
 | `cli` / `plugin:status` / `plugin:on` / `plugin:off` | Developer CLI + member-platform flag |
 | `db:console` | Interactive developer console |
+| `sim:clean` | Report (dry-run) or `-- --apply` delete the event-simulation demo data |
 
 Every `db:*` script loads `.env.local` via `dotenv`. See [`package.json`](package.json)
 for the exact commands.
