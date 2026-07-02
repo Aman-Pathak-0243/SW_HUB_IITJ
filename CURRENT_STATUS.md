@@ -1,6 +1,22 @@
 # Current Status
 
 **Last updated:** 2026-07-02
+**Session:** 15 — **INLINE EDIT-ON-PUBLIC-PAGE (DL-103).** A logged-in stakeholder with scoped
+`content.update` can now fix a wrong detail **directly on a public page** — the event detail, a
+club/council profile (vision/Instagram), and each wall-of-fame achievement — via a small modal, no
+trip to `/admin`. New pure `lib/cms/inline.mjs` (editable-field specs + `buildEditPatch`, mirrored +
+tested), a gated client `app/components/InlineEditor.jsx`, and `content.mjs` `resolveInlineEditCapability`
+(computed at the SAME `content.update`/`content.publish` scope the service enforces — the button can't
+over-grant) + `editAndPublish` (new `content.editAndPublish` action). The affordance only shows when the
+viewer is authorized; the route still requires an ACTIVE user + same-origin and the service re-authorizes
+at the item's (year, org-lineage) scope — a coordinator edits THEIR unit's page, staff/admin any,
+achievements need unscoped `content.update`. A 3-lens adversarial review found + **fixed 2 bugs**: (HIGH)
+`editAndPublish` would have published a pre-existing admin WIP draft → now refuses (`409 DRAFT_OPEN`) and
+forks from the published revision; (LOW) an unchanged save is now a true no-op. 542 static tests + lint +
+build green; the Session-14 migration was applied + validated on the local Docker Postgres. No new migration.
+**Deferred (next):** the live-quiz + real-time (SSE + Redis, Tier-B) subsystem — see NEXT_TASK.md.
+
+**Prior session:**
 **Session:** 14 — **QUICK-WINS BUNDLE + VM HOSTING SPEC.** New root `systemRequirements.md`
 (single-VM hosting spec: Docker **Postgres 16** on the same VM, nginx/Caddy + TLS, PM2, backups, and a
 **Tier-B 4 vCPU/8 GB + Redis** sizing for the chosen **self-hosted SSE** live-quiz path) plus six scoped

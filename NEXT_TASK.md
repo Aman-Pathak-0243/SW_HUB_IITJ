@@ -1,27 +1,31 @@
 # Next Task
 
-**As of:** 2026-07-02 · **Session 14 shipped the "quick-wins bundle" + `systemRequirements.md`**
-(the VM hosting spec). Two developer feature areas were **explicitly DEFERRED** by the operator's
-build-order choice and are the next dev work; plus the operator backlog below.
+**As of:** 2026-07-02 · **Session 14 shipped the quick-wins bundle + `systemRequirements.md`;
+Session 15 shipped inline edit-on-public-page (DL-103).** ONE deferred developer feature remains
+(live quizzes + real-time), plus the operator backlog below.
 
-> ### ▶️ FIRST — apply this session's migration
-> Session 14 added ONE additive forward migration: **`20260702120000_event_allowed_registrant_roles`**
-> (`event_settings.allowed_registrant_roles TEXT[] NOT NULL DEFAULT '{}'`). Run **`npm run db:migrate`**
-> (prisma migrate deploy) before the allowed-registrant-roles gate takes effect in a live environment.
-> Then re-run the full gate per the SOP (static + lint + build + live per-file/single-fork).
+> ### ▶️ FIRST — migrations
+> The Session-14 migration `20260702120000_event_allowed_registrant_roles` is **already applied +
+> validated on the local Docker Postgres** (`npm run db:migrate`). Ensure it is applied in each OTHER
+> environment before relying on the allowed-registrant-roles gate. Session 15 added **no** migration.
+> Run the full gate per the SOP (static + lint + build + live per-file/single-fork).
 
-> ### ▶️ NEXT — Deferred developer work (from the Session-14 quick-wins plan)
-> 1. **Inline edit-on-public-page (role + jurisdiction gated).** Add an "Edit" affordance on public pages
->    (events/clubs/wall-of-fame) that resolves the viewer's scoped permissions server-side
->    (`getEffectivePermissions({ orgUnitLineageKey, academicYearId })` / `canManageEvent`), passes a
->    `canEdit` flag into a client wrapper, and opens a modal that posts to the ONE `/api/admin/action`
->    (`content.edit` / `org.unit.edit` / `achievement.credits.set`). All gate primitives + the WoF credits
->    UI (DL-101) already exist; this is the affordance + wiring. Reuse the `/coordinator` scoped pattern.
-> 2. **Live quizzes + live leaderboards (self-hosted SSE + Redis — the CHOSEN real-time path, `systemRequirements.md` §10, Tier B).**
+> ### ✅ Session 15 done — Inline edit-on-public-page (DL-103)
+> Deferred #1 is COMPLETE: a role + jurisdiction-gated Edit affordance on the public event / club-profile /
+> wall-of-fame pages posting the existing `content.edit` / new `content.editAndPublish` actions (re-authorized
+> at scope). Files: `lib/cms/inline.mjs` (pure specs + `buildEditPatch`), `app/components/InlineEditor.jsx`,
+> `lib/cms/content.mjs` (`resolveInlineEditCapability` + `editAndPublish`), the `content.editAndPublish`
+> registry action, + scope threading in `getPlaygroundEvent`/`loadProfile` and the 3 pages. Review fixed a
+> HIGH (foreign-draft publish → `409 DRAFT_OPEN`) + a LOW (dead no-op guard).
+
+> ### ▶️ NEXT — the last deferred developer feature
+> 1. **Live quizzes + live leaderboards (self-hosted SSE + Redis — the CHOSEN real-time path, `systemRequirements.md` §10, Tier B).**
 >    New quiz domain (question/session/answer models keyed on the durable event id, per-answer write path,
 >    server-authoritative timer, a Redis-cached running-score aggregate) + an SSE transport. Sizing = 4 vCPU/8 GB
 >    + a Redis container. Registration concurrency is already DB-safe (deferred capacity trigger + SKIP LOCKED);
 >    a live REGISTRATION leaderboard is a cheap first step on the same transport.
+> 2. **(Optional) Widen inline editing** — add live-DB coverage for `editAndPublish` (esp. the `DRAFT_OPEN`
+>    refusal), and extend the inline field set (mission points list, media, dates) if the operator wants it.
 
 > ### ▶️ ALSO — Operator/owner backlog (unchanged)
 > 1. **Operator (run when convenient — OPERATIONS_RUNBOOK.md):** populate the live year —

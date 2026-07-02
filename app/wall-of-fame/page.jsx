@@ -7,8 +7,12 @@
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import AchievementCard from "../components/AchievementCard";
+import InlineEditor from "../components/InlineEditor";
 import { listWallOfFame } from "../../lib/achievements/public.mjs";
 import { isMemberPlatformEnabled } from "../../lib/platform/flags.mjs";
+import { resolveInlineEditCapability } from "../../lib/cms/content.mjs";
+import { getCurrentYearId } from "../../lib/year/context.mjs";
+import { getServerAuthSession } from "../../lib/auth/session.mjs";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +32,20 @@ export default async function WallOfFamePage() {
     }
   } catch {
     errored = true;
+  }
+
+  // Inline edit-on-page (DL-103): achievements are central (NOT org-bound), so editing them
+  // needs UNSCOPED content.update — staff / admin / content-editor. Resolve once for the page
+  // (same scope for every card). Best-effort; anonymous or non-privileged → no control.
+  let editCap = { canEdit: false, canPublish: false };
+  if (achievements.length) {
+    try {
+      const session = await getServerAuthSession();
+      if (session?.user?.id) {
+        const yearId = await getCurrentYearId();
+        editCap = await resolveInlineEditCapability({ userId: session.user.id, academicYearId: yearId, orgUnitLineageKey: null });
+      }
+    } catch { /* never break the public page over a capability check */ }
   }
 
   return (
@@ -50,7 +68,20 @@ export default async function WallOfFamePage() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {achievements.map((a) => (
-                <AchievementCard key={a.id} achievement={a} />
+                <div key={a.id}>
+                  <AchievementCard achievement={a} />
+                  {editCap.canEdit && (
+                    <div className="mt-2 flex justify-end">
+                      <InlineEditor
+                        contentType="achievement"
+                        itemId={a.id}
+                        canPublish={editCap.canPublish}
+                        values={{ title: a.title, summary: a.summary, category: a.category }}
+                        label="Edit"
+                      />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

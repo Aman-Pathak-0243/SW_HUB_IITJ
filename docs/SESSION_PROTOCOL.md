@@ -81,6 +81,16 @@ context and no repeated work.
 > grid** (DL-102). 536 static + lint + build green; a 4-lens adversarial review found + fixed one authz-downgrade
 > (admin event-settings form now preloads). **Deferred (operator's build-order choice):** the inline
 > edit-on-public-page surface and the live-quiz + real-time (SSE + Redis) subsystem — see `NEXT_TASK.md`.
+>
+> **Session 15 (2026-07-02) — inline edit-on-public-page (DL-103):** a role + jurisdiction-gated **Edit**
+> affordance on the public **event / club-or-council profile / wall-of-fame** pages that posts the EXISTING
+> gated content actions (new `content.editAndPublish`), re-authorized at the item's (year, org-lineage) scope
+> — an affordance, not a new capability. New pure `lib/cms/inline.mjs` (field specs + `buildEditPatch`,
+> mirrored + tested), a gated client `app/components/InlineEditor.jsx`, and `lib/cms/content.mjs`
+> `resolveInlineEditCapability` (scope parity with the service, so the button can't over-grant) +
+> `editAndPublish` (authorize-first; **refuses `409 DRAFT_OPEN`** so it never publishes a foreign WIP draft).
+> 542 static + lint + build green; a 3-lens adversarial review found + fixed 2 bugs. No new migration.
+> **Deferred (last dev item):** live quizzes + real-time (SSE + Redis, Tier B).
 
 There is a **THREE-surface** logged-in model (Session 11–13): the public **member** view (`/member`,
 plugin-gated, admits inactive), the global **admin/developer** back office (`/admin`, active-only, global

@@ -10,6 +10,8 @@ import Footer from "../../components/Footer";
 import { AchievementBlocks } from "../../components/AchievementCard";
 import { SignInCard } from "../../account/_components/AuthClient";
 import RegisterButton from "../_components/RegisterButton";
+import InlineEditor from "../../components/InlineEditor";
+import { resolveInlineEditCapability } from "../../../lib/cms/content.mjs";
 import { renderMarkdown } from "../../../lib/markdown/render.mjs";
 import { isMemberPlatformEnabled } from "../../../lib/platform/flags.mjs";
 import { loadMemberContext } from "../../../lib/member/server.mjs";
@@ -109,6 +111,11 @@ export default async function EventDetailPage({ params }) {
   const ev = await getPlaygroundEvent({ slug, userId });
   if (!ev) notFound();
 
+  // Inline edit-on-page (DL-103): show an Edit control iff this viewer holds content.update
+  // at the event's (year, organizing-club-lineage) scope — a coordinator can fix their own
+  // event, staff/admin any event. The service re-authorizes; this only gates the affordance.
+  const editCap = await resolveInlineEditCapability({ userId, academicYearId: ev.academicYearId, orgUnitLineageKey: ev.orgUnitLineageKey });
+
   const reg = ev.registration ?? {};
   return (
     <>
@@ -126,7 +133,18 @@ export default async function EventDetailPage({ params }) {
             {ev.category && <span className="pg-chip">{ev.category}</span>}
             <span className={`evt-badge ${reg.open ? "good" : "muted"}`}>{reg.open ? "Registration open" : "Registration closed"}</span>
           </div>
-          <h1 className="text-3xl font-bold text-[#003f87] mb-2">{ev.title}</h1>
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-[#003f87]">{ev.title}</h1>
+            {editCap.canEdit && (
+              <InlineEditor
+                contentType="event"
+                itemId={ev.id}
+                canPublish={editCap.canPublish}
+                values={{ title: ev.title, summary: ev.summary, location: ev.location, body: ev.body }}
+                label="Edit event details"
+              />
+            )}
+          </div>
           <p className="text-gray-500 mb-4">
             {fmtDate(ev.eventDate) ?? "Date TBA"}{ev.location ? ` · ${ev.location}` : ""}
             {" · "}

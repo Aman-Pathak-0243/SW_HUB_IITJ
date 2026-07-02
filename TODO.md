@@ -143,6 +143,17 @@ The one remaining OPTIONAL dev item, plus the client-facing hand-over documentat
 - [x] Tests: **530 static** (+`coordinator.test.mjs` 13) + `coordinator.db.test.mjs` **5/5 green**; m5/m1 re-run green; route-smoke + `/coordinator` routes; `lint` + `build` clean; 5-dimension × 2-verifier review
 - [x] Delivery docs (repo root): `Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`, `INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`
 
+## Session 15 — Inline edit-on-public-page ✅ (2026-07-02)
+- [x] `lib/cms/inline.mjs` — pure editable-field specs + `buildEditPatch` + `patchHasChanges` (mirrored + tested)
+- [x] `lib/cms/content.mjs` — `resolveInlineEditCapability` (scope parity with the service) + `editAndPublish` (authorize-first, refuses `DRAFT_OPEN`)
+- [x] `content.editAndPublish` registry action (scoped)
+- [x] `app/components/InlineEditor.jsx` — gated Edit button + modal, sends only changed fields, edit(+publish)
+- [x] Wire events/[slug], org/[type]/[slug] (club/council profile), wall-of-fame; thread scope via `getPlaygroundEvent` + `loadProfile`
+- [x] +6 static tests (542); prisma generate + lint + build green; Session-14 migration applied+validated on local Postgres
+- [x] Adversarial review (3 lenses) → 2 confirmed bugs fixed (HIGH foreign-draft publish; LOW dead no-op guard)
+- [ ] Add live-DB coverage for `editAndPublish` (esp. the `DRAFT_OPEN` refusal + scoped-coordinator edit)
+- [ ] **Deferred (next):** live quizzes + leaderboards (SSE + Redis, Tier B) — the last deferred dev feature
+
 ## Session 14 — Quick-wins bundle + VM hosting spec ✅ (2026-07-02)
 - [x] `systemRequirements.md` — single-VM hosting spec (Docker Postgres 16, TLS/proxy, PM2, backups, Tier-A/B sizing; self-hosted SSE + Redis chosen for live quizzes)
 - [x] Per-event allowed registrant roles — migration + `EventSettings.allowedRegistrantRoles` + `registerForEvent` gate + checkbox UIs + pure helpers/tests (DL-097)
