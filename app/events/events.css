@@ -1,0 +1,38 @@
+/* M5 — Centralized Event Playground styles (login-only). Themed to the site brand
+   (#003f87). Kept small + scoped to .evt-* / .pg-* so it doesn't touch the public board. */
+.pg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+.pg-card { display: flex; flex-direction: column; background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden; transition: box-shadow .18s ease, transform .18s ease; }
+.pg-card:hover { box-shadow: 0 10px 30px rgba(0,63,135,.10); transform: translateY(-2px); }
+.pg-card-cover { height: 130px; background: linear-gradient(135deg, #003f87, #1466c0); background-size: cover; background-position: center; }
+.pg-card-body { padding: 1rem 1.1rem 1.15rem; display: flex; flex-direction: column; gap: .5rem; flex: 1; }
+.pg-card h3 { font-size: 1.08rem; font-weight: 700; color: #0f172a; line-height: 1.25; }
+.pg-chip { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #003f87; background: #eaf1fb; border-radius: 999px; padding: .2rem .55rem; }
+.pg-meta { font-size: .82rem; color: #64748b; }
+.pg-orgs { font-size: .8rem; color: #334155; }
+.pg-card-foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-top: .4rem; }
+
+.evt-badge { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: 999px; padding: .18rem .55rem; }
+.evt-badge.good { color: #065f46; background: #d1fae5; }
+.evt-badge.warn { color: #92400e; background: #fef3c7; }
+.evt-badge.muted { color: #475569; background: #eef2f7; }
+
+.evt-btn { border: 1px solid #003f87; border-radius: 9px; padding: .5rem .9rem; font-weight: 600; font-size: .9rem; cursor: pointer; }
+.evt-btn.primary { background: #003f87; color: #fff; }
+.evt-btn.primary:hover { background: #00306a; }
+.evt-btn.ghost { background: #fff; color: #003f87; }
+.evt-btn:disabled { opacity: .6; cursor: default; }
+
+.evt-reg { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.evt-reg-note { font-size: .82rem; color: #64748b; }
+.evt-reg-note.warn { color: #92400e; }
+.evt-reg-err { font-size: .82rem; color: #b91c1c; }
+
+.evt-section { margin-top: 2rem; }
+.evt-section h2 { font-size: 1.15rem; font-weight: 700; color: #003f87; margin-bottom: .75rem; }
+.evt-rank-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.evt-rank-table th, .evt-rank-table td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eef2f7; }
+.evt-rank-table th { color: #64748b; font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+.evt-prose { color: #334155; line-height: 1.7; }
+.evt-prose h1,.evt-prose h2,.evt-prose h3 { color: #0f172a; font-weight: 700; margin: 1rem 0 .5rem; }
+.evt-prose ul { list-style: disc; padding-left: 1.25rem; }
+.evt-prose a { color: #003f87; text-decoration: underline; }
