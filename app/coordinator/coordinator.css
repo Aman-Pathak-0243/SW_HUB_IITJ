@@ -1,0 +1,64 @@
+/* Scoped-coordinator surface (Session 13, DL-096). Layers a few helpers on top of the
+   admin shell styling (app/admin/admin.css, imported first by the layout) so the
+   coordinator dashboard is visually consistent with the back office it belongs to. */
+
+.coord-banner {
+  border: 1px solid var(--adm-border, #e2e8f0);
+  background: var(--adm-blue-bg, #eff5ff);
+  border-left: 4px solid var(--adm-blue, #003f87);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  color: var(--adm-ink, #1f2937);
+}
+
+.coord-clubs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.coord-club-card {
+  border: 1px solid var(--adm-border, #e2e8f0);
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.coord-club-card h3 { margin: 0; font-size: 1.02rem; }
+.coord-club-type { color: var(--adm-faint, #6b7280); font-size: 0.78rem; }
+.coord-caps { display: flex; flex-wrap: wrap; gap: 6px; }
+.coord-club-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+
+.coord-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 12px; }
+
+.coord-eventlist { display: flex; flex-direction: column; gap: 10px; }
+.coord-eventrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--adm-border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fff;
+}
+.coord-eventrow .coord-ev-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.coord-eventrow .coord-ev-title { font-weight: 600; }
+.coord-eventrow .coord-ev-meta { color: var(--adm-faint, #6b7280); font-size: 0.78rem; }
+
+.coord-sheet {
+  width: 100%;
+  font-family: var(--font-geist-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  min-height: 120px;
+  padding: 10px;
+  border: 1px solid var(--adm-border, #e2e8f0);
+  border-radius: 8px;
+}
+.coord-hint { color: var(--adm-faint, #6b7280); font-size: 0.78rem; margin: 4px 0 8px; }
+.coord-note { color: var(--adm-warn, #92400e); font-size: 0.8rem; }
+.coord-tablewrap { overflow-x: auto; }
