@@ -1,0 +1,24 @@
+-- ============================================================================
+-- Session 14 — per-event ALLOWED REGISTRANT ROLES (DL-097).
+-- ============================================================================
+-- A NEW FORWARD migration (DL-027): ADDITIVE ONLY — one nullable-by-default array
+-- column on the existing event_settings operational table. The init is never
+-- rewritten and `prisma db pull` / `migrate reset` are never run. Apply with
+-- `npm run db:migrate`.
+--
+-- An event's self-registration can be restricted to specific stakeholder ROLE
+-- types (the M2 category ladder: normal_user / co_coordinator / coordinator /
+-- secretary / staff / admin, or any custom Role.key). The set is stored on
+-- event_settings (operational config, NOT versioned — mirrors `capacity`, DL-084):
+--   • empty array `{}` (the DEFAULT, and the value every existing row backfills to)
+--     = OPEN to every logged-in ACTIVE member — the prior behaviour, unchanged.
+--   • a non-empty set = only members holding ANY of these role keys (resolved from
+--     active role_assignment rows) may self-register.
+-- Enforced in lib/events/registration.mjs#registerForEvent via the PURE
+-- lib/events/forms.mjs#isRoleAllowedToRegister (mirrored client+server, DL-051).
+-- Organizer manual-add (assertEventManage) is intentionally NOT gated by this.
+--
+-- NOT NULL DEFAULT '{}' so Prisma's String[] (non-nullable list) reads cleanly and
+-- every pre-existing event_settings row is unaffected ("open to all").
+ALTER TABLE "event_settings"
+  ADD COLUMN "allowed_registrant_roles" TEXT[] NOT NULL DEFAULT '{}'::text[];

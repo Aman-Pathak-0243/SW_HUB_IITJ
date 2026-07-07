@@ -27,11 +27,92 @@ context and no repeated work.
 | 9 | **Admin Panel** | RBAC-gated admin UI over CMS/years/orgs/events/announcements/resources/media + the dev-console readers; NEW `lib/users/admin.mjs` (users/roles/grants, audited, escalation guards); ONE registry-driven `POST /api/admin/action`; pure client-safe helpers; 285 static + 6 live; 45-agent review (CRITICAL grant-escalation fixed) | ✅ **DONE** |
 | 10 | **Testing + Deployment + Optimization + Handover** | Full test gate (307 static + 344 live) + CI workflow; public CWV (Cloudinary f_auto/q_auto, next/image sizes, font consolidation #12, brand-blue #11); responsive (admin mobile sidebar); deploy hardening (security headers, CSRF + rate-limit on the write routes, NFT #32 decision); pruned V1 leftovers (#10/#13 + Header `/org` cutover); operator runbook + full docs sweep; 13-agent review | ✅ **DONE** |
 
-> **The original 10-session plan is complete.** A **Session 11** is queued for two
-> operator-requested NEW features (student event-participation login + a "Wall of
-> Fame") — deferred from the harden-only Session 10 (DL-057). The prompt is in
+> **The original 10-session plan is complete.** A **Session 11+ member-platform
+> program** (multi-session, one module per session — DL-057) is **COMPLETE (M0–M8)** on the
+> existing spine. Shipped: the developer-controlled **plugin** control plane,
+> **M0** (auth & account lifecycle), **M2** (RBAC categories + per-email permission
+> overrides + smart search), **M1** (user status active/inactive/revoked + the three
+> surfaces + scoped route RBAC), the **M7/M8 spine** (centralized notifications +
+> feedback/support tickets + the developer dashboard: action-log export, usage
+> analytics, per-table storage thresholds, and bulk mail), **M3** (club/council
+> tabbed pages + `club_membership` M-M + bulk CSV importer + markdown docs + club
+> announcements/events + the wired usage beacon), **M4** (Wall of Fame:
+> `content_type='achievement'` with hybrid JSONB blocks + the `achievement_credit`
+> member-or-club mapping + public `/wall-of-fame` + the per-club Achievements tab), and
+> **M5** (Centralized Event Playground: the `event` content_item enriched with a markdown
+> problem statement + hybrid blocks, PLUS a relational subsystem — organizer/collaborator
+> tagging + custom entities, rounds, capacity→waitlist registration, round+overall scores/
+> ranking, attendance, CSV downloads, closure reports, and a curated "Events Organized" doc
+> with an audited change-history dev-dashboard tab; the `event.manage` seam + login-only
+> participation), and **M6** (Member profiles & performance: a READ-ONLY aggregation over the
+> durable M4/M5 ids — a member profile (identity/roles/affiliations/category-mapped events +
+> rank/achievements) with self + admin views, and per-stakeholder institute contribution for a
+> member/club/entity; no new table/permission/migration). **The M0–M8 program is complete —
+> next is a consolidation / deploy-hardening pass** (see NEXT_TASK.md).
+> Durable design: [MEMBER_PLATFORM_PLAN.md](MEMBER_PLATFORM_PLAN.md); execution prompt:
 > [NEXT_TASK.md](../NEXT_TASK.md). The same protocol applies (start/end checklists,
 > reuse the spine, multi-agent review).
+>
+> **Session 12 (2026-07-01) — consolidation / deploy-hardening (no new module):** the full
+> four-layer test gate (517 static + lint + build; every live suite per-file/single-fork on warm
+> Neon), single-fork nightly CI, a reusable route-render smoke (`scripts/route-smoke.mjs`), the
+> repeatable per-mode [WEBSITE_TESTING_SOP.md](WEBSITE_TESTING_SOP.md), a logged-in-member nav, and
+> **11 bug fixes** from a full-site per-role audit ([CONSOLIDATION_BUGLOG.md](CONSOLIDATION_BUGLOG.md),
+> DL-094/095).
+>
+> **Session 13 (2026-07-01) — scoped-coordinator surface + client delivery docs (DL-096):** built the one
+> remaining OPTIONAL dev item — a STANDALONE **`/coordinator`** back office (its own scope-aware
+> `loadCoordinatorContext`, NOT under the global `/admin` gate) that closes KNOWN_ISSUES #43: a club-scoped
+> coordinator SEES and runs their unit's events / members / contribution, driven by a NEW inverse-of-the-
+> resolver scoped-grant discovery (`lib/rbac/grants.mjs`, reusing `resolveEffectivePermissions`) + the
+> existing `assertEventManage` / `assertActorPermission` seams — no new permission/table/migration
+> (permissions 52, content types 13). 530 static + `coordinator.db` 5/5. Also produced the full
+> client-facing **delivery documentation set** (see [DELIVERABLES_INDEX.md](../DELIVERABLES_INDEX.md)).
+> **The product is now feature-complete, hardened, and delivery-documented; remaining work is
+> operator/owner-owned.**
+>
+> **Session 14 (2026-07-02) — quick-wins bundle + VM hosting spec:** shipped the root
+> **`systemRequirements.md`** (single-VM hosting spec: Docker **Postgres 16** on the same VM, nginx/Caddy +
+> TLS, PM2, backups, two sizing tiers — **self-hosted SSE + Redis** chosen for the future live-quiz path) and
+> **six scoped enhancements** to the existing platform: per-event **allowed registrant roles** (DL-097, one
+> additive migration `event_settings.allowed_registrant_roles`), **scheduled go-live + a live countdown**
+> register button (DL-098), **multi-club event listing** (DL-099), **all-data-type responsive resource cards**
+> (DL-100), a **Wall-of-Fame credits admin UI** (DL-101), and a **bulk grant/deny permission-override checkbox
+> grid** (DL-102). 536 static + lint + build green; a 4-lens adversarial review found + fixed one authz-downgrade
+> (admin event-settings form now preloads). **Deferred (operator's build-order choice):** the inline
+> edit-on-public-page surface and the live-quiz + real-time (SSE + Redis) subsystem — see `NEXT_TASK.md`.
+>
+> **Session 15 (2026-07-02) — inline edit-on-public-page (DL-103):** a role + jurisdiction-gated **Edit**
+> affordance on the public **event / club-or-council profile / wall-of-fame** pages that posts the EXISTING
+> gated content actions (new `content.editAndPublish`), re-authorized at the item's (year, org-lineage) scope
+> — an affordance, not a new capability. New pure `lib/cms/inline.mjs` (field specs + `buildEditPatch`,
+> mirrored + tested), a gated client `app/components/InlineEditor.jsx`, and `lib/cms/content.mjs`
+> `resolveInlineEditCapability` (scope parity with the service, so the button can't over-grant) +
+> `editAndPublish` (authorize-first; **refuses `409 DRAFT_OPEN`** so it never publishes a foreign WIP draft).
+> 542 static + lint + build green; a 3-lens adversarial review found + fixed 2 bugs. No new migration.
+>
+> **Session 16 (2026-07-02) — live quizzes & live leaderboards (self-hosted SSE + optional Redis, Tier B;
+> DL-104..108):** the LAST deferred developer feature. A live-quiz + live-leaderboard subsystem on the chosen
+> **SSE** transport, built on the event spine with **NO new permission and NO new content type** — a quiz is an
+> event's operational subsystem (gated by the existing `event.manage` seam), member play is login-only via
+> `assertCanParticipate`. Four tables keyed on the durable event id (`quiz_question`/`quiz_session`/
+> `quiz_participant`/`quiz_answer`; migration `20260702130000_member_platform_quiz`, applied+validated on the
+> local Docker Postgres; one-live + one-shot uniques). **Server-authoritative timer** (host-paced, no scheduler;
+> correctness never leaks before reveal). Real-time = in-process **broadcaster** + **SSE** (`lib/realtime/*` +
+> `app/api/live/*`) with **Redis OPTIONAL + LAZY/INJECTABLE** (nodemailer pattern) for cross-instance pub/sub;
+> the **leaderboard is Postgres-authoritative** (one indexed `groupBy`). Live **registration** leaderboard as the
+> first transport step; new `docker-compose.prod.yml` (Postgres 16 + Redis 7) + `REDIS_URL`. 580 static + lint +
+> build green; `quiz.db` 9 + `inline.db` 1 (the deferred Session-15 `DRAFT_OPEN` test) green on local Postgres;
+> an 18-agent 6-dimension × 2-verifier review (authz clean) found **6 → all addressed** (chiefly removing an
+> unsafe Redis leaderboard cache; question delete/edit-mid-session guards; an SSE stale-snapshot `rev` guard; a
+> heartbeat fix). **The M0–M8 program + every deferred developer feature are now COMPLETE; remaining work is
+> operator/owner-owned.**
+
+There is a **THREE-surface** logged-in model (Session 11–13): the public **member** view (`/member`,
+plugin-gated, admits inactive), the global **admin/developer** back office (`/admin`, active-only, global
+RBAC), and the scoped **coordinator** back office (`/coordinator`, active-only, driven by SCOPED grants via
+`lib/rbac/grants.mjs`). The mutation authority is unchanged — every write still goes through the one
+`/api/admin/action` registry (or a gated route) and re-authorizes at the true scope.
 
 Detailed scope, deliverables, dependencies, and acceptance criteria per session
 are in [MILESTONE_PLAN.md](MILESTONE_PLAN.md) (the living roadmap).

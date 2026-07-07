@@ -31,6 +31,17 @@ requirement to concrete schema, services, routes, RBAC impact, and tests on the
 
 **Suggested order:** M0 → M2 → M1 → M7/M8 spine → M3 → M4 → M5 → M6.
 
+## Activation — the member platform is a DEVELOPER-CONTROLLED PLUGIN (DL-058)
+The whole program ships behind ONE feature flag, **`member_platform`** (`feature_flag`
+table + `lib/platform/flags.mjs`). A **developer** turns it on/off at
+**`/admin/plugins`** (or via the service); when OFF the portal behaves exactly as
+Sessions 1–10 (legacy Google sign-in intact), when ON the member-platform features
+activate (email+password-only auth, member pages, account/reset requests, forced
+first-login change). Gating reads **fail closed** (a DB error ⇒ off). Every module
+M0–M8 builds *inside* this plugin. **To check current state:** `/admin/plugins`,
+or `dotenv -e .env.local -- node -e "require('@prisma/client')..."`, or
+`SELECT key, enabled FROM feature_flag;` (see the Developer Guide).
+
 ---
 
 ## M0 — Authentication & account lifecycle (foundation)
@@ -86,13 +97,27 @@ requirement to concrete schema, services, routes, RBAC impact, and tests on the
   (coordinators submit; admin syncs), idempotent (DL-031). **Tests:** membership
   import dedup, tab reads, scoped edit gating.
 
-## M4 — Wall of Fame (achievements)
-- `content_type='achievement'` (year-scoped) with **hybrid ordered blocks** (markdown /
-  markdown+image / banner / link / gallery) in `page_block_payload.data` JSONB (DL-016)
-  or a normalized child table (pick + doc); **sanitize markdown**. Public
-  `/wall-of-fame` Server Component + per-club slice. **achievement ↔ user/club**
-  mapping for performance tracking. Reuse media + `cloudinaryAutoUrl`. **Tests:**
-  handler round-trip, block validation, sanitize, publish→visible.
+## M4 — Wall of Fame (achievements) — ✅ Session 11 (DL-080/081/082/083)
+- **Shipped:** `content_type='achievement'` (year-scoped, NOT org-bound) via the CMS
+  spine with its OWN `achievement_payload` table = typed scalars (`category`,
+  `achievement_date`, `hero_media_id`) + a `blocks` **JSONB** of HYBRID ordered blocks
+  (markdown / markdown+image / banner / link / gallery), validated + normalized by the
+  pure client-safe `lib/achievements/forms.mjs` through a generic-handler `coercePayload`
+  hook (DL-080). Markdown rendered by the escape-first `renderMarkdown` (DL-077); link
+  urls reuse `isSafeHref`. Media reuse `resolveDeliveryUrl` + `cloudinaryAutoUrl` (DL-053).
+- **Mapping:** a STANDALONE `achievement_credit` table crediting one achievement to a
+  MEMBER *or* a CLUB (`org_unit_lineage`) — each row exactly one target (a DB CHECK) +
+  two per-target uniques; `setAchievementCredits` replaces the set (audited, one summary
+  row), authorized `content.update` at the achievement's YEAR scope (DL-081/082). Feeds M6.
+- **Surfaces:** public `/wall-of-fame` (Server Component, `listWallOfFame`, plugin-gated,
+  PII-minimized) + the per-club Achievements tab filled by `getClubPageView` via
+  `listClubAchievements(lineageKey)` (durable lineage). Reuse `content.*` — NO new permission.
+- **Fixed en route (DL-083):** the generic `writePayload` now uses `UPDATE` on a partial
+  edit (a latent M3 bug the first `m3.db` live run surfaced — the `upsert.create` branch
+  requires NOT-NULL payload columns).
+- **Tests:** static (`achievements.test.mjs` — block/credit validators, ordering, block
+  resolution) + live (`m4.db.test.mjs` — create→publish→wall, block-validation 422,
+  credits/one-target/central-scope, club slice + tab).
 
 ## M5 — Centralized Event Playground (largest; ~2 sessions)
 - **ONE playground** (upgrade `/events`), **login-only**, hosting any event type
@@ -124,11 +149,30 @@ requirement to concrete schema, services, routes, RBAC impact, and tests on the
   attendance, closure review, download integrity, access gating, **Events-Organized
   markdown edit → audited → appears in the dev-dashboard change history + export**.
 
-## M6 — Member profiles & performance
-- Profile: name, email, **syndicate** (if any), roles/category, events **participated**
-  (category-mapped), **registered/upcoming** events, **achievements**. Self + admin
-  view. Drives per-stakeholder institute contribution tracking across a year. **Tests:**
-  aggregation correctness, visibility.
+## M6 — Member profiles & performance — ✅ Session 11 (DL-090/091/092/093)
+- **Shipped:** a READ-ONLY aggregation module over the DURABLE ids M4/M5 store — NO new
+  table, permission, or mutation (DL-090). A member **PROFILE** (`lib/member/profile.mjs`):
+  identity (`parseInstituteEmail` facets), roles/category (`role_assignment` + resolved
+  scope-unit names), affiliations (`club_membership` + a derived, currently-empty
+  **syndicate** facet — a syndicate is an `event_entity`, so M6 invents no member↔syndicate
+  table), **category-mapped events** (registrations ∪ scores ∪ attendance, with the member's
+  OVERALL **rank** computed via the pure `rankEntries` = M5 `getOverallRanking`'s
+  sum-across-round+overall semantic, DL-091), and credited **achievements** (a NEW
+  `lib/achievements/public.mjs#listMemberAchievements`). Per-stakeholder **INSTITUTE
+  CONTRIBUTION** across a year (`lib/member/contribution.mjs`) for a member / club / custom
+  entity by durable id — organized/participated/achievements/roles/members/**participants
+  reached** (a PII-minimized distinct COUNT), reusing `listClub/MemberAchievements` +
+  `getMembershipCountForUnit` (DL-092). Pure client-safe `lib/member/summary.mjs`
+  (split/category/totals/identity, DL-093/051).
+- **Surfaces:** self `/member/profile` (own data, `loadMemberContext`), admin
+  `/admin/users/[userId]` + a `/admin/contribution` explorer (a NEW `contribution` nav
+  module, gated `user.read`) — all shared **Server Components** so member PII stays
+  server-side. Reuses the existing `user.read` — **NO new permission (52)**, no migration,
+  content types stay 13.
+- **Tests:** static (`member-profile.test.mjs` — the pure split/category/summary/identity/
+  totals helpers + the nav registration + the no-new-permission invariant) + live
+  (`m6.db.test.mjs` — profile aggregation incl. SUM-based rank + PII, member/club/entity
+  contribution, year-scoping-to-zero, the dispatcher, empty-account safety).
 
 ## M7 — Centralized notifications, feedback/issues, announcements
 - **`notification`** — centralized, **labelled**, **unique human ref id**,
@@ -166,12 +210,13 @@ requirement to concrete schema, services, routes, RBAC impact, and tests on the
 ## Status tracker (update as modules land)
 | Module | Theme | Status |
 |---|---|---|
-| M0 | Auth & account lifecycle (email+password only) | ⬜ |
-| M1 | User status (active/inactive/revoked) + surfaces | ⬜ |
-| M2 | RBAC categories + per-email overrides + search | ⬜ |
-| M3 | Club pages + memberships | ⬜ |
-| M4 | Wall of Fame | ⬜ |
-| M5 | Centralized Event Playground | ⬜ |
-| M6 | Member profiles & performance | ⬜ |
-| M7 | Notifications + feedback + announcements | ⬜ |
-| M8 | Developer dashboard (audit/analytics/backups/mail) | ⬜ |
+| — | **Plugin control plane** (`feature_flag` / `member_platform`, developer-toggled, fail-closed) | ✅ (M0) |
+| M0 | Auth & account lifecycle (email+password only) | ✅ Session 11 |
+| M1 | User status (active/inactive/revoked) + surfaces | ✅ Session 11 (DL-065/066/067) |
+| M2 | RBAC categories + per-email overrides + search | ✅ Session 11 (DL-062/063/064) |
+| M3 | Club pages + memberships | ✅ Session 11 (DL-075/076/077/078/079) |
+| M4 | Wall of Fame | ✅ Session 11 (DL-080/081/082/083) |
+| M5 | Centralized Event Playground | ✅ Session 11 (DL-084/085/086/087/088/089) |
+| M6 | Member profiles & performance | ✅ Session 11 (DL-090/091/092/093) |
+| M7 | Notifications + feedback + announcements | ✅ Session 11 (DL-069/070/074) |
+| M8 | Developer dashboard (audit/analytics/backups/mail) | ✅ Session 11 (DL-068/071/072/073) |

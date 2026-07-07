@@ -33,21 +33,70 @@ a "no access" panel if your roles don't include it):
 | Content (events, announcements, resources, profiles) | `/admin/content` | `content.*` |
 | Organization (units, people, appointments) | `/admin/organization` | `org_unit.*`, `appointment.*`, `position.manage` |
 | Academic Years (years, transition wizard, lock) | `/admin/years` | `year.*` |
+| Event Playground (registration, rounds, scores, attendance, closure) | `/admin/events` | `event.manage` |
 | Media library | `/admin/media` | `media.*` |
 | Users & Roles | `/admin/users` | `user.*`, `role.*` |
+| Coordinators (map each coordinator → one club) | `/admin/coordinators` | `role.assign`, `role.read` |
+| Password Management (account/reset requests) | `/admin/requests` | `notification.read` |
+| Plugins (member-platform on/off) | `/admin/plugins` | `dev.console` (toggle: developer) |
 | Developer Console (status, audit, backups) | `/admin/console` | `dev.console`, `audit.read`, `backup.*` |
+
+---
+
+## 1a. Event Playground & Coordinators
+
+**Event Playground (`/admin/events`)** — pick an event, then manage its registration window
+/ capacity, rounds, organizers, scores, attendance and closure review. The **registered
+participants**, the per-round **attendance**, and the per-round **scores** are shown as
+**searchable, collapsible lists** (tick attendance with checkboxes; type points per participant;
+change/remove a registration inline) — no ids to copy. CSV downloads are available for
+participants / ranking / scores / attendance. The same lists appear on the scoped
+**`/coordinator`** surface for a club's own coordinator.
+
+**Coordinators (`/admin/coordinators`)** — map each coordinator to a club: pick a club, enter a
+member's email, and "Map to this club". This grants the club-scoped `coordinator` role so they
+can run their club's events. **A person can coordinate only one club per academic year** — a
+second mapping is blocked (revoke the first to move them). *(One PIC per club and one Secretary
+per council are enforced separately by the Organization module's position rules.)*
+
+---
+
+## 1b. The Member Platform PLUGIN (Session 11 / M0)
+
+The Session 11+ member platform is a **developer-controlled plugin**. Open
+**`/admin/plugins`** and toggle **Member Platform** (only a **developer** can flip it;
+admins see the state). **ON** activates email+password-only member sign-in
+(`/login`), the public **Request an account** (`/account/request`) and **Forgot
+password** (`/account/forgot`) forms, the **Password Management** queue
+(`/admin/requests`), and the **forced first-login password change**
+(`/account/password`). **OFF** = the portal behaves exactly as Sessions 1–10 (legacy
+Google sign-in works). Gating fails **closed** (a DB error keeps it off).
+
+**Account lifecycle (when ON):** admins create accounts in **Users & Roles** (single,
+with an initial password, or **Bulk import (CSV)** of `email,password[,name]`) — the
+user must change the password on first login. Initial/reset passwords are delivered
+via the **institute's external email**, never by the app. A user's **Forgot password**
+submission appears in **Password Management**; a stakeholder clicks **Take** (assigns
+it, audited) then **Generate & set** (mints a temporary password shown once — deliver
+it externally). Admins can also **Reset pw** / **Delete** a user from Users & Roles.
 
 ---
 
 ## 2. How to sign in
 
-There are **two ways**, and an account can use either (one account per email):
+**With the member-platform plugin ON (Session 11):** sign in at **`/login`** (or the
+admin gate) with **email + password**. New users use **Request an account**; password
+trouble uses **Forgot password** (admin-mediated — a stakeholder resets it and emails
+you a temporary one you must change). Google is disabled while the plugin is on.
 
-1. **Google** — click **"Sign in with Google"**. If an account already exists for that
-   Google email, you're linked to it; a brand-new Google sign-in creates an `active`
-   account with no roles (an admin then grants you a role).
+**With the plugin OFF (legacy / Sessions 1–10):** an account can use either:
+
+1. **Google** — if an account already exists for that Google email you're linked to it;
+   a brand-new Google sign-in creates an `active` account with no roles.
 2. **Email + password** — for accounts that have a password set. (Set/reset a password
-   from **Users & Roles → Edit user → New password**, min 8 characters.)
+   from **Users & Roles → Edit user → New password**.)
+
+Passwords must meet the policy (≥10 chars, with a lowercase, uppercase and a digit).
 
 Whichever method you use, the account must be **`active`**. A `suspended`, `invited`, or
 `disabled` account is blocked at sign-in and at every protected action (this takes

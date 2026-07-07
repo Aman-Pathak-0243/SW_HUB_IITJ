@@ -1,0 +1,34 @@
+# Local PostgreSQL for TESTING (Session 13). The production database is Neon
+# (serverless Postgres); this gives an identical Postgres engine LOCALLY so the live
+# `*.db.test.mjs` suites run fast, offline, and with EVERY DB guard intact — triggers,
+# citext, partial / NULLS-NOT-DISTINCT uniques, FOR UPDATE SKIP LOCKED, pg_total_relation_size.
+# (SQLite cannot host these — see docs/TESTING_STRATEGY.md § "Local Postgres for testing".)
+#
+# Usage:
+#   docker compose up -d            # start (or: npm run db:local:up)
+#   cp env.test.example .env.test   # once — local URLs (git-ignored)
+#   npm run db:local:setup          # migrate + seed the local DB
+#   npm run test:db                 # run every live suite against it (single-fork)
+#   docker compose down             # stop            (or: npm run db:local:down)
+#   docker compose down -v          # stop + WIPE the data volume (fresh DB)
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: iitj-test-pg
+    environment:
+      POSTGRES_USER: iitj
+      POSTGRES_PASSWORD: iitj
+      POSTGRES_DB: iitj_test
+    ports:
+      - "5432:5432"
+    volumes:
+      - iitj-test-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `db:local:up` waits on this so migrate/seed never race a still-starting server.
+      test: ["CMD-SHELL", "pg_isready -U iitj -d iitj_test"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  iitj-test-pgdata:

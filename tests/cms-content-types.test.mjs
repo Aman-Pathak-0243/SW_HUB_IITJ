@@ -55,6 +55,17 @@ function makeFakeTx() {
       rows.push(row);
       return row;
     },
+    async update({ where, data }) {
+      const rows = tbl(name);
+      const i = rows.findIndex((r) => match(r, where));
+      if (i < 0) {
+        const e = new Error("Record to update not found.");
+        e.code = "P2025";
+        throw e;
+      }
+      Object.assign(rows[i], data);
+      return rows[i];
+    },
     async findUnique({ where }) {
       return tbl(name).find((r) => r[pk] === where[pk]) ?? null;
     },

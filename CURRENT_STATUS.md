@@ -1,17 +1,619 @@
 # Current Status
 
-**Last updated:** 2026-06-29
-**Session:** 10 of 10 — **COMPLETE** (Testing + Deployment + Optimization + Handover)
-**Project status:** ✅ **ALL 10 SESSIONS COMPLETE — feature-complete & ready to deploy.**
-**Follow-up:** A large operator-requested **Session 11+ member-platform program** is
-queued (multi-session): email+password-only admin-provisioned accounts, RBAC
-categories + per-email overrides, expanded club pages + memberships, a Wall of Fame,
-an advanced centralized Event Playground (rounds/scoring/ranking/registration/
-closure), member profiles, centralized notifications/feedback, and a beefed-up
-developer dashboard (action+usage tracking, per-table backup/thresholds, nodemailer).
-Out of scope for the harden-only Session 10 (DL-057). **Full module-by-module prompt
-in [NEXT_TASK.md](NEXT_TASK.md).**
+**Last updated:** 2026-07-02
+**Session:** 16 — **LIVE QUIZZES & LIVE LEADERBOARDS (self-hosted SSE + optional Redis, Tier B; DL-104..108).**
+The last deferred developer feature. A live-quiz + live-leaderboard subsystem on the chosen self-hosted **SSE**
+transport, built on the existing event spine with **NO new permission and NO new content type** (permissions
+stay **52**, content types **13**): a quiz is part of an event's operational subsystem, so organizer authoring/
+control is gated by the SAME `event.manage` seam and member play is login-only via `assertCanParticipate` —
+exactly like event registration. Four new tables keyed on the durable event id (forward migration
+`20260702130000_member_platform_quiz`, applied + validated on the local Docker Postgres): `quiz_question`
+(bank), `quiz_session` (one live run; a partial-unique = one non-ended session/event; the **server-authoritative**
+`question_started_at`), `quiz_participant` (lobby), `quiz_answer` (one per session·question·member — a UNIQUE
+makes each answer one-shot; server-scored). The **server-authoritative timer** is host-paced with no scheduler
+(an answer is accepted only within the limit measured from the server's stamp; correctness never leaks before
+reveal). Real-time is an in-process **broadcaster** + **SSE** (`lib/realtime/*` + `app/api/live/*`) with **Redis
+OPTIONAL + LAZY/INJECTABLE** (the nodemailer pattern) for cross-instance pub/sub — the build + whole test suite
+run with NO `ioredis` and NO `REDIS_URL`. The **leaderboard is read authoritatively from Postgres** (one indexed
+`groupBy`). A live **registration** leaderboard is the cheap first step on the same transport. New
+`docker-compose.prod.yml` (hardened Postgres 16 + loopback Redis 7) + `REDIS_URL` in `env.example`/systemRequirements.
+**580 static + lint + build green;** new live suites `quiz.db` (9) + `inline.db` (1, the deferred Session-15
+`editAndPublish` `DRAFT_OPEN` test) green on the local Docker Postgres; m5/events live re-run green. A 6-dimension
+× 2-verifier adversarial review (18 agents; **authz/anti-cheat clean**) found **6 → all addressed**, chiefly
+**removing an unsafe Redis leaderboard cache** that could corrupt ranks (Postgres is now the single source of
+truth; Redis stays for fan-out), plus guards on question delete/edit mid-session, an SSE stale-snapshot `rev`
+guard, and a heartbeat-interval fix. **The M0–M8 program + all deferred dev features are now complete.**
+
+**Prior session:**
+**Session:** 15 — **INLINE EDIT-ON-PUBLIC-PAGE (DL-103).** A logged-in stakeholder with scoped
+`content.update` can now fix a wrong detail **directly on a public page** — the event detail, a
+club/council profile (vision/Instagram), and each wall-of-fame achievement — via a small modal, no
+trip to `/admin`. New pure `lib/cms/inline.mjs` (editable-field specs + `buildEditPatch`, mirrored +
+tested), a gated client `app/components/InlineEditor.jsx`, and `content.mjs` `resolveInlineEditCapability`
+(computed at the SAME `content.update`/`content.publish` scope the service enforces — the button can't
+over-grant) + `editAndPublish` (new `content.editAndPublish` action). The affordance only shows when the
+viewer is authorized; the route still requires an ACTIVE user + same-origin and the service re-authorizes
+at the item's (year, org-lineage) scope — a coordinator edits THEIR unit's page, staff/admin any,
+achievements need unscoped `content.update`. A 3-lens adversarial review found + **fixed 2 bugs**: (HIGH)
+`editAndPublish` would have published a pre-existing admin WIP draft → now refuses (`409 DRAFT_OPEN`) and
+forks from the published revision; (LOW) an unchanged save is now a true no-op. 542 static tests + lint +
+build green; the Session-14 migration was applied + validated on the local Docker Postgres. No new migration.
+**Deferred (next):** the live-quiz + real-time (SSE + Redis, Tier-B) subsystem — see NEXT_TASK.md.
+
+**Prior session:**
+**Session:** 14 — **QUICK-WINS BUNDLE + VM HOSTING SPEC.** New root `systemRequirements.md`
+(single-VM hosting spec: Docker **Postgres 16** on the same VM, nginx/Caddy + TLS, PM2, backups, and a
+**Tier-B 4 vCPU/8 GB + Redis** sizing for the chosen **self-hosted SSE** live-quiz path) plus six scoped
+enhancements: per-event **allowed registrant roles** (creation-time checkbox gate — DL-097, one additive
+migration `event_settings.allowed_registrant_roles`), a **scheduled go-live + live countdown** register
+button + "Go live now" (DL-098), **multi-club event listing** (a collaboratively tagged event now shows on
+every organizing club's page — DL-099), **all-data-type responsive resource cards** (DL-100), a
+**Wall-of-Fame credits admin UI** wiring the previously API-only `achievement.credits.set` (DL-101), and a
+**bulk grant/deny permission-override checkbox grid** (DL-102). 536 static tests + `eslint` + `next build`
+green; a 4-lens adversarial review (per-finding verified) found and **fixed one high-severity authz-downgrade**
+(the admin event-settings form now PRELOADS stored values instead of blank-clobbering a coordinator's role
+restriction). **Deferred (per the operator's build-order choice):** the inline edit-on-public-page surface and
+the live-quiz + real-time (SSE + Redis) subsystem — see NEXT_TASK.md. **NOTE:** the working tree already held
+**unrelated pre-existing uncommitted edits** at session start (Header/Footer/OrgUnitTabs/org data + importer/
+people, package.json, etc.) — operator in-progress work, now intermixed with this session's diff.
+
+**Prior session (unchanged):**
+**Session:** 13 — **SCOPED-COORDINATOR SURFACE** (the one remaining OPTIONAL dev item, DL-096):
+a STANDALONE **`/coordinator`** back office that closes **KNOWN_ISSUES #43** — a club-scoped
+coordinator can now SEE and run their unit's **events** (settings/rounds/registrations/scores/
+attendance/closure-submit + CSV), **members** (roster + non-destructive CSV import), and
+**contribution** (the M6 club slice) — built entirely on the existing `assertEventManage` /
+`assertActorPermission` seams + the one mutation route, plus a NEW inverse-of-the-resolver
+scoped-grant discovery (`lib/rbac/grants.mjs`). Also produced the full client-facing
+**delivery documentation set** (`Notebook.md`, `USER_MANUAL.md`, `RESOURCES.md`,
+`INVESTOR_EMAIL.md`, `ANNOUNCEMENT_EMAIL.md`, `DELIVERABLES_INDEX.md`, `CLIENT_INSTRUCTIONS.md`).
+**Project status:** ✅ Sessions 1–10 shipped; ✅ Session 11 program M0–M8 complete;
+✅ Session 12 consolidation/hardening complete; ✅ Session 13 scoped-coordinator surface +
+delivery docs complete. **The product is feature-complete, hardened, and delivery-documented;
+the remaining work is operator/owner-owned** (live-data imports + media migration + V1 secret
+rotation) — see NEXT_TASK.md.
 **Branch:** `portal-v2`
+
+## What is done (Session 13 — scoped-coordinator surface + delivery docs)
+
+- **`/coordinator` — a standalone scoped back office (DL-096; closes KNOWN_ISSUES #43).** A club-
+  scoped coordinator (a `role_assignment` with `event.manage` / `membership.manage` SCOPED to an
+  `org_unit_lineage`) was invisible to the GLOBAL admin nav (`loadAdminContext` resolves at `{}`), so
+  they could only DISPATCH scoped mutations programmatically. Session 13 ships the missing SURFACE — a
+  standalone `/coordinator` area (its own never-throws `loadCoordinatorContext`, NOT under the hardened
+  `/admin` gate), plugin-INDEPENDENT and ACTIVE-ONLY (back-office parity), where a coordinator manages
+  THEIR unit's **events** (per-event: settings, rounds, registrations roster + add/status/remove, score
+  & attendance replace-sheets, own **closure report** submit, CSV downloads), **members** (roster +
+  add/status/remove + non-destructive bulk CSV import), and **contribution** (the M6 `getClubContribution`
+  slice via the shared `ContributionSummary`). Central-only actions (organizer tagging, custom entities,
+  closure **review**) stay `requireGlobal` and are absent from the surface.
+- **Scoped-grant discovery — the inverse of the resolver (`lib/rbac/grants.mjs`).** `scopedLineagesFor`
+  enumerates the lineages a user holds a permission at as a SCOPED grant, built ON
+  `resolveEffectivePermissions` at each candidate lineage → exact live parity (deny-wins, developer/
+  grants_all short-circuit, year-dimension `inScope`); `listManageableLineages` resolves them to
+  current-year unit display. A minimal, behaviour-preserving extraction in `lib/rbac/authorize.mjs`
+  (`loadUserRbacInputs`, the un-memoized loader the cached hot-path `loadUserRbac` now delegates to)
+  lets a non-request caller/test load the same RBAC inputs.
+- **`lib/events/manage.mjs`.** `listEventsForManager(lineageKeys)` (events an organizing lineage of
+  theirs is tagged on = exactly the `assertEventManage` scoped set) + `getManagedEvent(eventItemId,
+  actor)` (GATED by `assertEventManage` FIRST — the per-event authority — then composing the existing
+  gated sub-reads so the page shows LIVE data, unlike the blind admin `EventsClient`).
+- **No schema/permission/migration/mutation change.** Every action re-authorizes via the existing seams;
+  permissions stay **52**, content types **13**. A `coordinates` flag on `loadMemberContext` + a
+  `/member` link route a coordinator to the surface without global admin.
+- **Tests.** **530 static** (was 517; +`tests/coordinator.test.mjs` 13 — the pure `scopedLineagesFor`
+  parity: deny-wins, global-vs-scoped, year dimension, developer short-circuit, revoked) +
+  `tests/coordinator.db.test.mjs` **5/5 green** on warm Neon (a coordinator sees ONLY their club with
+  {events,members} caps; a global staff / an inactive coordinator / a plain member see nothing;
+  `listEventsForManager` is scope-limited; `getManagedEvent` 403s on another club's event, ok for the
+  organizing coordinator + global staff). Route-smoke extended with the 4 `/coordinator` routes + the
+  dynamic manage page. m5/m1 live re-run green (the RBAC extraction is behaviour-preserving). `npm run
+  lint` + `next build` clean.
+- **Delivery documentation set (client-facing, repo root).** `Notebook.md` (the whole platform —
+  architecture, data model, RBAC, every module, ops), `USER_MANUAL.md` (features + the 11-role ×
+  3-status access matrix + how-to guides incl. the event-organizing engine), `RESOURCES.md` (Neon/
+  Cloudinary/host capacity + sizing rationale + where to check live prices), `WEBSITE_V1_VS_V2.md`
+  (the before→after: the old website vs. the platform, with a full feature-comparison table),
+  `ACADEMIC_YEAR_ROLLOVER.md` (the year-change + new-data-ingestion runbook — create year →
+  Transition Wizard → set current → importers → lock), `INVESTOR_EMAIL.md` + `ANNOUNCEMENT_EMAIL.md`,
+  `DELIVERABLES_INDEX.md` (every markdown + a one-line description), and `CLIENT_INSTRUCTIONS.md`
+  (the hand-over / go-live runbook).
+- **Adversarial review** — a 5-dimension finder → per-finding 2-verifier workflow (scope-safety,
+  global-only leakage, RBAC parity, correctness, client/UX); findings triaged + addressed (see the
+  CHANGELOG entry).
+
+## What is done (Session 12 — consolidation / deploy-hardening)
+
+- **Full test gate.** 517 static tests + `npm run lint` + `next build` clean. Every live suite
+  re-run PER-FILE, single-fork, on a warm Neon (`cms/year/org/events/resources/media/devconsole/
+  users/smoke` + `m0.db…m8.db`) — green. DB confirmed migrated (11 migrations, up to date) +
+  seeded (52 permissions / 11 roles / 13 content types; `member_platform` flag ON).
+- **CI (DL-094).** The nightly/secret-gated live job now warms Neon (`prisma migrate deploy`) and
+  runs `--pool=forks --poolOptions.forks.singleFork` — the whole live suite (m0–m8 + Sessions 1–10)
+  serialized, the documented KNOWN_ISSUES #39 remedy.
+- **Route-render smoke (DL-094).** `scripts/route-smoke.mjs` + `npm run test:routes` — hits every
+  route anonymously and fails on any 5xx; the reusable "is the hosted site up?" check.
+- **Testing SOP (DL-094).** `docs/WEBSITE_TESTING_SOP.md` — the repeatable per-mode full-site
+  procedure (11-role × 3-status matrix, feature-by-feature allow/deny checklist, plugin ON/OFF,
+  bug-log→fix→re-verify loop).
+- **Member nav (DL-094).** `MemberNav` + `SignOutButton` on `/member` + `/member/profile`.
+- **Full-site bug audit → 11 fixes (DL-095; `docs/CONSOLIDATION_BUGLOG.md`).** A per-feature ×
+  per-role adversarial audit found 21 confirmed defects → 11 fixed (B1 inactive+must-change lockout
+  via the new `requireLoggedInAccount` boundary; B2 the `/events/[slug]` revoked/view-disabled gate;
+  B3 the unstyled sign-in card; B4 capacity-raise waitlist promotion; B5 the non-destructive
+  membership re-import; B6 a shared CSV formula-injection guard `lib/csv/cell.mjs`; B7 the export
+  empty-roundId 500; B8 reopen-clears-note; B9 fail-closed export auditing; B10 the credited-club
+  link; B11 member sign-out) + 10 documented-as-accepted (KNOWN_ISSUES #45–#47 + minor items).
+  New static + m3/m5/m7 live regression assertions; the adversarial diff-review workflow found
+  **0 regressions**. No schema change (permissions stay 52, content types 13).
+
+## What is done (Session 11 — M6: Member profiles & performance)
+
+- **M6 is a READ-ONLY aggregation module — NO new table / permission / mutation (DL-090).**
+  It reads the DURABLE ids M4/M5 already persist (`achievement_credit.userId|orgUnitLineageKey`,
+  `event_organizer`'s three targets, `event_registration`/`event_score`/`event_attendance.userId`,
+  `club_membership`, `role_assignment`), so there is **no new migration and no new `content_type`**;
+  the self profile is gated by the M1 member boundary (own data), and every admin surface by the
+  **existing `user.read`** (permissions stay at **52**, content types at **13**). "Syndicate (if
+  any)" is a DERIVED, currently-empty facet (the org model has no syndicate unit type — a syndicate
+  is an `event_entity`, DL-085); M6 does not invent a member↔syndicate table.
+- **Profile read layer (DL-091).** [lib/member/profile.mjs](lib/member/profile.mjs) — `getMemberProfile`
+  aggregates identity (`parseInstituteEmail` facets), roles/category (active `role_assignment` +
+  resolved scope-unit names), affiliations (`club_membership` → current-year unit names + the derived
+  syndicate), full EVENT INVOLVEMENT, and the member's credited ACHIEVEMENTS (a NEW
+  [lib/achievements/public.mjs](lib/achievements/public.mjs)#`listMemberAchievements`, mirroring the
+  club slice). Event history is ONE batched aggregation of registrations ∪ own-scores ∪ attendance;
+  the member's OVERALL RANK per event is computed in-memory from a single all-scores fetch via the
+  pure `rankEntries` — the SAME sum-across-(round + overall) semantic as M5 `getOverallRanking`, so the
+  profile number equals the event-page number. Events are all-time (durable); achievements follow M4
+  current-year visibility. `getMemberProfileView` composes profile+contribution for the pages.
+- **Institute contribution (DL-092).** [lib/member/contribution.mjs](lib/member/contribution.mjs) —
+  `getMemberContribution` / `getClubContribution` / `getEntityContribution` (+ a `getStakeholderContribution`
+  dispatcher, + `listContributionStakeholders` for the picker) aggregate a stakeholder's year
+  contribution by durable id: events organized, participated, achievements credited, roles, members,
+  and distinct **participants reached** (a COUNT, never a roster — PII-minimized). Reuses `listClub/
+  MemberAchievements` + `getMembershipCountForUnit`; batched (bounded per stakeholder, one in-year
+  resolve + one distinct-count). A pure `contributionTotals` yields the headline "touchpoints".
+- **Pure client-safe helpers (DL-093/051).** [lib/member/summary.mjs](lib/member/summary.mjs) —
+  `splitMemberEvents` / `categoryBreakdown` / `participationSummary` / `formatIdentity` /
+  `contributionTotals` / `pickSyndicate` — one authority for split/category-mapping/totals/identity,
+  imported by BOTH the Server-Component reads AND the presentation, unit-tested without a DB.
+- **Surfaces (DL-093).** Self **`/member/profile`** (gated by `loadMemberContext` — own data; linked
+  from `/member`), admin **`/admin/users/[userId]`** (gated `loadModuleContext('users')` + explicit
+  `user.read`; linked per-row from the Users list), and a **`/admin/contribution`** explorer (member/
+  club/entity, driven by query params — Server-Component GETs, no API route) behind a NEW
+  **`contribution`** nav module (`anyOf:['user.read']`). Rendering is TWO shared **Server Components**
+  ([MemberProfile](app/components/MemberProfile.jsx) / [ContributionSummary](app/components/ContributionSummary.jsx))
+  so member PII stays server-side (only HTML ships); the one client component (the picker) gets only
+  public club/entity names.
+- **Tests.** **516 static** (was 497; +`tests/member-profile.test.mjs` 19 — the pure split/category/
+  summary/identity/totals helpers + the `contribution` nav registration + the no-new-permission
+  invariant) + a NEW live suite `tests/m6.db.test.mjs` (**8/8 green** on warm Neon, isolated per #39):
+  profile aggregation (identity/roles/affiliations/events with SUM-based rank/achievements + a PII
+  no-uuid/email assertion on credited members), member contribution counts + year-scoping-to-zero,
+  club + entity contribution, the dispatcher (member-by-email/club/entity + unknown→null),
+  `listMemberAchievements`, and empty-account safety (valid empty shape vs unknown-id→null). The
+  M5/M4/M3 live suites were re-run green on a warm Neon (m5 10/10, m4 6/6, m3 10/10). `npm run lint`
+  + `next build` clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (14 agents).
+  **4 raw → 0 confirmed-by-both + 2 single-vote (2 refuted) → both single-votes fixed + both refuted
+  nits hardened anyway:** (medium, perf) the two profile surfaces re-ran the heaviest read
+  (`listMemberAchievements`) + the current-year lookup TWICE per render → a ONE `getMemberProfileView`
+  composite now hydrates the achievements + year ONCE and injects them into both aggregators (a
+  `_achievements` seam); (medium, test) the rank assertion used a single-round/single-score fixture
+  that could not distinguish the sum-across-rounds semantic → the fixture now adds an OVERALL score
+  row so memberA (40 round + 60 overall = 100) outranks memberB (90) ONLY when the rows are summed.
+  Hardened the two refuted nits anyway (a credited-member PII no-uuid/email assertion; empty-account
+  `roles`/`syndicate` assertions). All re-verified: 516 static + m6.db 8/8 green, lint + build clean.
+
+## What is done (Session 11 — M5: Centralized Event Playground)
+
+- **Event = content_item + a relational subsystem (DL-084).** The event stays a versioned
+  `content_type='event'` (DL-037); its CONTENT gains `problem_statement` + `eligibility` (markdown),
+  `category` (an M6 facet), and a `blocks` **JSONB** of HYBRID ordered blocks — the M4 block model
+  reused via a NEW `coercePayload` hook on the `event_payload` handler (the pure client-safe
+  [lib/events/forms.mjs](lib/events/forms.mjs)#`normalizeEventPayload` reuses `normalizeBlocks`,
+  DL-051). OPERATIONAL data lives in standalone tables keyed on the DURABLE event item; registration
+  CONFIG (capacity / window / a `registration_closed` switch) is a 1:1 `event_settings` — NOT the
+  versioned payload (so the waitlist guard reads one stable number).
+- **Organizer/collaborator tagging + custom entities (DL-085).** [event_organizer](prisma/schema.prisma)
+  credits an event to EXACTLY ONE of {a club `org_unit_lineage`, a custom `event_entity`, a member
+  `app_user`} (a raw-SQL one-target CHECK + three per-target uniques) with a `kind`
+  (organizer|collaborator) + role tag; `setEventOrganizers` REPLACES the set (one audit row).
+  Tagging is CENTRAL (`requireGlobal` event.manage) and a tagged organizing CLUB lineage is the
+  scope at which that club's coordinator gains management access. Custom entities (a syndicate /
+  external partner) are admin/dev-defined, durable, and feed M6 by durable id.
+- **The `event.manage` seam (DL-086).** ONE new permission (→ **52**) + [lib/events/authz.mjs](lib/events/authz.mjs)#`assertEventManage`:
+  GLOBAL (staff/admin/dev — an unscoped grant) OR SCOPED to any organizing club lineage (a
+  coordinator runs their own event); the RBAC resolver's `inScope()` keeps a club-scoped grant from
+  passing the global check (DL-082 parity), verified live. Member participation is LOGIN-ONLY via the
+  gated `POST /api/events/participate` (plugin + CSRF + rate-limit + `requireMember`) → the M1
+  `assertCanParticipate()` active-only seam (inactive browses but cannot register, verified live).
+- **Registration + waitlist + rounds + scoring + attendance (DL-087).** [event_registration](lib/events/registration.mjs)
+  dedups active registrations (partial-unique WHERE status<>'cancelled'); capacity → WAITLIST is a
+  service decision (`registrationOutcome`) backstopped by a DEFERRED cardinality trigger reading
+  `event_settings.capacity` (DL-009/021 reuse) with a race-retry; cancelling a confirmed spot
+  auto-promotes the earliest waitlisted (verified live). `event_round` (stages); `event_score` +
+  `event_attendance` are per-round (round_id) or overall (round_id NULL, a partial unique) submitted
+  as replace-set SHEETS (one summary audit row, missing emails reported). RANKING is computed in the
+  read layer — per-round (by points) + overall (sum) — via the PURE `rankEntries` (standard
+  competition rank), batched (the detail builds all rankings from ONE score fetch).
+- **CSV downloads + closure + Events Organized (DL-087/088/089).** [exportEventCsv](lib/events/downloads.mjs)
+  (participants / scores / attendance / ranking, round + overall) via `GET /api/events/export`, gated
+  by `assertEventManage`. An OPTIONAL markdown `event_closure_report` per (event, submitter): role +
+  contribution + self-reported budget (submitted by an organizer), reviewed CENTRALLY (comment +
+  corrected budget; a scoped coordinator cannot review — verified live); data-issue feedback reuses
+  M7. The "Events Organized" curated doc is a NEW `content_type='events_organized'` (page_block
+  markdown, → **13** content types) edited through the CMS — so every add/update is audited
+  (before/after) + version-diffable — with a data-driven organized-events index; its change history
+  is visible + downloadable from a NAMED **M8 developer-dashboard tab** ([getEventsOrganizedChangeHistory](lib/events/organized.mjs)
+  / `exportEventsOrganizedHistory`, gated `audit.read`).
+- **Surfaces.** Login-only playground at **`/events`** (plugin ON; the public Sessions-1–10 board
+  when OFF) + event detail **`/events/[slug]`** (hybrid content, rounds, live rankings, register/
+  waitlist) + **`/events/organized`**; admin **`/admin/events`** management module; the M8 dev-dash
+  change-history tab. Every management mutation posts to the ONE `POST /api/admin/action` registry
+  (16 scoped M5 actions; each service re-authorizes via `assertEventManage`).
+- **Schema.** One additive forward migration `20260701140000_member_platform_m5` (8 tables + the 4
+  `event_payload` columns + FKs/uniques/CHECKs + the deferred capacity trigger), applied to Neon via
+  `migrate deploy`; init untouched (DL-027). 8 new models registered in `TABLE_BY_MODEL` +
+  `AUTO_AUDIT_SKIP`. `event.manage` + `events_organized` are seed DATA. **Permissions → 52; content
+  types → 13.**
+- **Tests.** **497 static** (was 466; +`tests/events-playground.test.mjs` 23 — payload/organizer/
+  round/capacity/registration/scoring/budget validators, `rankEntries`, CSV quoting; +the M5
+  migration block; +the `event.manage` RBAC assertion) + a NEW live suite `tests/m5.db.test.mjs`
+  (**10/10 green** on warm Neon, isolated per #39): hybrid-content playground read, organizer tagging
+  (one-target + central-vs-scoped), the `assertEventManage` seam, registration + capacity→waitlist +
+  auto-promote + dedup + inactive-blocked, scores→ranking, attendance, closure submit-vs-central-
+  review, CSV downloads, roster PII gating, and the Events-Organized change history + export gate.
+  The static suite caught + fixed a real `trimOrNull` normalizer bug (it didn't trim). `npm run lint`
+  + `next build` clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (30 agents).
+  **12 raw → 4 confirmed-by-both + 5 single-vote (3 refuted) → all 9 legitimate ones fixed:**
+  (medium) an organizer cancel/remove of a CONFIRMED registration did NOT auto-promote the waitlist
+  (a freed seat was stranded — only a member self-cancel promoted) → `promoteEarliestWaitlisted` now
+  runs from EVERY seat-vacating path (self-cancel + organizer cancel/remove/downgrade) + a live
+  assertion; (medium) `promoteEarliestWaitlisted` used a non-locking select, so two concurrent
+  confirmed-cancellations could promote the SAME earliest row and leave a seat empty → the earliest
+  waitlisted row is now `SELECT … FOR UPDATE SKIP LOCKED` so concurrent promotions pick DISTINCT rows;
+  (medium) editing a round via the admin form silently wiped its start/end dates (blank inputs sent as
+  "clear") → the edit form sends ONLY the fields the user filled (blank = leave unchanged); (low)
+  `/events/organized` rendered member content for revoked / view-disabled accounts (only
+  `unauthenticated` was blocked) → now mirrors `/events` and holds them out; (single-vote, PII) the
+  playground / scoring / organizer PUBLIC shapes serialized the internal `app_user` uuid → stripped to
+  display-NAME-only (DL-082 parity) + a live no-uuid assertion; (single-vote) a re-submitted closure
+  report kept a stale reviewer/comment/corrected-budget → cleared on re-submit. The 3 refuted were
+  design-intent nits. All fixes re-verified: 497 static + m5.db **10/10** green, lint + build clean.
+
+## What is done (Session 11 — M4: Wall of Fame / student achievements)
+
+- **Achievement content (DL-080).** A NEW **`content_type='achievement'`** — year-scoped,
+  **NOT org-bound** — driven through the ordinary CMS service (create/edit/publish via the
+  `content.*` admin actions; no parallel pipeline). Its OWN payload table
+  **`achievement_payload`** (1:1 with `content_revision`) holds typed scalars (`category`,
+  `achievement_date`, `hero_media_id`) + a **`blocks` JSONB** of HYBRID ordered blocks
+  (markdown / markdown+image / banner / link / gallery, DL-016). The pure client-safe
+  [lib/achievements/forms.mjs](lib/achievements/forms.mjs) (`normalizeBlocks`/
+  `normalizeAchievementPayload`/`creditTargetKind`) validates + normalizes blocks and runs
+  server-side via a NEW generic-handler **`coercePayload`** hook (throws 422 on a bad block).
+  Markdown is stored RAW and rendered by the escape-first [renderMarkdown](lib/markdown/render.mjs)
+  (DL-077); link urls reuse `isSafeHref`. Media reuse `resolveDeliveryUrl` + `cloudinaryAutoUrl` (DL-053).
+- **Contribution mapping (DL-081).** A NEW standalone **`achievement_credit`** table crediting
+  one achievement to a **MEMBER (`app_user`)** *or* a **CLUB (`org_unit_lineage`)** — each row
+  EXACTLY ONE target (a raw-SQL CHECK) + two per-target uniques; durable ids so a member's and a
+  club's contributions are trackable across a year (feeds M6). [lib/achievements/credits.mjs](lib/achievements/credits.mjs)#`setAchievementCredits`
+  REPLACES the credit set idempotently (authorize `content.update` at the achievement's YEAR
+  scope FIRST; ONE semantic audit summary row; missing emails REPORTED not created).
+  `AchievementCredit` ∈ `AUTO_AUDIT_SKIP`. Registry action `achievement.credits.set` (scoped).
+- **Central curation + public surfaces (DL-082).** Achievements are institute-level; they reuse
+  the **`content.*`** permission set (**NO new permission — still 51**) and credit management
+  authorizes at the YEAR scope, so a unit-scoped coordinator is 403 (verified live). Public
+  reads ([lib/achievements/public.mjs](lib/achievements/public.mjs)): `listWallOfFame` /
+  `getAchievementBySlug` / `listClubAchievements` — Server-Component, BATCHED (no N+1),
+  PII-minimized (credited members appear by display **NAME only** — the app_user uuid is never
+  serialized to the client). Public **`/wall-of-fame`** (plugin-gated, fail-closed) + the M3 club
+  page's **Achievements tab** filled by `getClubPageView` → `view.achievements` (keyed on the
+  club's DURABLE lineage). Shared renderer [AchievementCard](app/components/AchievementCard.jsx)
+  (+ a `Wall of Fame` header nav link).
+- **Shared-handler fix (DL-083).** The generic `writePayload` now uses **`UPDATE`** (not `upsert`)
+  on a partial edit (`isCreate:false`) — the payload row always pre-exists on edit, and Prisma
+  STATICALLY requires the `upsert.create` branch to carry NOT-NULL columns (e.g. `announcement.body`).
+  This was a **latent M3 bug** the FIRST live run of `tests/m3.db.test.mjs` surfaced (the
+  club-announcement sync test edits `{syncToCentral:true}` alone) — now fixed; **KNOWN_ISSUES #42
+  cleared** (the M3 live suite is green).
+- **Schema.** One additive forward migration `20260701130000_member_platform_m4`
+  (`achievement_payload` + `achievement_credit` + FKs/uniques + the exactly-one-target CHECK),
+  applied to Neon via `migrate deploy`; init untouched (DL-027). `AchievementPayload` +
+  `AchievementCredit` registered in `TABLE_BY_MODEL`; `AchievementCredit` added to `AUTO_AUDIT_SKIP`.
+  The `achievement` content_type is seed DATA. **Permissions unchanged (51); content types → 12.**
+- **Tests.** **466 static** (was 448; +`tests/achievements.test.mjs` — block/credit validators,
+  ordering, block resolution; +the M4 migration block; +the content-type allowlist) + a NEW live
+  suite `tests/m4.db.test.mjs` (**6/6 green** on warm Neon, isolated per #39): create (hybrid
+  blocks) → publish → wall + blocks round-trip + unpublish-hides, block-validation 422 (+ unsafe
+  link), credits member+club + one-target rule + missing-email + idempotent replace, central-scope
+  403 (coordinator) / 401, the club slice + `getClubPageView` Achievements tab (+ the PII no-`userId`
+  assertion), non-achievement guard. The **M3 live suite re-ran 10/10 green** after the DL-083 fix.
+  `npm run lint` + `next build` clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (8 agents):
+  **1 raw → 1 confirmed-by-both (0 single-vote) → fixed:** (low) the public achievement shape
+  serialized each credited member's internal `app_user` uuid to anonymous browsers via the client
+  `OrgUnitTabs` (contradicting the display-NAME-only invariant) → the `userId` is dropped from the
+  public members shape + a live regression assertion added.
+
+## What is done (Session 11 — M3: club/council pages + memberships)
+
+- **Club memberships (DL-075).** A NEW standalone **`club_membership`** many-to-many
+  (`app_user` ↔ `org_unit_lineage`) — durable across academic years (lineage-keyed, not
+  per-year), `UNIQUE(user, lineage)`, `status` CHECK (active|inactive). [lib/memberships/service.mjs](lib/memberships/service.mjs)
+  (add/remove/setStatus + `listMembershipsForUnit` [gated PII roster] + `getMembershipCountForUnit`
+  [public aggregate] + `listUserMemberships` [self "my clubs"]) + the pure client-safe
+  [lib/memberships/forms.mjs](lib/memberships/forms.mjs). A NEW **`membership.manage`** permission
+  (coordinator/secretary/admin) gates every mutation SCOPED to the unit's lineage
+  (`requireScopedPermission`, DL-066) BEFORE any disclosure; one semantic audit row each
+  (`ClubMembership` ∈ `AUTO_AUDIT_SKIP`). An **idempotent bulk CSV importer**
+  (`importClubMemberships`) syncs a coordinator-submitted email list — idempotent by
+  `(user, lineage)`, reports missing accounts (never auto-creates them), ONE summary audit row (DL-031).
+- **Club sub-content (DL-076).** A NEW `content_type='club_doc'` (year-scoped, org-bound) REUSES
+  `page_block_payload` (markdown docs; no new payload table, DL-006), each doc its OWN lineage
+  (DL-041). Club-specific **announcements** & **events** bind to the club via `content_item.orgUnitId`;
+  all CRUD flows through the CMS service scoped to the club's lineage (content.* + DL-066). Public
+  reads: [lib/org/docs.mjs](lib/org/docs.mjs)#`listClubDocs`, [lib/events/public.mjs](lib/events/public.mjs)#`listClubEvents`/`listClubAnnouncements`.
+- **Safe markdown (DL-077).** [lib/markdown/render.mjs](lib/markdown/render.mjs): a PURE,
+  dependency-free, **escape-FIRST** `renderMarkdown` (HTML escaped before any markup → injection is
+  structurally impossible) + scheme-validated links (`isSafeHref` blocks `javascript:`/`data:` incl.
+  control-char bypass) + `markdownPreview`. Reused by M4.
+- **Announcement sync-to-central (DL-078).** Additive `announcement_payload.sync_to_central`: a club
+  announcement is club-only by default and OPTS IN to also appear on the central board. The central
+  read (`listPublicAnnouncements`) filters via the pure `isCentralAnnouncement` (central-or-synced);
+  club listings group past/current/upcoming via `groupByWindow` (DL-074 reuse).
+- **Tabbed club/council page + beacon (DL-079).** ONE data-driven [OrgUnitTabs](app/components/OrgUnitTabs.jsx)
+  (Client shell) over one aggregated Server-Component read [lib/org/public.mjs](lib/org/public.mjs)#`getClubPageView`:
+  Overview / Announcements / Upcoming / Past events / **Achievements (M4 stub)** / Resources /
+  Documents (hostels/messes keep Overview + Resources). Custom team roles render for free via
+  `appointment.title_override`. Supersedes `OrgUnitPage`. "My clubs" added to `/member`. The optional
+  M8 **usage beacon** is now wired ([UsageBeacon](app/components/UsageBeacon.jsx) in the root layout →
+  `POST /api/usage`), closing KNOWN_ISSUES #41.
+- **Schema.** One additive forward migration `20260701120000_member_platform_m3` (`club_membership` +
+  FKs/unique/CHECK + `announcement_payload.sync_to_central`); init untouched (DL-027). `ClubMembership`
+  registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`. `club_doc` content_type + `membership.manage`
+  permission are seed DATA. **Permissions → 51.** (Operator applies `npm run db:migrate` then
+  `db:seed` on pull — both idempotent; the Prisma model now selects `sync_to_central`, so announcement
+  reads require the migration applied.)
+- **Tests.** **448 static** (was 415; +`tests/markdown.test.mjs` 13, +`tests/memberships.test.mjs` 14,
+  +migration/rbac M3 assertions) + a NEW live suite `tests/m3.db.test.mjs` (membership idempotency +
+  role-preservation + scoped 403 + PII read-gate deny, importer idempotency/missing, club_doc CRUD +
+  scoped, announcement sync-to-central, club events, `getClubPageView`). `npm run lint` clean. The
+  **live m3 suite is written but pending the operator's `db:migrate`+`db:seed`** — the build environment
+  blocked the agent from applying a live migration (KNOWN_ISSUES #42); run it once on a warm Neon,
+  isolated (per #39), after migrating.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (14 agents):
+  **4 raw → 3 confirmed-both + 1 single-vote → all 4 fixed (0 refuted):** (medium) `addMembership`
+  wiped an existing role on a status-only re-add → role now preserved unless explicitly supplied
+  (+ a live assertion); (low) `parseMembershipCsv` reported filtered-index line numbers → true file
+  lines (+ a static assertion); (low) the m3.db teardown leaked the coordinator's `grant_role` audit
+  row → tracked + cleaned; (low, single-vote) no negative-path test on the PII roster read → 401/403
+  deny assertions added.
+
+## What is done (Session 11 — M7 + M8 spine: notifications/feedback + developer dashboard)
+
+- **M7 — notifications generalized (DL-069).** The M0 `notification` queue gains a
+  free-text `label`, keyset pagination (`listNotificationsPage`, a createdAt+id composite
+  cursor), and a generic deduped `createNotification` for system producers (the M8 storage
+  monitor raises `threshold_alert`s through it). No parallel pipeline (extends DL-060).
+- **M7 — feedback / support tickets (DL-070).** A NEW standalone `feedback` table (the
+  DL-038 rule): public create with a unique `FB-NNNNN` ref id + a CHECK-guarded status
+  workflow (open→triaged→in_progress→resolved/dismissed). [lib/feedback/forms.mjs](lib/feedback/forms.mjs)
+  (pure client-safe validator, mirrored server-side per DL-051) + [lib/feedback/service.mjs](lib/feedback/service.mjs);
+  public `POST /api/feedback` (plugin + CSRF + rate-limit; submitter linked from the
+  SESSION, never the body); audited assign/status (gated `feedback.resolve`); keyset reads
+  (gated `feedback.read`). Public form `/feedback` + admin `/admin/feedback`.
+- **M7 — `groupByWindow` (DL-074).** A pure past/current/upcoming windowing primitive in
+  [lib/events/public.mjs](lib/events/public.mjs) the announcement + event listings (and M3) share.
+- **M8 — Action Log / Change History export (DL-068).** `exportAuditLog` (JSON/CSV) over the
+  Session-8 audit reader, PII-minimized like the list view (DL-047), gated `audit.read`.
+- **M8 — hidden usage analytics (DL-071).** A `page_visit` table (BIGSERIAL) + best-effort,
+  never-audited `recordPageVisit` + the same-origin/rate-limited `POST /api/usage` beacon;
+  `getUsageAnalytics` (top sections/paths) gated `dev.console`. (Client auto-beacon not yet
+  wired — KNOWN_ISSUES #41.)
+- **M8 — per-table storage monitoring (DL-072).** [lib/devconsole/storage.mjs](lib/devconsole/storage.mjs):
+  `getTableSizes` (raw `pg_total_relation_size`), `table_threshold` (dev-only `storage.manage`,
+  audited), `getStorageReport` (flags over-threshold tables NON-blocking + a deduped alert),
+  `exportTable` (→ a GUARANTEED audit row + a best-effort `backup_record`) + `truncateTable`
+  (allowlist `{page_visit}` + `confirm:true` + a validate-against-live-catalog injection guard).
+- **M8 — bulk mail (DL-073).** [lib/mail/progress.mjs](lib/mail/progress.mjs) (pure rate-limit/
+  progress) + [lib/mail/service.mjs](lib/mail/service.mjs): an `authorized_sender` allowlist
+  (`mail.manage`) + rate-limited `sendBulk` (`mail.send`) with progress accounting and a LAZY +
+  INJECTABLE nodemailer transport (no hard dep at import; one accounting-only audit row — no
+  bodies/recipients logged). Admin `/admin/mail` + `/admin/devdash`. (Operator: `npm install
+  nodemailer` + `MAIL_*` to enable real sending — KNOWN_ISSUES #40.)
+- **Permissions.** +5 (`feedback.read`/`feedback.resolve`, dev-only `storage.manage`,
+  `mail.send`/`mail.manage`) → **50 total**; `staff` gains feedback.read + mail.send; the
+  computed `admin` gains feedback.* + mail.* but NOT the dev-only `storage.manage` (verified).
+- **Schema.** One forward migration `20260630170000_member_platform_m7m8` (notification.label +
+  the 4 new tables + `feedback_ref_seq` + CHECK tail), applied to Neon via `migrate deploy`
+  (no drift/reset); the 4 new models registered in `TABLE_BY_MODEL` + `AUTO_AUDIT_SKIP`
+  (page_visit NEVER audited). Seed re-run (50 perms, role mappings verified).
+- **Tests.** **415 static** (was 393; +`tests/{feedback,mail,devdash,windows}.test.mjs`) +
+  **7 new live** (`m7.db` 4 + `m8.db` 3; run isolated per #39): feedback lifecycle + closed/invalid
+  guards + reopen-clears + a multi-page keyset WALK, notification dedupe/keyset, usage+storage+
+  truncate guards + the export audit-trail, mail allowlist + a two-batch rate-limited send, audit
+  export. `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (20 agents).
+  **7 raw → 3 confirmed-by-both + 2 single-vote → all 5 fixed; 2 refuted:** (medium) `exportTable`
+  swallowed its ledger write so a PII table-dump could leave no trail → a **guaranteed independent
+  audit row**; (low) reopening a closed ticket kept stale `resolvedAt/By` → cleared; (high, test) the
+  keyset cursor was never walked across pages → a real no-overlap walk; (low) `mailProgress` rounded
+  up to 100% before the last send → floored; (high, test) the batching/pause path was never exercised
+  → a two-batch test. The 2 refuted were extra coverage (threshold-alert + invalid-status) added anyway.
+
+## What is done (Session 11 — M1: user status & access modes)
+
+- **Three access modes (DL-065).** The `UserStatus` enum is forward-migrated from
+  `{active, suspended, invited, disabled}` to **`{active, inactive, revoked}`** via a
+  CREATE-style type swap + `CASE` data backfill (`suspended`/`invited` → `inactive`,
+  `disabled` → `revoked`), **never an init rewrite** (DL-027). **active** = full;
+  **inactive** = can log in + browse + see own achievements but **cannot participate in
+  events**; **revoked** = cannot log in, sees only the public site. Migration
+  `20260630160000_member_platform_m1` applied to Neon via `migrate deploy` (verified: enum
+  labels correct, backfill clean, no drift/reset).
+- **Live enforcement (DL-065, not in the JWT).** The single source of truth is the pure,
+  client-safe [lib/auth/access.mjs](lib/auth/access.mjs) (`USER_STATUSES`/`canLogin`/
+  `canParticipate`/`canViewNormal`/`describeAccess`/`resolveSurface`/`scopeMatches`),
+  re-exported by `lib/users/admin.mjs` + `lib/admin/forms.mjs` (no divergent copy). Login
+  (`authorizeCredentials` + the `signIn` callback) rejects `revoked` and admits `inactive`;
+  [lib/auth/session.mjs](lib/auth/session.mjs) adds **`requireMember()`** (member view —
+  admits active+inactive, rejects revoked + allow-normal-view-off), **`assertCanParticipate()`**
+  (the reusable, active-only capability M5 will gate event participation on), and
+  **`requireScopedPermission()`**; `requireUser()` stays active-only (the back office). The
+  RBAC resolver already returns no permissions for non-active users (unchanged), so
+  inactive/revoked have no back-office access.
+- **Three surfaces + scoped route RBAC (DL-066).** A minimal member view ([app/member](app/member/page.jsx))
+  behind the non-throwing [lib/member/server.mjs](lib/member/server.mjs)#`loadMemberContext`
+  (states `plugin-off`→404, `unauthenticated`, `revoked`, `view-disabled`, `ok`);
+  `resolveSurface` routes a logged-in user to member / admin / developer (gated on active
+  status). Scoped routes (coordinator→own club, secretary→own council, staff→playground/
+  central announcements) **reuse the existing `role_assignment` scope columns + the
+  resolver's `inScope` matching** — no new mechanism; `scopeMatches` restates it purely
+  for client-safe guards/tests.
+- **Per-account "allow normal view" toggle (DL-067).** New
+  `app_user.allow_normal_view boolean DEFAULT true`; set through the audited `updateUser`
+  path + the `user.setAllowNormalView` registry action + a checkbox in the admin Users
+  modal; withholds the member view when off (independent of status).
+- **Performance.** The pending `role_assignment (user_id, revoked_at)` index (added to the
+  schema with the per-request RBAC `React.cache` memo, but un-migrated) shipped as
+  `20260630150000_add_roleassignment_user_index` — the hottest RBAC lookup is no longer a
+  seq scan.
+- **Admin UI.** The Users tab status control is Activate / Deactivate / Revoke; the status
+  filter + create/edit modal use the new vocabulary; `statusTone` maps `inactive`→warn,
+  `revoked`→muted.
+- **Tests.** **393 static** (was 379; +`tests/access.test.mjs` 13 — the access matrix,
+  surface routing, `scopeMatches`↔`inScope` parity, scoped RBAC resolution; +the flipped
+  `authorizeCredentials` test, +a `signIn`-callback test, +`statusTone` inactive/revoked)
+  + **6 new live** (`tests/m1.db.test.mjs`): login per status, participation, non-active→no
+  back-office perms, coordinator→own-lineage-only scoped grant, the allow-normal-view
+  round-trip, self-lockout. The full live suite ran **470/472** on warm Neon — the 2
+  failures were transient `year.db` P2025s from running all DB suites in parallel against
+  one Neon DB (the year suite mutates the shared current-year row); `year.db` re-confirmed
+  **6/6 green in isolation** (M1 doesn't touch the year engine — KNOWN_ISSUES #39).
+  `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension finder → per-finding 2-verifier workflow (run
+  twice: a nested-`parallel` script bug crashed the first Verify phase; fixed + resumed so
+  the finders returned cached and only Verify re-ran). **4 raw findings → 1 confirmed-by-both
+  (0 refuted) → fixed + 0 single-vote + 3 refuted:** the confirmed one — `loadMemberContext`
+  fed the RAW `is_developer` to `resolveSurface`, so an **inactive developer** was routed to
+  the developer surface and shown a `/admin` link the active-only admin boundary then denied
+  (a dead link; no privilege leak — the boundary fails closed) — fixed by gating the surface
+  developer-input on active status. The 3 refuted (test-coverage nits) — 2 addressed anyway
+  (`signIn` revoked test + `statusTone` assertions).
+
+## What is done (Session 11 — M2: RBAC categories + per-email overrides + smart search)
+
+- **RBAC "categories" = seeded ROLES (DL-063).** Six new non-system, non-`grants_all`
+  roles added to `ROLE_DEFS` (the category IS the role): `normal_user` (no back-office
+  perms), `co_coordinator` (draft content), `coordinator` (full content + media =
+  editor set), `secretary` (coordinator + org structure), `staff` (central content +
+  `notification.read`), `admin` (the full catalog **minus** the developer-only
+  `dev.console`/`backup.*`/`media.migrate`, computed so it never drifts). `developer`
+  + `super_admin` stay the system bootstrap roles. `CATEGORY_ROLE_KEYS` is the search
+  facet's source of truth. Seed now: **45 permissions** (+`permission.override`),
+  **11 roles**, 161 role_permissions.
+- **Per-email permission OVERRIDES (DL-062) — revises DL-026 #8.** New
+  `user_permission_override` table `(user, permission, mode grant|deny, org-unit-lineage?
+  /year? scope, reason?)`. `resolveEffectivePermissions(user, assignments, scope,
+  overrides)` now does: developer short-circuit → role union → **grants_all
+  short-circuit** → apply overrides (grants add, **deny wins**). The unrestricted
+  bypass (developer/`grants_all`) is never restricted by an override. Service
+  ([lib/users/admin.mjs](lib/users/admin.mjs)#`setUserOverride`/`removeUserOverride`/
+  `listUserOverrides`): authorizes the NEW `permission.override` permission FIRST, one
+  semantic audit row, upserts by `(user, permission, scope)` (a NULLS-NOT-DISTINCT
+  unique = one override per scope), and a NEW escalation guard — a **grant** requires
+  the actor to hold that permission (DL-049 parity); a **deny** doesn't.
+- **Email-format smart search (DL-064).** New pure, client-safe
+  [lib/users/search.mjs](lib/users/search.mjs) (`matchesUserFilter`/`filterUsers`/
+  `userFilterFacets`/`instituteEmailPrefix`) reuses the M0 `parseInstituteEmail`
+  (`<year><level u|p|r><branch><serial>@iitjammu.ac.in`). ONE predicate backs BOTH a
+  **debounced** client filter (Users tab: year/level/branch/category/status + text,
+  with per-row identity badges) AND the server `listUsers` (a coarse DB pre-filter —
+  email-prefix `startsWith` + category join + status — refined by the same pure
+  filter, so no client/server drift). Email stays the unique identifier.
+- **Surfaces.** Users tab gains the debounced filter bar + a **Permission overrides**
+  modal (grant/deny a catalog permission, shows current overrides); two new registry
+  actions `permission.override.{set,remove}` on the ONE `POST /api/admin/action`
+  (gated `permission.override`); `validateOverrideForm` mirrors the server.
+- **Schema.** One forward migration (`20260630140000_member_platform_m2`: the table +
+  5 FKs + a `mode` CHECK + the NULLS-NOT-DISTINCT unique), applied to Neon; init
+  untouched (DL-027). `UserPermissionOverride` registered in `TABLE_BY_MODEL`.
+- **Tests.** **379 static** (was 346; +rbac override resolution, +`user-search.test.mjs`
+  17, +override form/registry/shape) + **7 new live** (`m2.db.test.mjs`): grant adds /
+  deny-wins / remove-restores / scoped / escalation guard / idempotent + DB
+  NULLS-NOT-DISTINCT backstop / gate / smart-search filter. `users.db` (6) re-confirmed
+  green on warm Neon; `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension, per-finding 2-verifier workflow (12 agents):
+  **0 confirmed-by-both, 1 single-vote** (a free-text client/server predicate drift) —
+  fixed (made `q` per-field email-OR-name to match the DB `where.OR`, and made the pure
+  filter the sole authority on the server too) + locked with a no-drift static test.
+
+## What is done (Session 11 — M0 + the PLUGIN)
+
+- **Member platform = a developer-controlled PLUGIN (DL-058).** New `feature_flag`
+  table + [lib/platform/flags.mjs](lib/platform/flags.mjs): the whole Session 11+
+  program is gated behind the **`member_platform`** flag. A **developer** toggles it
+  at **`/admin/plugins`** (off by default); ON activates the M0 features, OFF keeps
+  the Sessions 1–10 portal exactly as-is (legacy Google sign-in intact). Reads
+  **fail closed** (a DB error ⇒ off; the Google-reject auth check passes `onError:true`
+  so it fails toward *deny*). Toggling is developer-only + audited. Seed registers the
+  flag (re-seed never resets the operator's `enabled`).
+- **M0 auth pivot (DL-059).** Email+password ONLY within the plugin — Google is
+  rejected at the `signIn` callback when on (the provider is also conditional on
+  `GOOGLE_CLIENT_ID`), kept when off. `app_user.must_change_password` (+ `password_set_at`)
+  forces a first-login change: the edge `middleware.js` redirects must-change users to
+  `/account/password` via the pure, tested `lib/auth/must-change.mjs`; the JWT carries
+  the flag (refreshed on `session.update()`); `changeOwnPassword` clears it.
+- **Account lifecycle (DL-061).** [lib/users/admin.mjs](lib/users/admin.mjs) gained
+  `createUser` initial-password+must-change, **bulk CSV** (`parseUserCsv`/`importUsersCsv`,
+  existing emails skipped), `forcePasswordReset` (generates a temporary password, shown
+  ONCE for external delivery), `changeOwnPassword` (self-only, verifies current), and
+  `deleteUser` (hard delete; **DL-049 escalation parity** — no self-delete, and only a
+  developer may delete OR reset-the-password-of a developer). One password POLICY
+  ([lib/auth/password-policy.mjs](lib/auth/password-policy.mjs), client+server); the
+  CSPRNG generator is server-only ([lib/auth/password-generator.mjs](lib/auth/password-generator.mjs)).
+- **Centralized request queue (DL-060).** New `notification` table +
+  [lib/notifications/service.mjs](lib/notifications/service.mjs): public **Request an
+  account** + **Forgot password** forms create rows (human ref ids `AR-/PR-NNNNN` from
+  a DB sequence; **race-free dedup** via a partial-unique backstop; account existence
+  never leaked). Admin/dev **Password Management** tab (`/admin/requests`) — Take
+  (assign, audited) → fulfil (`lib/auth/password-reset.mjs` generates + sets + resolves)
+  or dismiss. New permissions `notification.{read,assign,resolve}` + `user.delete`.
+- **Surfaces.** Public `/login`, `/account/{request,forgot,password}`; gated routes
+  `POST /api/account/{request,forgot,password}` (CSRF + plugin gate + rate-limit);
+  admin `/admin/plugins` + `/admin/requests`; the admin sign-in + Users tab extended
+  (bulk import, delete, reset). Every admin write still posts to the ONE
+  `POST /api/admin/action` registry.
+- **Schema.** Two forward migrations (`20260630120000_member_platform_m0` +
+  `20260630121000_notification_dedup_uq`), applied to Neon; init untouched (DL-027).
+  `FeatureFlag`/`Notification` added to `AUTO_AUDIT_SKIP` (semantic audit only).
+- **Tests.** **346 static** (was 307; +password-policy/generator, flags+cache+onError,
+  CSV parse, must-change helper, email parser, migration) + **8 new live**
+  (`m0.db.test.mjs`): plugin toggle (dev-only) + fail-closed, must-change lifecycle,
+  changeOwnPassword, forceReset, bulk dedup, delete + reset escalation guards, request
+  ref-ids + dedup backstop + read gate, assign→fulfilReset end-to-end. All prior live
+  suites still green (cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 /
+  devconsole 10 / users 6 / smoke 8). `next build` + ESLint clean.
+- **Adversarial review** — a 6-dimension, per-finding 2-verifier workflow (12 agents):
+  **3 confirmed (0 refuted) → all 3 fixed + re-verified live**: (CRITICAL) a non-developer
+  super_admin could reset a developer's password and take over the bypass account →
+  guarded in `setUserPassword`; (medium) non-atomic request dedup → DB partial-unique
+  backstop + catch; (medium) Google-reject failed *open* on a Neon error → `onError:true`.
+
+---
+
+## Original handover note (Sessions 1–10)
+
+A large operator-requested **Session 11+ member-platform program** is in progress
+(multi-session): M0 ✅ (this session). Remaining: M2 RBAC categories + per-email
+overrides, M1 status modes, M3 club pages + memberships, M4 Wall of Fame, M5 Event
+Playground, M6 profiles, M7 notifications/feedback, M8 developer dashboard. **Full
+module-by-module prompt in [NEXT_TASK.md](NEXT_TASK.md); durable design in
+[docs/MEMBER_PLATFORM_PLAN.md](docs/MEMBER_PLATFORM_PLAN.md).**
 
 > New session? Read [docs/SESSION_PROTOCOL.md](docs/SESSION_PROTOCOL.md) first,
 > then this file, [NEXT_TASK.md](NEXT_TASK.md), [TODO.md](TODO.md),
@@ -421,13 +1023,51 @@ in [NEXT_TASK.md](NEXT_TASK.md).**
 ## Key facts for the next session
 
 - DB is live on Neon with the seeded baseline. `npm test` (static) is always
-  green (**285 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
+  green (**448 passing**); `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` adds the
   live smoke + CMS (8) + year-engine (6) + org (4) + events (10) + resources (4) +
-  media (3) + developer console (10) + **users/roles (6)** live tests. The remote Neon compute has high per-round-trip latency
+  media (3) + developer console (10) + users/roles (6) + M0 (8) + M2 (7) + M1 (6) +
+  M7 (4) + M8 (3) + **M3 (`m3.db`, written — run after `db:migrate`+`db:seed`; KNOWN_ISSUES #42)**
+  live tests. (The full live suite runs the DB suites in parallel against one Neon DB;
+  the stateful `year.db` suite — it mutates the shared current-year row — can show a
+  transient P2025 under that contention and is re-confirmed green in isolation. M1 does
+  not touch the year engine.)
+- **RBAC (M2):** authorization resolves as developer short-circuit → additive role
+  union → `grants_all` short-circuit → per-email overrides (**deny wins**, DL-062).
+  Manage overrides via `lib/users/admin.mjs#setUserOverride/removeUserOverride` (gated
+  `permission.override`); the "categories" are the seeded roles in `ROLE_DEFS`
+  (`CATEGORY_ROLE_KEYS`). The smart search/parser is the pure, client-safe
+  `lib/users/search.mjs` (reuses `lib/auth/email.mjs#parseInstituteEmail`). The remote Neon compute has high per-round-trip latency
   **and auto-suspends**, so live tests are slow (minutes) and occasionally hit a
   transient "Can't reach database server" on a cold compute — re-run once if so (not
   a logic failure). The org live suite is the slowest (the importer makes many
   sequential audited tx round-trips).
+- **Club pages + memberships (M3):** club/council detail pages are ONE tabbed renderer
+  (`app/components/OrgUnitTabs.jsx`) over `lib/org/public.mjs#getClubPageView`. **Memberships**
+  are `lib/memberships/service.mjs` (a `club_membership` M-M keyed to `org_unit_lineage`), gated by
+  the scoped `membership.manage` (coordinator/secretary/admin) — reuse `addMembership`/
+  `importClubMemberships` (don't add a parallel roster). **Club markdown docs** are
+  `content_type='club_doc'` (reuses `page_block_payload`), rendered SAFELY via
+  `lib/markdown/render.mjs#renderMarkdown` (escape-first — reuse it for M4). **Club announcements/events**
+  bind to a club via `content_item.orgUnitId`; a club announcement opts into the central board via
+  `announcement_payload.sync_to_central` (`isCentralAnnouncement`). Group windowed listings with
+  `groupByWindow` (DL-074).
+- **M7/M8 spine:** centralized **notifications** (`lib/notifications/service.mjs` —
+  `createNotification`/`listNotificationsPage`, labels, dedupe) + standalone **feedback**
+  tickets (`lib/feedback/service.mjs`, public `POST /api/feedback`, `FB-NNNNN`) +
+  the **developer dashboard** (`/admin/devdash`): `exportAuditLog` (audit.read),
+  `lib/devconsole/usage.mjs` (page_visit + `recordPageVisit`/`getUsageAnalytics`),
+  `lib/devconsole/storage.mjs` (table sizes + thresholds + export + allowlisted truncate,
+  gated dev-only `storage.manage`), and `lib/mail/*` (authorized-sender allowlist +
+  rate-limited `sendBulk`, lazy nodemailer). Reuse `createNotification` (don't add a
+  parallel queue) and `groupByWindow` (past/current/upcoming) for M3.
+- **Access modes (M1):** `app_user.status ∈ {active, inactive, revoked}` is the single
+  status field (the pure matrix is `lib/auth/access.mjs`). Gate the BACK OFFICE with
+  `requireUser()`/`requirePermission()` (active-only); gate the MEMBER view with
+  `requireMember()` (admits inactive); gate EVENT PARTICIPATION (M5) with
+  `assertCanParticipate()` (active-only); gate per-unit routes with
+  `requireScopedPermission(key, { orgUnitLineageKey, academicYearId })`. Login is in
+  `lib/auth/options.mjs` (rejects revoked, admits inactive). `app_user.allow_normal_view`
+  withholds the member view independently (DL-067).
 - Import `prisma` from `lib/prisma.mjs` for all app DB access — it is the
   audit-extended client, so mutations are audited automatically. Use `prismaBase`
   only to bypass audit (audit reader, repair scripts, test cleanup / fixtures, the

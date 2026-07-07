@@ -130,10 +130,10 @@ describe("import plan: shape & integrity", () => {
   const plan = buildImportPlan();
   const allClubs = plan.councils.flatMap((c) => c.clubs);
 
-  it("has 4 councils and 30 clubs (6+5+8+11)", () => {
-    expect(plan.councils).toHaveLength(4);
+  it("has 5 councils and 30 clubs (6+5+8+11+0) — Technical Council starts empty (copy of Academic)", () => {
+    expect(plan.councils).toHaveLength(5);
     expect(allClubs).toHaveLength(30);
-    expect(plan.councils.map((c) => c.clubs.length)).toEqual([6, 5, 8, 11]);
+    expect(plan.councils.map((c) => c.clubs.length)).toEqual([6, 5, 8, 11, 0]);
   });
 
   it("has 6 hostels and 5 messes", () => {

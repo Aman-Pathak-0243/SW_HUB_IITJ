@@ -10,6 +10,24 @@ const migrationsDir = join(root, "prisma", "migrations");
 const migrationFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_init"));
 const migration = readFileSync(join(migrationsDir, migrationFolder, "migration.sql"), "utf8");
 
+const m0Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m0"));
+const m0 = m0Folder ? readFileSync(join(migrationsDir, m0Folder, "migration.sql"), "utf8") : "";
+
+const dedupFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_notification_dedup_uq"));
+const dedup = dedupFolder ? readFileSync(join(migrationsDir, dedupFolder, "migration.sql"), "utf8") : "";
+
+const m3Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m3"));
+const m3 = m3Folder ? readFileSync(join(migrationsDir, m3Folder, "migration.sql"), "utf8") : "";
+
+const m4Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m4"));
+const m4 = m4Folder ? readFileSync(join(migrationsDir, m4Folder, "migration.sql"), "utf8") : "";
+
+const m5Folder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_m5"));
+const m5 = m5Folder ? readFileSync(join(migrationsDir, m5Folder, "migration.sql"), "utf8") : "";
+
+const quizFolder = readdirSync(migrationsDir).find((d) => d.endsWith("_member_platform_quiz"));
+const quiz = quizFolder ? readFileSync(join(migrationsDir, quizFolder, "migration.sql"), "utf8") : "";
+
 const TABLES = [
   "app_user", "auth_account", "verification_token", "academic_year", "role",
   "permission", "role_permission", "org_unit_lineage", "role_assignment",
@@ -132,5 +150,178 @@ describe("init migration: raw-SQL guard objects", () => {
     has(/CREATE TRIGGER org_unit_hierarchy_guard_trg[\s\S]*ON "org_unit"/);
     // cardinality is a DEFERRABLE constraint trigger
     has(/CREATE CONSTRAINT TRIGGER appointment_cardinality_guard_trg[\s\S]*DEFERRABLE INITIALLY DEFERRED/);
+  });
+});
+
+describe("Session 11 / M0 forward migration (member platform)", () => {
+  it("the migration file exists", () => {
+    expect(m0Folder, "missing _member_platform_m0 migration").toBeTruthy();
+  });
+
+  it("adds the forced-change columns to app_user (additive, not a rewrite of init)", () => {
+    expect(m0).toMatch(/ALTER TABLE "app_user"[\s\S]*ADD COLUMN "must_change_password" BOOLEAN NOT NULL DEFAULT false/);
+    expect(m0).toMatch(/ADD COLUMN "password_set_at" TIMESTAMPTZ/);
+  });
+
+  it("creates the feature_flag and notification tables with FKs to app_user", () => {
+    expect(m0).toMatch(/CREATE TABLE "feature_flag"/);
+    expect(m0).toMatch(/CREATE TABLE "notification"/);
+    expect(m0).toMatch(/feature_flag_updated_by_fkey[\s\S]*REFERENCES "app_user"/);
+    expect(m0).toMatch(/notification_assigned_to_user_id_fkey[\s\S]*REFERENCES "app_user"/);
+  });
+
+  it("has the raw-SQL tail: the reference-id sequence + the status CHECK", () => {
+    expect(m0).toMatch(/CREATE SEQUENCE IF NOT EXISTS "notification_ref_seq"/);
+    expect(m0).toMatch(/notification_status_chk[\s\S]*'open', 'assigned', 'resolved', 'dismissed'/);
+  });
+
+  it("the schema declares the two new models via @@map", () => {
+    expect(schema).toContain('@@map("feature_flag")');
+    expect(schema).toContain('@@map("notification")');
+    expect(schema).toMatch(/mustChangePassword\s+Boolean\s+@default\(false\)\s+@map\("must_change_password"\)/);
+  });
+
+  it("the dedup follow-up migration adds the one-open-request-per-(type,email) partial unique", () => {
+    expect(dedupFolder, "missing _notification_dedup_uq migration").toBeTruthy();
+    expect(dedup).toMatch(/CREATE UNIQUE INDEX "notification_one_open_per_email_uq"[\s\S]*WHERE "status" IN \('open', 'assigned'\) AND "subject_email" IS NOT NULL/);
+  });
+});
+
+describe("Session 11 / M3 forward migration (club pages + memberships)", () => {
+  it("the migration file exists", () => {
+    expect(m3Folder, "missing _member_platform_m3 migration").toBeTruthy();
+  });
+
+  it("creates the club_membership table with its FKs to app_user + org_unit_lineage", () => {
+    expect(m3).toMatch(/CREATE TABLE "club_membership"/);
+    expect(m3).toMatch(/club_membership_user_id_fkey[\s\S]*REFERENCES "app_user"\("id"\) ON DELETE CASCADE/);
+    expect(m3).toMatch(/club_membership_org_unit_lineage_key_fkey[\s\S]*REFERENCES "org_unit_lineage"\("lineage_key"\) ON DELETE RESTRICT/);
+    expect(m3).toMatch(/club_membership_created_by_fkey[\s\S]*REFERENCES "app_user"\("id"\) ON DELETE SET NULL/);
+  });
+
+  it("has the one-membership-per-(user, lineage) unique + the status CHECK (additive, not an init rewrite)", () => {
+    expect(m3).toMatch(/CREATE UNIQUE INDEX "club_membership_user_lineage_uq"[\s\S]*"user_id", "org_unit_lineage_key"/);
+    expect(m3).toMatch(/club_membership_status_chk[\s\S]*'active', 'inactive'/);
+  });
+
+  it("adds the announcement_payload.sync_to_central opt-in column (additive)", () => {
+    expect(m3).toMatch(/ALTER TABLE "announcement_payload" ADD COLUMN "sync_to_central" BOOLEAN/);
+  });
+
+  it("the schema declares the ClubMembership model + the sync_to_central field via @@map/@map", () => {
+    expect(schema).toContain('@@map("club_membership")');
+    expect(schema).toMatch(/syncToCentral\s+Boolean\?\s+@map\("sync_to_central"\)/);
+  });
+});
+
+describe("Session 11 / M4 forward migration (Wall of Fame)", () => {
+  it("the migration file exists", () => {
+    expect(m4Folder, "missing _member_platform_m4 migration").toBeTruthy();
+  });
+
+  it("creates achievement_payload (1:1 with content_revision) with a blocks JSONB + hero FK", () => {
+    expect(m4).toMatch(/CREATE TABLE "achievement_payload"/);
+    expect(m4).toMatch(/"blocks"\s+JSONB/);
+    expect(m4).toMatch(/achievement_payload_revision_id_fkey[\s\S]*REFERENCES "content_revision"\("id"\) ON DELETE CASCADE/);
+    expect(m4).toMatch(/achievement_payload_hero_media_id_fkey[\s\S]*REFERENCES "media_asset"\("id"\) ON DELETE SET NULL/);
+  });
+
+  it("creates achievement_credit with FKs to content_item, app_user, and org_unit_lineage", () => {
+    expect(m4).toMatch(/CREATE TABLE "achievement_credit"/);
+    expect(m4).toMatch(/achievement_credit_item_fkey[\s\S]*REFERENCES "content_item"\("id"\) ON DELETE CASCADE/);
+    expect(m4).toMatch(/achievement_credit_user_id_fkey[\s\S]*REFERENCES "app_user"\("id"\) ON DELETE CASCADE/);
+    expect(m4).toMatch(/achievement_credit_lineage_fkey[\s\S]*REFERENCES "org_unit_lineage"\("lineage_key"\) ON DELETE RESTRICT/);
+  });
+
+  it("has the per-target uniques + the exactly-one-target CHECK (additive, not an init rewrite)", () => {
+    expect(m4).toMatch(/CREATE UNIQUE INDEX "achievement_credit_item_user_uq"[\s\S]*"achievement_item_id", "user_id"/);
+    expect(m4).toMatch(/CREATE UNIQUE INDEX "achievement_credit_item_lineage_uq"[\s\S]*"achievement_item_id", "org_unit_lineage_key"/);
+    expect(m4).toMatch(/achievement_credit_one_target_chk[\s\S]*= 1/);
+  });
+
+  it("the schema declares the two M4 models via @@map", () => {
+    expect(schema).toContain('@@map("achievement_payload")');
+    expect(schema).toContain('@@map("achievement_credit")');
+  });
+});
+
+describe("Session 11 / M5 forward migration (Centralized Event Playground)", () => {
+  it("the migration file exists", () => {
+    expect(m5Folder, "expected a *_member_platform_m5 migration").toBeTruthy();
+    expect(m5.length).toBeGreaterThan(0);
+  });
+
+  it("adds the hybrid-content columns to event_payload (additive, not an init rewrite)", () => {
+    expect(m5).toMatch(/ALTER TABLE "event_payload" ADD COLUMN "problem_statement"/);
+    expect(m5).toMatch(/ALTER TABLE "event_payload" ADD COLUMN "blocks" JSONB/);
+    expect(m5).toMatch(/ALTER TABLE "event_payload" ADD COLUMN "category"/);
+    expect(m5).toMatch(/ALTER TABLE "event_payload" ADD COLUMN "eligibility"/);
+  });
+
+  it("creates the eight operational tables keyed on the event content_item", () => {
+    for (const t of [
+      "event_entity", "event_organizer", "event_settings", "event_round",
+      "event_registration", "event_score", "event_attendance", "event_closure_report",
+    ]) {
+      expect(m5.includes(`CREATE TABLE "${t}"`), `missing CREATE TABLE "${t}"`).toBe(true);
+      expect(schema.includes(`@@map("${t}")`), `missing @@map("${t}")`).toBe(true);
+    }
+  });
+
+  it("has the registration dedup partial unique + the DEFERRED capacity → waitlist guard", () => {
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_registration_active_uq"[\s\S]*WHERE "status" <> 'cancelled'/);
+    expect(m5).toMatch(/FUNCTION event_registration_capacity_guard\(\)/);
+    expect(m5).toMatch(/CREATE CONSTRAINT TRIGGER event_registration_capacity_guard_trg[\s\S]*DEFERRABLE INITIALLY DEFERRED/);
+  });
+
+  it("has the organizer one-target CHECK + kind CHECK and per-target uniques", () => {
+    expect(m5).toMatch(/event_organizer_one_target_chk[\s\S]*= 1/);
+    expect(m5).toMatch(/event_organizer_kind_chk[\s\S]*'organizer', 'collaborator'/);
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_organizer_item_lineage_uq"/);
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_organizer_item_entity_uq"/);
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_organizer_item_user_uq"/);
+  });
+
+  it("has the round-wise + overall score/attendance uniques (round_id NULL = overall)", () => {
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_score_round_user_uq"/);
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_score_overall_user_uq"[\s\S]*WHERE "round_id" IS NULL/);
+    expect(m5).toMatch(/CREATE UNIQUE INDEX "event_attendance_overall_user_uq"[\s\S]*WHERE "round_id" IS NULL/);
+  });
+
+  it("indexes (event, round, user) for the scoring hot path (DL-087 perf)", () => {
+    expect(m5).toMatch(/CREATE INDEX "event_score_item_round_user_idx"[\s\S]*"event_item_id", "round_id", "user_id"/);
+  });
+});
+
+describe("Session 16 forward migration (live quizzes & leaderboards)", () => {
+  it("the migration file exists", () => {
+    expect(quizFolder, "expected a *_member_platform_quiz migration").toBeTruthy();
+    expect(quiz.length).toBeGreaterThan(0);
+  });
+
+  it("creates the four quiz tables keyed on the event content_item (additive, not an init rewrite)", () => {
+    for (const t of ["quiz_question", "quiz_session", "quiz_participant", "quiz_answer"]) {
+      expect(quiz.includes(`CREATE TABLE "${t}"`), `missing CREATE TABLE "${t}"`).toBe(true);
+      expect(schema.includes(`@@map("${t}")`), `missing @@map("${t}")`).toBe(true);
+    }
+  });
+
+  it("has the one-live-session-per-event partial unique + the status CHECK", () => {
+    expect(quiz).toMatch(/CREATE UNIQUE INDEX "quiz_session_one_live_uq"[\s\S]*WHERE "status" <> 'ended'/);
+    expect(quiz).toMatch(/quiz_session_status_chk[\s\S]*'pending', 'active', 'reveal', 'ended'/);
+  });
+
+  it("makes each answer one-shot via a (session, question, user) unique", () => {
+    expect(quiz).toMatch(/CREATE UNIQUE INDEX "quiz_answer_session_question_user_uq"[\s\S]*"session_id", "question_id", "user_id"/);
+  });
+
+  it("keys questions/sessions on content_item with cascade delete", () => {
+    expect(quiz).toMatch(/quiz_question_item_fkey[\s\S]*REFERENCES "content_item"\("id"\) ON DELETE CASCADE/);
+    expect(quiz).toMatch(/quiz_session_item_fkey[\s\S]*REFERENCES "content_item"\("id"\) ON DELETE CASCADE/);
+  });
+
+  it("guards the question points + time-limit bounds (matches the pure normalizer)", () => {
+    expect(quiz).toMatch(/quiz_question_points_chk[\s\S]*"points" >= 0/);
+    expect(quiz).toMatch(/quiz_question_time_limit_chk[\s\S]*"time_limit_seconds" > 0 AND "time_limit_seconds" <= 3600/);
   });
 });

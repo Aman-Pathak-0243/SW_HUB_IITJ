@@ -64,8 +64,9 @@ npm run dev             # http://localhost:3000
 | `npm run dev` | Start the dev server (Turbopack) |
 | `npm run build` | Production build |
 | `npm start` | Run the production build |
-| `npm test` | Run the Vitest suite (**307 static tests**; the live DB suites self-skip without `RUN_DB_TESTS`) |
-| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test` | Include the live Neon DB tests (**344 total**: smoke 8 / cms 8 / year 6 / org 4 / events 10 / resources 4 / media 3 / dev-console 10 / users 6; slow — remote Neon latency, may need one re-run on a cold compute; the org suite is the slowest) |
+| `npm test` | Run the Vitest suite (**517 static tests**; the live DB suites self-skip without `RUN_DB_TESTS`) |
+| `RUN_DB_TESTS=1 dotenv -e .env.local -- npm test -- --pool=forks --poolOptions.forks.singleFork` | Include the live Neon DB tests. **Run single-fork (or per-file)** — vitest runs files in parallel by default and the stateful `year.db` suite then flakes against one Neon DB (KNOWN_ISSUES #39). Suites: smoke / cms / year / org / events / resources / media / devconsole / users + `m0.db…m8.db`. Slow (remote Neon latency); warm with `npm run db:migrate` first. |
+| `npm run test:routes` | **Route-render smoke** — `scripts/route-smoke.mjs` hits every route of a running server (default `http://localhost:3000`; `BASE_URL=…` for a deployed host) as an anonymous visitor and fails on any 5xx. Start `npm run dev` first. See [WEBSITE_TESTING_SOP.md](WEBSITE_TESTING_SOP.md) Layer 2. |
 | `npm run lint` | ESLint (`eslint .`; Next 16 removed `next lint`). Config: `eslint.config.mjs` (`backups/**` ignored). |
 | `npm run db:generate` | `prisma generate` |
 | `npm run db:migrate` | `prisma migrate deploy` (apply migrations to Neon) |
@@ -103,8 +104,49 @@ export async function POST(req) {
 - Permissions/roles are DATA (`lib/rbac/permissions.mjs` is the seed + catalog).
   Add a permission → add a row there, re-seed. No code edit to enforce it.
 - Developer (`is_developer` / a `grants_all` role) short-circuits all checks.
-- Permission checks hit the DB live, so revoked roles / suspended accounts take
+- Permission checks hit the DB live, so revoked roles / non-active accounts take
   effect on the next request (sessions are JWT — DL-019).
+- **RBAC "categories" are roles (M2, DL-063).** The seeded stakeholder ladder
+  (`normal_user` / `co_coordinator` / `coordinator` / `secretary` / `staff` / `admin`,
+  plus `developer`/`super_admin`) lives in `ROLE_DEFS`; `CATEGORY_ROLE_KEYS` is the
+  search/grouping facet. Grant a category per-unit/per-year via the `role_assignment`
+  scope columns.
+- **Per-email overrides (M2, DL-062).** Resolution order is: developer short-circuit →
+  additive role union → `grants_all` short-circuit → per-user overrides (`grant` adds,
+  `deny` **wins**). Manage with `lib/users/admin.mjs#setUserOverride/removeUserOverride`
+  (gated `permission.override`; a *grant* requires the actor to hold that permission).
+  The bypass (developer/`grants_all`) is never restricted by an override.
+- **Email smart search (M2, DL-064).** `lib/users/search.mjs` (pure, client-safe)
+  reuses `lib/auth/email.mjs#parseInstituteEmail`; `matchesUserFilter` is the one
+  predicate behind both the debounced admin filter and `listUsers`'s server criteria
+  (`year`/`level`/`branch`/`category`/`status`/`search`).
+
+### Access modes & the three surfaces (M1, DL-065/066/067)
+
+- **Status = `active` / `inactive` / `revoked`.** The single source of truth for the
+  matrix is the PURE, client-safe `lib/auth/access.mjs`:
+  `canLogin` (active+inactive), `canParticipate` (active only), `canViewNormal`
+  (login-able AND `allowNormalView`), `resolveSurface` (developer/admin/member),
+  `scopeMatches` (mirrors `lib/rbac/authorize.mjs#inScope`). `USER_STATUSES` is
+  re-exported by `lib/users/admin.mjs` + `lib/admin/forms.mjs` (no divergent copy).
+- **Boundaries (live, never the JWT — DL-019):**
+  - `requireUser()` — back office; **active only**.
+  - `requireMember()` — the member normal view; **admits active + inactive**, rejects
+    `revoked` (403 `ACCOUNT_REVOKED`) and `allowNormalView=false` (403 `NORMAL_VIEW_DISABLED`).
+  - `assertCanParticipate(memberOrUserId)` — the reusable event-participation capability
+    (active only; M5 gates registration/scoring/attendance on it). Accepts the
+    `requireMember()` result (uses its live `status`) or a userId (reads live).
+  - `requireScopedPermission(key, { orgUnitLineageKey, academicYearId })` — the named
+    seam for per-unit/per-year route gating (coordinator→own club, secretary→own council,
+    staff→playground); it is `requirePermission` with scope, resolved by the existing
+    `inScope` matching (a narrower grant does NOT satisfy a broader/unscoped request).
+  - Login: `authorizeCredentials` + the `signIn` callback reject `revoked`, admit `inactive`.
+- **Member view:** `app/member` behind the non-throwing `lib/member/server.mjs#loadMemberContext`
+  (states `plugin-off` → 404, `unauthenticated`, `revoked`, `view-disabled`, `ok`).
+- **Set status / the member-view toggle:** `lib/users/admin.mjs#setUserStatus`
+  (active/inactive/revoked; no self-lockout) and `updateUser({ allowNormalView })`
+  (audited), exposed as registry actions `user.setStatus` + `user.setAllowNormalView`.
+  From the CLI: `npm run cli -- user:status --email=… --status=active|inactive|revoked`.
 
 ## CMS content lifecycle (Session 3)
 
@@ -457,7 +499,7 @@ never the raw row / `passwordHash`). **Privilege-escalation guards (DL-049) — 
   cannot mint the unrestricted bypass (this was the review's CRITICAL finding —
   guarding the flag but not the equivalent grant).
 - New roles can't be `grants_all`; system roles are modification-protected except
-  `description`; you can't suspend your own account.
+  `description`; you can't set your OWN account to a non-active status (self-lockout).
 
 Internal `roleView(id)` (ungated) backs `getRole`/`createRole`/`updateRole`'s return +
 audit before/after, so create/update don't require the actor to ALSO hold `role.read`.
@@ -486,6 +528,232 @@ audit before/after, so create/update don't require the actor to ALSO hold `role.
   Brand blue is `#003f87` (`--brand-blue` in `globals.css`).
 - **NFT (#32)** — dev-console fs reads are bundled via `outputFileTracingIncludes`;
   the build's NFT over-trace note is benign (accepted, DL-055).
+
+## Member platform — M0: auth, accounts & the PLUGIN (Session 11)
+
+The member platform (Session 11+) ships behind ONE developer-controlled plugin. M0
+delivered the plugin control plane + the email+password auth pivot + the
+admin-mediated account lifecycle.
+
+- **Plugin / feature flags** — `lib/platform/flags.mjs` + the `feature_flag` table.
+  `member_platform` gates the whole program. `isFeatureEnabled(key)` is an ungated,
+  **fail-closed**, 10s-cached read (a DB error ⇒ `false`); `assertFeatureEnabled(key)`
+  404s when off; `setFeatureFlag(key, enabled, actor)` is **developer-only** + audited.
+  Toggle it at **`/admin/plugins`** (DL-058). New optional modules add a `PLUGIN_DEFS`
+  row + seed; re-seeding never resets the operator's `enabled`.
+- **Auth pivot (DL-059)** — Google is rejected at the `signIn` callback when the plugin
+  is on (kept when off); `app_user.must_change_password` forces a first-login change.
+  The root **`middleware.js`** (edge) reads ONLY the JWT and redirects a must-change
+  user to `/account/password`; the decision is the pure `lib/auth/must-change.mjs#shouldForcePasswordChange`.
+  Never read the DB in the middleware (no Prisma on the edge).
+- **Account lifecycle (`lib/users/admin.mjs`, DL-061)** — `createUser` (initial
+  password ⇒ must-change), `importUsersCsv`/`parseUserCsv` (bulk CSV; existing emails
+  skipped), `forcePasswordReset` (generate + must-change; returns the plaintext ONCE),
+  `changeOwnPassword` (self only; verifies current; clears must-change), `deleteUser`
+  (hard delete; no self-delete; developer-delete is developer-only). Passwords obey
+  ONE policy (`lib/auth/password-policy.mjs`, client+server); the CSPRNG generator is
+  the server-only `lib/auth/password-generator.mjs`.
+- **Request queue (`lib/notifications/service.mjs`, DL-060)** — public
+  `createAccountRequest`/`createPasswordResetRequest` (dedup open ones; account
+  existence NOT leaked), gated `listNotifications`/`assignNotification`/`resolveNotification`,
+  and `lib/auth/password-reset.mjs#fulfilResetRequest` (assign → generate → set → resolve).
+  Human ref ids (`AR-/PR-NNNNN`) come from the raw-SQL `notification_ref_seq`. Surfaced
+  at **`/admin/requests`** (Password Management). New permissions: `notification.{read,assign,resolve}`, `user.delete`.
+- **Public routes** — `POST /api/account/{request,forgot,password}` each wrap
+  `assertSameOrigin` + `assertFeatureEnabled` + `accountRequestLimiter`; the forgot
+  route always returns a generic success (no existence leak).
+
+**How to check which plugins / modes are currently enabled:**
+- **UI:** sign in as a developer/admin and open **`/admin/plugins`** (shows each flag's
+  ON/OFF, who changed it, when). The **Developer** chip in the admin topbar means your
+  account has `is_developer`.
+- **CLI/SQL (no UI):**
+  ```bash
+  # list every feature flag + state
+  dotenv -e .env.local -- node -e "import('@prisma/client').then(async({PrismaClient})=>{const p=new PrismaClient();console.table(await p.featureFlag.findMany({select:{key:1,enabled:1,updatedAt:1}}));await p.\$disconnect()})"
+  # who has developer / which roles a user holds
+  dotenv -e .env.local -- node -e "import('@prisma/client').then(async({PrismaClient})=>{const p=new PrismaClient();console.table(await p.user.findMany({where:{isDeveloper:true},select:{email:1,isDeveloper:1}}));await p.\$disconnect()})"
+  ```
+  Or in `npm run db:studio` / psql: `SELECT key, enabled, updated_at FROM feature_flag;`
+  and `SELECT email, is_developer FROM app_user WHERE is_developer;`.
+- "Admin mode" = the roles/permissions a signed-in account holds (RBAC, resolved live
+  per request); see them at `/admin/users` (per user) or via `getEffectivePermissions`.
+
+> **After this migration** run `npm run db:seed` once (idempotent) so the 4 new
+> permissions (`notification.*`, `user.delete`) attach to `super_admin` and the
+> `member_platform` plugin row is registered. The migration itself is schema-only.
+
+## Member platform — M7/M8: notifications, feedback & the developer dashboard (Session 11)
+
+The M7/M8 SPINE (the foundation M3–M6 consume). Migration `20260630170000_member_platform_m7m8`
+(additive: `notification.label` + `feedback` / `page_visit` / `table_threshold` /
+`authorized_sender` + `feedback_ref_seq` + CHECK tail). After pulling: `npm run db:migrate`
+then `npm run db:seed` (idempotent; +5 permissions → 50).
+
+- **Notifications generalized (M7, DL-069).** `lib/notifications/service.mjs` gains a free-text
+  `label`, `listNotificationsPage` (keyset, createdAt+id cursor), and a generic deduped
+  `createNotification({ type, label, title, body, entityType, entityId, data, dedupeKey })`
+  for system producers. Reuse it for any future queue item — DON'T add a parallel table.
+- **Feedback / support tickets (M7, DL-070).** A STANDALONE table (`lib/feedback/{forms,service}.mjs`).
+  Public create via `POST /api/feedback` (plugin + CSRF + rate-limit; submitter linked from the
+  SESSION, never the body) → `FB-NNNNN` ref id. Triage/assign/resolve gated `feedback.resolve`
+  (audited); reads gated `feedback.read` (keyset). Public form `/feedback`; admin `/admin/feedback`.
+  The pure `validateFeedbackForm` (lib/feedback/forms.mjs) is the client+server validator.
+- **Windowing (M7, DL-074).** `lib/events/public.mjs#groupByWindow(items, { fromKey, untilKey })`
+  → `{ upcoming, current, past }` — the shared past/current/upcoming primitive (reuse for M3 club
+  announcements).
+- **Action Log export (M8, DL-068).** `lib/devconsole/audit.mjs#exportAuditLog(filters, actor, {format})`
+  (JSON/CSV, PII-minimized, `audit.read`). Registry action `audit.export`.
+- **Usage analytics (M8, DL-071).** `recordPageVisit({path,section,userId})` is best-effort + never
+  audited; the `POST /api/usage` beacon records it (NOT yet auto-fired from the client — KNOWN_ISSUES #41).
+  `getUsageAnalytics({windowDays}, actor)` (gated `dev.console`) → top sections/paths.
+- **Storage monitoring (M8, DL-072).** `lib/devconsole/storage.mjs`: `getTableSizes` (raw SQL),
+  `setTableThreshold`/`getStorageReport` (flags over-threshold tables NON-blocking + a deduped
+  alert), `exportTable` (any table → download + a GUARANTEED audit row + a best-effort
+  `backup_record`), `truncateTable` (allowlist `{page_visit}` + `confirm:true` + a
+  validate-against-live-catalog injection guard). All gated `storage.manage` — **developer-only**
+  (excluded from `admin`). Surfaced at `/admin/devdash`.
+- **Bulk mail (M8, DL-073).** `lib/mail/{progress,service}.mjs`: an `authorized_sender` allowlist
+  (`mail.manage`) + `sendBulk(input, actor, { transport, sleep, ratePerMinute, onProgress })`
+  (`mail.send`, rate-limited, one accounting-only audit row). nodemailer is LAZY + INJECTABLE — to
+  enable real sending: `npm install nodemailer` + set `MAIL_HOST`/`MAIL_PORT`/`MAIL_USER`/`MAIL_PASS`
+  (until then `sendBulk` returns a friendly 503; KNOWN_ISSUES #40). Tests inject a fake transport +
+  a no-op `sleep`. Surfaced at `/admin/mail`. Initial passwords still go via external institute mail.
+
+## Member platform — M3: club/council pages + memberships (Session 11)
+
+Migration `20260701120000_member_platform_m3` (additive: `club_membership` + FKs/unique/CHECK +
+`announcement_payload.sync_to_central`). After pulling: `npm run db:migrate` then `npm run db:seed`
+(idempotent; +1 permission → 51, +the `club_doc` content type). **NB:** the Prisma model now selects
+`announcement_payload.sync_to_central`, so announcement reads require the migration applied.
+
+- **Club memberships (DL-075).** `lib/memberships/service.mjs` — a STANDALONE M-M (`app_user` ↔
+  `org_unit_lineage`, durable across years, `UNIQUE(user, lineage)`). `addMembership({ userId|email,
+  orgUnitLineageKey|orgUnitId|slug, role?, status? })` (idempotent upsert — a status-only re-add
+  PRESERVES the existing role), `removeMembership`, `setMembershipStatus`, `listMembershipsForUnit`
+  (PII roster — gated), `getMembershipCountForUnit` (public aggregate — ungated), `listUserMemberships(userId)`
+  ("my clubs" — self). All mutations gate the NEW **`membership.manage`** permission SCOPED to the unit's
+  lineage (`assertActorPermission(actor, "membership.manage", { orgUnitLineageKey, academicYearId })`,
+  DL-066) BEFORE any disclosure; one semantic audit row each (`ClubMembership` is in `AUTO_AUDIT_SKIP`).
+  **Bulk CSV sync:** `importClubMemberships({ orgUnitLineageKey|orgUnitId|slug, csv, defaultRole?, defaultStatus? })`
+  — idempotent by `(user, lineage)`, resolves each email→account (missing accounts REPORTED, never
+  auto-created), ONE summary audit row. Pure `parseMembershipCsv` (lib/memberships/forms.mjs) mirrors it.
+  Registry actions: `membership.{add,remove,setStatus,import}` (scoped) on `POST /api/admin/action`.
+- **Club markdown docs + announcements/events (DL-076).** `club_doc` is a content_type reusing
+  `page_block_payload` (`blockKind='markdown'`, `body=markdown`) — CRUD via the CMS service scoped to
+  the club's lineage (content.*), each doc its own lineage. Club announcements/events = the existing
+  types bound to the club via `content_item.orgUnitId`. Public reads: `lib/org/docs.mjs#listClubDocs`,
+  `lib/events/public.mjs#listClubEvents/listClubAnnouncements` (archive-like: `enforceWindow:false`).
+- **Safe markdown (DL-077).** `lib/markdown/render.mjs#renderMarkdown(md)` — PURE, escape-FIRST (HTML
+  escaped before any markup → injection impossible), scheme-validated links (`isSafeHref`). Feed its
+  output to `dangerouslySetInnerHTML`. `markdownPreview(md, max)` for card excerpts. Reused by M4.
+- **Announcement sync-to-central (DL-078).** Set `payload.syncToCentral = true` on a club announcement
+  to also surface it on the central board. `listPublicAnnouncements` filters via the pure
+  `isCentralAnnouncement(item, payload)` (central `orgUnitId==null` OR synced). Club listings group
+  past/current/upcoming with `groupByWindow` (fromKey `publishFrom`, untilKey `publishUntil`).
+- **Tabbed club page (DL-079).** `lib/org/public.mjs#getClubPageView(slug)` aggregates the base view +
+  events/announcements/docs/memberCount (concurrently); `app/components/OrgUnitTabs.jsx` (Client) renders
+  the tabs. Expanded tabs (Announcements/Upcoming/Past/Achievements-stub/Documents) only for
+  `EXPANDED_UNIT_TYPES` (club/council); hostels/messes keep Overview + Resources. `OrgUnitPage` is removed.
+  The M8 **usage beacon** is wired in the root layout (`app/components/UsageBeacon.jsx` → `POST /api/usage`).
+
+## Member platform — M4: Wall of Fame / student achievements (Session 11)
+
+Migration `20260701130000_member_platform_m4` (additive: `achievement_payload` + `achievement_credit`
++ FKs/uniques/CHECK). After pulling: `npm run db:migrate` then `npm run db:seed` (idempotent; +the
+`achievement` content type — **no new permission**, still 51). Achievements reuse the `content.*` set.
+
+- **Achievement content (DL-080).** A NEW `content_type='achievement'` (year-scoped, **NOT** org-bound)
+  driven through the ordinary CMS service (create/edit/publish via the `content.*` admin actions). Own
+  payload table `achievement_payload` = typed scalars (`category`, `achievementDate`, `heroMediaId`) + a
+  `blocks` **JSONB** of HYBRID ordered blocks. Block kinds: `markdown` (`body`), `markdown_image`
+  (`mediaId` + `body?` + `imagePosition`), `banner` (`mediaId` + `caption?`), `link` (`url` + `label?`),
+  `gallery` (`mediaIds[]` + `caption?`). The pure client-safe **`lib/achievements/forms.mjs`**
+  (`normalizeBlocks`/`normalizeAchievementPayload`/`creditTargetKind`) validates + normalizes and is run
+  server-side via the generic handler's NEW `coercePayload` hook (throws 422 on a bad block) — no parallel
+  pipeline. Markdown renders via `lib/markdown/render.mjs` (escape-first, DL-077); link urls reuse `isSafeHref`.
+- **Credits / mapping (DL-081).** `lib/achievements/credits.mjs#setAchievementCredits(itemId, credits, actor)`
+  REPLACES an achievement's credit set (idempotent; audited — ONE summary row). Each credit is
+  `{ userId | email | orgUnitLineageKey, role?, sortOrder? }` and targets EXACTLY ONE of a member OR a club
+  (a DB CHECK + `creditTargetKind` + two per-target uniques). Missing emails are reported (never
+  auto-created). `AchievementCredit` is in `AUTO_AUDIT_SKIP`. Registry action `achievement.credits.set` (scoped).
+- **Central curation (DL-082).** Achievements are institute-level (not org-bound), so credit management
+  authorizes `content.update` at the achievement's YEAR scope — an UNSCOPED grant (staff/admin) passes; a
+  unit-scoped coordinator is 403. Public reads (`lib/achievements/public.mjs`): `listWallOfFame({yearId?, category?})`,
+  `getAchievementBySlug`, `listClubAchievements(orgUnitLineageKey)` — all Server-Component, batched, PII-minimized
+  (members by display name only). Surfaces: **`/wall-of-fame`** (plugin-gated) + the club page's **Achievements**
+  tab (`getClubPageView` → `view.achievements` by the club's durable lineage). Shared renderer:
+  `app/components/AchievementCard.jsx` (`compact` for the tab).
+- **Shared-handler fix (DL-083).** `writePayload` now uses `UPDATE` (not `upsert`) on a partial edit
+  (`isCreate:false`) — the payload row always pre-exists on edit, and Prisma statically requires the
+  `upsert.create` branch to carry NOT-NULL columns. Fixes a latent M3 bug the first live run surfaced.
+
+## Member platform — M5: Centralized Event Playground (Session 11)
+
+The event stays a versioned `content_type='event'` content_item (DL-037) — its CONTENT (a markdown
+`problemStatement` + `eligibility`, a `category` facet, and a `blocks` JSONB of hybrid ordered blocks)
+lives in `event_payload`, normalized by the pure `lib/events/forms.mjs#normalizeEventPayload` through a
+`coercePayload` hook that reuses the M4 `normalizeBlocks` (DL-084). Everything operational is standalone
+tables keyed on the DURABLE event item; registration CONFIG (capacity / window) is a 1:1 `event_settings`.
+
+- **Authorize event ops via `assertEventManage(actor, eventItemId, { requireGlobal? })`** (`lib/events/authz.mjs`):
+  GLOBAL `event.manage` (staff/admin/dev — an UNSCOPED grant) OR SCOPED to any tagged ORGANIZING club
+  lineage (a coordinator runs their own event). `requireGlobal:true` = central-only (organizer tagging,
+  closure review, custom entities). The RBAC resolver's `inScope()` keeps a club-scoped grant from
+  passing the global check — so tagging (which grants scoped access) must be central (DL-086).
+- **Organizer tagging** (`lib/events/organizers.mjs#setEventOrganizers`, replace-set, one audit row): each
+  tag targets exactly one of {club lineage, `event_entity`, member} (a DB CHECK). Custom entities are
+  admin/dev-defined durable stakeholders.
+- **Registration** (`lib/events/registration.mjs`): MEMBER self-service is the gated `POST /api/events/participate`
+  route (`requireMember` + `assertCanParticipate` — inactive can't participate) — NOT audited (durable row).
+  Capacity → waitlist is a service decision backstopped by a DEFERRED trigger (`event_registration_capacity_guard`)
+  + a race-retry; cancelling a confirmed spot auto-promotes the earliest waitlisted. Organizer add/setStatus/
+  remove ARE audited (`event.registration.*` registry actions).
+- **Rounds / scores / attendance** (`lib/events/{rounds,scoring}.mjs`): scores/attendance are per-round
+  (`round_id`) or overall (`round_id NULL`), submitted as replace-set SHEETS (one summary audit row).
+  RANKING is read-layer only — `rankEntries` (PURE, standard competition rank); overall = sum. The
+  playground detail (`lib/events/playground.mjs#getPlaygroundEvent`) builds all rankings from ONE score fetch.
+- **CSV downloads**: `GET /api/events/export?eventItemId=&kind=participants|scores|attendance|ranking[&roundId=overall|<uuid>]`
+  (`lib/events/downloads.mjs#exportEventCsv`, gated by `assertEventManage`; pure builders in `lib/events/csv.mjs`).
+- **Closure** (`lib/events/closure.mjs`): an organizer submits an optional markdown report (role/contribution +
+  self-reported budget); a CENTRAL reviewer (`requireGlobal`) adds a comment + corrected budget.
+- **"Events Organized"** = `content_type='events_organized'` (page_block markdown) edited through the CMS →
+  every edit is audited + version-diffable; the change history is visible + downloadable from the M8
+  dev-dashboard (`lib/events/organized.mjs#getEventsOrganizedChangeHistory` / `exportEventsOrganizedHistory`).
+- **New content-type reminder:** an `event.manage` permission + the `events_organized` content type are
+  seed DATA (`lib/rbac/permissions.mjs` / `lib/cms/content-types.mjs`) — re-seed after pulling.
+
+## Member platform — M6: Member profiles & performance (Session 11)
+
+M6 is a **READ-ONLY aggregation** module over the DURABLE ids M3/M4/M5 store — **NO new table,
+permission, migration, or mutation** (DL-090). It has three files + surfaces:
+
+- **`lib/member/profile.mjs`** — `getMemberProfile(userId, { yearId?, scopeEventsToYear?, _achievements? })`
+  aggregates identity (`parseInstituteEmail`), roles/category (`role_assignment` + resolved scope-unit
+  names), affiliations (`club_membership` + a DERIVED syndicate facet), the member's full EVENT
+  involvement, and credited achievements. `getMemberEventHistory` batches registrations ∪ own-scores ∪
+  attendance → per-event rows, and computes the member's OVERALL **rank** in-memory from ONE all-scores
+  fetch via `rankEntries` (same sum-across-round+overall as M5 `getOverallRanking`, DL-091). Events are
+  all-time (durable); achievements follow M4 current-year visibility. **The two profile surfaces call
+  `getMemberProfileView(userId)`** — it resolves the current year + hydrates the heavy `listMemberAchievements`
+  ONCE and injects both into `getMemberProfile`/`getMemberContribution` (the `_achievements` seam) so the
+  page doesn't re-run the heaviest read twice (review fix, DL-093).
+- **`lib/member/contribution.mjs`** — `getMemberContribution` / `getClubContribution` /
+  `getEntityContribution` (+ `getStakeholderContribution` dispatcher + `listContributionStakeholders`
+  picker) aggregate a stakeholder's YEAR contribution by durable id (organized / participated /
+  achievements / roles / members / **participants reached** = a PII-minimized distinct COUNT, DL-092),
+  reusing `listClub/MemberAchievements` + `getMembershipCountForUnit`.
+- **`lib/member/summary.mjs`** — PURE, client-safe (`splitMemberEvents` / `categoryBreakdown` /
+  `participationSummary` / `formatIdentity` / `contributionTotals` / `pickSyndicate`), imported by BOTH
+  the reads AND the presentation (DL-093/051).
+- **Surfaces:** self **`/member/profile`** (gated by `loadMemberContext` — own data), admin
+  **`/admin/users/[userId]`** (gated `loadModuleContext('users')` + explicit `hasPerm('user.read')`), and
+  **`/admin/contribution`** (member/club/entity explorer, query-param driven — Server-Component GETs, no
+  API route) behind the NEW `contribution` nav module (`anyOf:['user.read']`). Rendering is TWO shared
+  **Server Components** (`app/components/MemberProfile.jsx` / `ContributionSummary.jsx`) so member PII
+  stays server-side; the one client component (`ContributionClient`, the picker) gets only public names.
+- **No seed/migration reminder for M6:** it adds no permission, content type, or table — `db:migrate` /
+  `db:seed` stay idempotent.
 
 ## Project map
 

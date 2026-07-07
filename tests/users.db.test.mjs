@@ -78,13 +78,16 @@ describe.skipIf(!RUN)("Users & Roles service (live Neon)", () => {
     const upd = await svc.updateUser(user.id, { name: "ZZ Two Renamed" }, actor);
     expect(upd.user.name).toBe("ZZ Two Renamed");
 
-    const sus = await svc.setUserStatus(user.id, "suspended", actor);
-    expect(sus.user.status).toBe("suspended");
+    const sus = await svc.setUserStatus(user.id, "inactive", actor);
+    expect(sus.user.status).toBe("inactive");
+    const rev = await svc.setUserStatus(user.id, "revoked", actor);
+    expect(rev.user.status).toBe("revoked");
     const act = await svc.setUserStatus(user.id, "active", actor);
     expect(act.user.status).toBe("active");
 
-    // cannot suspend your OWN account
-    await expect(svc.setUserStatus(actor.userId, "suspended", actor)).rejects.toMatchObject({ status: 409, code: "SELF_LOCKOUT" });
+    // cannot set your OWN account to a non-active status (self-lockout guard)
+    await expect(svc.setUserStatus(actor.userId, "inactive", actor)).rejects.toMatchObject({ status: 409, code: "SELF_LOCKOUT" });
+    await expect(svc.setUserStatus(actor.userId, "revoked", actor)).rejects.toMatchObject({ status: 409, code: "SELF_LOCKOUT" });
   });
 
   dbit("creates a role with permissions, replaces them, and protects system roles", async () => {

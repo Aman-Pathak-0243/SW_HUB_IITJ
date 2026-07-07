@@ -21,7 +21,8 @@
 | 8 | Developer Console | ✅ |
 | 9 | Admin Panel | ✅ |
 | 10 | Testing + Deployment + Optimization + Handover | ✅ |
-| **11+** | **Member platform** (auth pivot, RBAC categories+overrides, club pages+memberships, Wall of Fame, Event Playground, profiles, notifications/feedback, dev dashboard) — multi-session | ⏳ next |
+| 11 | **Member Platform M0** — auth & account lifecycle (email+password) + the developer-controlled **PLUGIN** control plane (`feature_flag`/`member_platform`) | ✅ |
+| 12+ | Member platform remainder — **M2** (RBAC categories + per-email overrides + smart search) next, then M1 status modes, M3 club pages+memberships, M4 Wall of Fame, M5 Event Playground, M6 profiles, M7 notifications/feedback, M8 dev dashboard | ⏳ next (M2) |
 
 Each session must pass the relevant parts of the quality gate
 ([TESTING_STRATEGY.md](TESTING_STRATEGY.md)) and validate responsiveness

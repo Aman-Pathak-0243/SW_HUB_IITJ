@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:routes": "dotenv -e .env.local -- node scripts/route-smoke.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "dotenv -e .env.local -- prisma migrate deploy",
     "db:migrate:dev": "dotenv -e .env.local -- prisma migrate dev",
@@ -16,10 +17,24 @@
     "db:import:org": "dotenv -e .env.local -- node scripts/import-org.mjs",
     "db:import:events": "dotenv -e .env.local -- node scripts/import-events.mjs",
     "db:import:resources": "dotenv -e .env.local -- node scripts/import-resources.mjs",
+    "db:seed:flagship": "dotenv -e .env.local -- node scripts/seed-flagship.mjs",
     "db:migrate:media": "dotenv -e .env.local -- node scripts/migrate-media.mjs",
     "db:console": "dotenv -e .env.local -- node scripts/devconsole.mjs",
+    "cli": "dotenv -e .env.local -- node scripts/dev-cli.mjs",
+    "plugin:status": "dotenv -e .env.local -- node scripts/dev-cli.mjs plugin:status",
+    "plugin:on": "dotenv -e .env.local -- node scripts/dev-cli.mjs plugin:enable",
+    "plugin:off": "dotenv -e .env.local -- node scripts/dev-cli.mjs plugin:disable",
     "db:reset": "dotenv -e .env.local -- prisma migrate reset",
-    "db:studio": "dotenv -e .env.local -- prisma studio"
+    "db:studio": "dotenv -e .env.local -- prisma studio",
+    "db:local:up": "docker compose up -d --wait",
+    "db:local:down": "docker compose down",
+    "db:local:reset": "docker compose down -v && docker compose up -d --wait",
+    "db:migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
+    "db:seed:test": "dotenv -e .env.test -- node prisma/seed.mjs",
+    "db:local:setup": "npm run db:migrate:test && npm run db:seed:test",
+    "test:db": "dotenv -e .env.test -- node scripts/test-db.mjs",
+    "db:studio:test": "dotenv -e .env.test -- prisma studio",
+    "sim:clean": "dotenv -e .env.local -- node scripts/clean-sim.mjs"
   },
   "prisma": {
     "seed": "dotenv -e .env.local -- node prisma/seed.mjs"

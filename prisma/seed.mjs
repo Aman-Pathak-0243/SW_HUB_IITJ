@@ -14,6 +14,7 @@ import { PERMISSIONS, ROLE_DEFS } from "../lib/rbac/permissions.mjs";
 import { CONTENT_TYPE_DEFS } from "../lib/cms/content-types.mjs";
 import { ORG_UNIT_TYPES, ALLOWED_CHILD_EDGES, POSITIONS } from "../lib/org/structure.mjs";
 import { hashPassword } from "../lib/auth/password.mjs";
+import { PLUGIN_DEFS } from "../lib/platform/flags.mjs";
 
 // Use the POOLED endpoint: the Neon pooler reliably wakes a suspended compute
 // (it buffers the connection during cold-start), where the direct endpoint
@@ -137,21 +138,40 @@ async function main() {
     });
   }
 
+  // 6b. feature flags / plugins (Session 11 / M0). Create-if-missing; NEVER reset
+  //     `enabled` on a re-seed so the operator's developer-controlled toggle sticks.
+  for (const p of PLUGIN_DEFS) {
+    await prisma.featureFlag.upsert({
+      where: { key: p.key },
+      update: { name: p.name, description: p.description ?? null, category: p.category ?? "plugin" },
+      create: { key: p.key, name: p.name, description: p.description ?? null, category: p.category ?? "plugin", enabled: false },
+    });
+  }
+
   // 7. bootstrap users — replaces the V1 hardcoded email allowlist
   const developerRole = await prisma.role.findUniqueOrThrow({ where: { key: "developer" } });
   const superAdminRole = await prisma.role.findUniqueOrThrow({ where: { key: "super_admin" } });
 
   const devEmail = (process.env.BOOTSTRAP_DEVELOPER_EMAIL || "developer@iitjammu.ac.in").trim();
   const devPassword = process.env.BOOTSTRAP_DEVELOPER_PASSWORD;
+  // Hash ONCE and apply to BOTH branches. Previously the `update` branch omitted
+  // passwordHash, so a re-seed of an ALREADY-EXISTING developer left password_hash
+  // NULL forever and the bootstrap developer could never sign in. We only (re)set
+  // the password when BOOTSTRAP_DEVELOPER_PASSWORD is provided, so an unset env
+  // never clobbers a password the developer later chose via the reset flow.
+  const devCredential = devPassword
+    ? { passwordHash: await hashPassword(devPassword), passwordSetAt: new Date(), mustChangePassword: false }
+    : {};
   const developer = await prisma.user.upsert({
     where: { email: devEmail },
-    update: { isDeveloper: true, status: "active" },
+    update: { isDeveloper: true, status: "active", ...devCredential },
     create: {
       email: devEmail,
       name: "Portal Developer",
       isDeveloper: true,
       status: "active",
-      passwordHash: devPassword ? await hashPassword(devPassword) : null,
+      passwordHash: null,
+      ...devCredential,
     },
   });
   await ensureGlobalGrant(developer.id, developerRole.id);
@@ -183,6 +203,7 @@ async function main() {
     contentTypes: await prisma.contentTypeDef.count(),
     users: await prisma.user.count(),
     roleAssignments: await prisma.roleAssignment.count(),
+    featureFlags: await prisma.featureFlag.count(),
   };
   console.log("Seed complete:", JSON.stringify(counts, null, 2));
 }

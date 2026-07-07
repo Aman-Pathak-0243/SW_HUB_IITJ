@@ -15,6 +15,7 @@ const VALID_PAYLOAD_TABLES = new Set([
   "flagship_event_payload",
   "resource_payload",
   "page_block_payload",
+  "achievement_payload",
 ]);
 
 describe("content-type registry ↔ handler map (the 'every type has a handler' guarantee)", () => {

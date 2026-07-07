@@ -31,11 +31,16 @@ enum AcademicYearStatus {
   @@map("academic_year_status")
 }
 
+// Member-platform M1 (Session 11): three access modes (DL-065). active = full;
+// inactive = can log in + browse + see own achievements but CANNOT participate in
+// events; revoked = cannot log in (rejected at authorize/signIn), public site only.
+// Forward-migrated from the legacy active/suspended/invited/disabled set
+// (suspended+invited → inactive, disabled → revoked) via a CREATE-style enum swap
+// + data backfill (never an init rewrite — DL-027).
 enum UserStatus {
   active
-  suspended
-  invited
-  disabled
+  inactive
+  revoked
 
   @@map("user_status")
 }
@@ -162,18 +167,28 @@ enum TransitionStatus {
 // ──────────────────────────────────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String     @unique @db.Citext
-  emailVerified DateTime?  @map("email_verified_at") @db.Timestamptz
-  passwordHash  String?    @map("password_hash") // argon2id; NULL when OAuth-only
-  name          String     @map("display_name") // adapter User.name
-  image         String? // adapter User.image (OAuth avatar URL); curated avatar is `avatar`
-  avatarMediaId String?    @map("avatar_media_id") @db.Uuid
-  isDeveloper   Boolean    @default(false) @map("is_developer")
-  status        UserStatus @default(active)
-  lastLoginAt   DateTime?  @map("last_login_at") @db.Timestamptz
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String     @unique @db.Citext
+  emailVerified      DateTime?  @map("email_verified_at") @db.Timestamptz
+  passwordHash       String?    @map("password_hash") // argon2id; NULL when OAuth-only
+  name               String     @map("display_name") // adapter User.name
+  image              String? // adapter User.image (OAuth avatar URL); curated avatar is `avatar`
+  avatarMediaId      String?    @map("avatar_media_id") @db.Uuid
+  isDeveloper        Boolean    @default(false) @map("is_developer")
+  status             UserStatus @default(active)
+  // Member-platform M0 (Session 11): admin-provisioned accounts get an initial
+  // password and must_change_password=true → forced change on first login. Cleared
+  // when the user changes it. password_set_at records the last credential change.
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  passwordSetAt      DateTime?  @map("password_set_at") @db.Timestamptz
+  // M1 (DL-067): per-account "allow normal (member) view" toggle. When false the
+  // authenticated member surface is withheld even though the account can still log
+  // in (e.g. an account onboarded but not yet cleared for the member experience);
+  // admin/dev-settable + audited. Defaults true so existing accounts are unaffected.
+  allowNormalView    Boolean    @default(true) @map("allow_normal_view")
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz
 
   avatar   MediaAsset? @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   accounts Account[]
@@ -202,6 +217,38 @@ model User {
   auditLogs              AuditLog[]        @relation("AuditLogActor")
   transitionRunsRun      TransitionRun[]   @relation("TransitionRunRunBy")
   backupRecordsCreated   BackupRecord[]    @relation("BackupRecordCreatedBy")
+  featureFlagsUpdated    FeatureFlag[]     @relation("FeatureFlagUpdatedBy")
+  notificationsAssigned  Notification[]    @relation("NotificationAssignedTo")
+  notificationsResolved  Notification[]    @relation("NotificationResolvedBy")
+  permissionOverrides    UserPermissionOverride[] @relation("UserPermissionOverrideUser")
+  permissionOverridesSet UserPermissionOverride[] @relation("UserPermissionOverrideCreatedBy")
+  feedbackSubmitted      Feedback[]        @relation("FeedbackSubmitter")
+  feedbackAssigned       Feedback[]        @relation("FeedbackAssignedTo")
+  feedbackResolved       Feedback[]        @relation("FeedbackResolvedBy")
+  pageVisits             PageVisit[]       @relation("PageVisitUser")
+  tableThresholdsUpdated TableThreshold[]  @relation("TableThresholdUpdatedBy")
+  authorizedSendersCreated AuthorizedSender[] @relation("AuthorizedSenderCreatedBy")
+  clubMemberships        ClubMembership[]  @relation("ClubMembershipUser")
+  clubMembershipsCreated ClubMembership[]  @relation("ClubMembershipCreatedBy")
+  achievementCredits     AchievementCredit[] @relation("AchievementCreditUser")
+  achievementCreditsCreated AchievementCredit[] @relation("AchievementCreditCreatedBy")
+  eventEntitiesCreated      EventEntity[]        @relation("EventEntityCreatedBy")
+  eventOrganizerTags        EventOrganizer[]     @relation("EventOrganizerUser")
+  eventOrganizersCreated    EventOrganizer[]     @relation("EventOrganizerCreatedBy")
+  eventSettingsUpdated      EventSettings[]      @relation("EventSettingsUpdatedBy")
+  eventRoundsCreated        EventRound[]         @relation("EventRoundCreatedBy")
+  eventRegistrations        EventRegistration[]  @relation("EventRegistrationUser")
+  eventRegistrationsCreated EventRegistration[]  @relation("EventRegistrationCreatedBy")
+  eventScores               EventScore[]         @relation("EventScoreUser")
+  eventScoresCreated        EventScore[]         @relation("EventScoreCreatedBy")
+  eventAttendances          EventAttendance[]    @relation("EventAttendanceUser")
+  eventAttendancesCreated   EventAttendance[]    @relation("EventAttendanceCreatedBy")
+  eventClosureSubmitted     EventClosureReport[] @relation("EventClosureSubmittedBy")
+  eventClosureReviewed      EventClosureReport[] @relation("EventClosureReviewedBy")
+  quizQuestionsCreated      QuizQuestion[]       @relation("QuizQuestionCreatedBy")
+  quizSessionsCreated       QuizSession[]        @relation("QuizSessionCreatedBy")
+  quizParticipations        QuizParticipant[]    @relation("QuizParticipantUser")
+  quizAnswers               QuizAnswer[]         @relation("QuizAnswerUser")
 
   @@index([status])
   @@map("app_user")
@@ -264,6 +311,7 @@ model AcademicYear {
   appointments         Appointment[]    @relation("AppointmentYear")
   contentItems         ContentItem[]
   roleAssignments      RoleAssignment[]
+  permissionOverrides  UserPermissionOverride[]
   auditLogs            AuditLog[]
   lineagesFirstSeen    OrgUnitLineage[] @relation("LineageFirstSeenYear")
   transitionRunsSource TransitionRun[]  @relation("TransitionSourceYear")
@@ -308,7 +356,8 @@ model Permission {
   module      String?
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  rolePermissions RolePermission[]
+  rolePermissions     RolePermission[]
+  permissionOverrides UserPermissionOverride[]
 
   @@index([module])
   @@map("permission")
@@ -336,8 +385,12 @@ model OrgUnitLineage {
   firstSeenYear AcademicYear? @relation("LineageFirstSeenYear", fields: [firstSeenYearId], references: [id], onDelete: SetNull)
   createdBy     User?         @relation("OrgUnitLineageCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  orgUnits        OrgUnit[]
-  roleAssignments RoleAssignment[]
+  orgUnits            OrgUnit[]
+  roleAssignments     RoleAssignment[]
+  permissionOverrides UserPermissionOverride[]
+  clubMemberships     ClubMembership[]
+  achievementCredits  AchievementCredit[]
+  eventOrganizers     EventOrganizer[]
 
   @@index([firstSeenYearId])
   @@map("org_unit_lineage")
@@ -364,6 +417,10 @@ model RoleAssignment {
   @@index([orgUnitLineageKey])
   @@index([academicYearId])
   @@index([roleId])
+  // The hottest RBAC query (lib/rbac/authorize.mjs) filters by userId + revokedAt
+  // on every permission resolution; userId had NO index (Postgres does not index FK
+  // columns automatically), forcing a seq scan. This composite serves it directly.
+  @@index([userId, revokedAt])
   @@map("role_assignment")
 }
 
@@ -576,7 +633,17 @@ model ContentItem {
   createdBy      User?          @relation("ContentItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy      User?          @relation("ContentItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  revisions ContentRevision[]
+  revisions          ContentRevision[]
+  achievementCredits AchievementCredit[] @relation("AchievementCreditItem")
+  eventOrganizers     EventOrganizer[]     @relation("EventOrganizerItem")
+  eventSettings       EventSettings?       @relation("EventSettingsItem")
+  eventRounds         EventRound[]         @relation("EventRoundItem")
+  eventRegistrations  EventRegistration[]  @relation("EventRegistrationItem")
+  eventScores         EventScore[]         @relation("EventScoreItem")
+  eventAttendances    EventAttendance[]    @relation("EventAttendanceItem")
+  eventClosureReports EventClosureReport[] @relation("EventClosureReportItem")
+  quizQuestions       QuizQuestion[]       @relation("QuizQuestionItem")
+  quizSessions        QuizSession[]        @relation("QuizSessionItem")
 
   @@unique([contentType, academicYearId, lineageKey]) // one item per logical doc per year
   // Public-listing hot path is served by the raw-SQL partial index
@@ -613,6 +680,7 @@ model ContentRevision {
   flagship      FlagshipEventPayload?
   resource      ResourcePayload?
   pageBlock     PageBlockPayload?
+  achievement   AchievementPayload?
   missionPoints ClubMissionPoint[]
   mealTimings   MessMealTiming[]
   media         ContentMedia[]
@@ -715,6 +783,16 @@ model EventPayload {
   publishFrom  DateTime?    @map("publish_from") @db.Timestamptz
   publishUntil DateTime?    @map("publish_until") @db.Timestamptz
   coverMediaId String?      @map("cover_media_id") @db.Uuid
+  // Member-platform M5 (DL-084): the Centralized Event Playground makes an event's
+  // CONTENT richer while it stays a versioned content_type='event' payload (DL-037).
+  // problem_statement + eligibility are markdown (rendered escape-first, DL-077);
+  // blocks is the HYBRID ordered-block JSONB (reuses the M4 normalizer, DL-080);
+  // category is the event facet/tag that feeds M6 performance tracking. Operational
+  // config (capacity / registration window) is NOT here — it lives in event_settings.
+  problemStatement String? @map("problem_statement")
+  eligibility      String?
+  category         String?
+  blocks           Json?   @db.JsonB
 
   revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
   cover    MediaAsset?     @relation("EventCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
@@ -731,6 +809,12 @@ model AnnouncementPayload {
   publishFrom  DateTime?    @map("publish_from") @db.Timestamptz
   publishUntil DateTime?    @map("publish_until") @db.Timestamptz
   coverMediaId String?      @map("cover_media_id") @db.Uuid
+  // Member-platform M3 (DL-078): a CLUB-specific announcement (a content_item bound
+  // to a club via org_unit_id) is club-only by default; setting this opts it in to
+  // ALSO appear on the central (staff) announcements board. NULL/false = club-only.
+  // Additive column (forward migration 20260701_member_platform_m3), never on
+  // central (org_unit_id NULL) announcements.
+  syncToCentral Boolean?    @map("sync_to_central")
 
   revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
   cover    MediaAsset?     @relation("AnnouncementCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
@@ -835,6 +919,7 @@ model MediaAsset {
   flagshipImages     FlagshipEventPayload[] @relation("FlagshipImage")
   resourceFiles      ResourcePayload[]      @relation("ResourceFile")
   pageBlockPrimaries PageBlockPayload[]     @relation("PageBlockPrimary")
+  achievementHeros   AchievementPayload[]   @relation("AchievementHero")
   contentMedia       ContentMedia[]         @relation("ContentMediaAsset")
 
   @@index([storageProvider])
@@ -907,4 +992,619 @@ model BackupRecord {
   @@index([scope, createdAt(sort: Desc)])
   @@index([verified])
   @@map("backup_record")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M0 (plugin control plane + request queue)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Developer-controlled feature flags ("plugins"). The whole Session 11+ member
+// platform is gated behind the `member_platform` flag: when a DEVELOPER turns it
+// on, the member-platform features (email+password-only auth, member pages,
+// account/reset request flows, forced first-login password change) activate;
+// when off, the portal behaves exactly as Sessions 1–10. Toggling is
+// developer-only + audited (lib/platform/flags.mjs). The flag catalog is seeded
+// from PLUGIN_DEFS; re-seeding never resets an operator's chosen `enabled`.
+model FeatureFlag {
+  key         String   @id // 'member_platform' (stable slug)
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  category    String   @default("plugin") // plugin | setting
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById String?  @map("updated_by") @db.Uuid
+
+  updatedBy User? @relation("FeatureFlagUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@map("feature_flag")
+}
+
+// Centralized notification / request queue. M0 introduces it for the
+// admin-mediated account lifecycle (account-creation requests + password-reset
+// requests surfaced on the admin & developer Password Management tabs, with
+// assignment tracking). M7 extends it (more types/labels, threshold alerts,
+// keyset pagination) — same table, no parallel pipeline. `referenceId` is a
+// human, monotonic, unique handle (e.g. AR-00001 / PR-00001) minted from the
+// raw-SQL `notification_ref_seq` sequence by the service; `status` is guarded by
+// a CHECK (open|assigned|resolved|dismissed).
+model Notification {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceId      String    @unique @map("reference_id")
+  type             String // account_request | password_reset | threshold_alert | system (M7)
+  // M7 (DL-069): a free-text LABEL for grouping/filtering the centralized queue
+  // (e.g. "accounts", "security", "storage"). Distinct from `type` (the workflow
+  // kind); nullable so existing rows are unaffected.
+  label            String?
+  status           String    @default("open")
+  title            String
+  body             String?
+  subjectEmail     String?   @map("subject_email") @db.Citext
+  entityType       String?   @map("entity_type")
+  entityId         String?   @map("entity_id") @db.Uuid // polymorphic — intentionally not an FK
+  data             Json?     @db.JsonB
+  assignedToUserId String?   @map("assigned_to_user_id") @db.Uuid
+  assignedAt       DateTime? @map("assigned_at") @db.Timestamptz
+  resolvedByUserId String?   @map("resolved_by_user_id") @db.Uuid
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNote   String?   @map("resolution_note")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  assignedTo User? @relation("NotificationAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("NotificationResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([type, status])
+  @@index([subjectEmail])
+  @@index([assignedToUserId])
+  @@index([label])
+  @@map("notification")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M2 (RBAC: per-email permission overrides)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Per-user (per-email) permission override (M2, DL-062). RBAC "categories" are
+// roles (data) whose default `role_permission` map gives a member their baseline;
+// an override then GRANTS or DENIES a single catalog permission to one specific
+// account, optionally scoped to an org-unit lineage and/or academic year. This is
+// what REVISES DL-026 #8's "no-deny" rule: `resolveEffectivePermissions` now
+// applies the additive role union FIRST, then these overrides — and DENY WINS. A
+// developer / `grants_all` role still short-circuits BEFORE overrides (the
+// unrestricted bypass is never restricted by an override). `mode` is guarded by a
+// CHECK; at most ONE override exists per (user, permission, scope) — a
+// NULLS-NOT-DISTINCT unique closes the null-scope hole, mirroring
+// `role_assignment_unique_active_grant_uq`. Email is the unique identifier the
+// admin search keys on, so an override is "per email" via the user FK.
+model UserPermissionOverride {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  permissionId      String   @map("permission_id") @db.Uuid
+  mode              String // 'grant' | 'deny' (CHECK in raw SQL) — deny wins (DL-062)
+  orgUnitLineageKey String?  @map("org_unit_lineage_key") @db.Uuid
+  academicYearId    String?  @map("academic_year_id") @db.Uuid
+  reason            String?
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  user           User            @relation("UserPermissionOverrideUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission     Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  academicYear   AcademicYear?   @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  createdBy      User?           @relation("UserPermissionOverrideCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([permissionId])
+  @@map("user_permission_override")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M7 (feedback) + M8 (usage, storage, mail)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Feedback / support tickets (M7, DL-070) — a STANDALONE table (the DL-038 rule:
+// not CMS content). A public form creates a ticket with a human, DB-unique
+// `reference_id` (FB-NNNNN from a raw-SQL sequence) so a user can reference a bug
+// against any component/service id (`component`); stakeholders triage → assign →
+// resolve through a `status` workflow (CHECK-guarded). Assignment/status changes
+// are audited (cross-stakeholder); the public create is itself the durable record.
+model Feedback {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referenceId      String    @unique @map("reference_id")
+  category         String // bug | issue | query | suggestion (CHECK)
+  status           String    @default("open") // open | triaged | in_progress | resolved | dismissed (CHECK)
+  subject          String
+  body             String
+  component        String? // the component/service id the report is against
+  submitterEmail   String?   @map("submitter_email") @db.Citext
+  submitterUserId  String?   @map("submitter_user_id") @db.Uuid
+  assignedToUserId String?   @map("assigned_to_user_id") @db.Uuid
+  assignedAt       DateTime? @map("assigned_at") @db.Timestamptz
+  resolvedByUserId String?   @map("resolved_by_user_id") @db.Uuid
+  resolvedAt       DateTime? @map("resolved_at") @db.Timestamptz
+  resolutionNote   String?   @map("resolution_note")
+  data             Json?     @db.JsonB
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  submitter  User? @relation("FeedbackSubmitter", fields: [submitterUserId], references: [id], onDelete: SetNull)
+  assignedTo User? @relation("FeedbackAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  resolvedBy User? @relation("FeedbackResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([category, status])
+  @@index([submitterEmail])
+  @@index([assignedToUserId])
+  @@map("feedback")
+}
+
+// Hidden usage analytics (M8, DL-071) — which sections are visited most. BIGSERIAL
+// PK (high-volume, monotonic — keyset paging like audit_log, DL-018). `userId` is
+// nullable + SET NULL (an anonymous/public visit has none; a deleted user's visits
+// keep their aggregate). Minimal by design: path + an optional section label + an
+// optional user + when. Never audited (in AUTO_AUDIT_SKIP).
+model PageVisit {
+  id        BigInt   @id @default(autoincrement())
+  path      String
+  section   String?
+  userId    String?  @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User? @relation("PageVisitUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([section, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("page_visit")
+}
+
+// Per-table size threshold (M8, DL-072). A developer sets a byte threshold per
+// table; the storage report flags tables whose live size exceeds it (NON-blocking —
+// the site keeps working) and posts a dashboard message. `tableName` is the unique
+// key. Set/cleared by `storage.manage` (developer-only), audited.
+model TableThreshold {
+  tableName      String   @id @map("table_name")
+  thresholdBytes BigInt   @map("threshold_bytes")
+  note           String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById    String?  @map("updated_by") @db.Uuid
+
+  updatedBy User? @relation("TableThresholdUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("table_threshold")
+}
+
+// Authorized mail senders (M8, DL-073). nodemailer bulk sends are restricted to
+// this admin/dev-maintained allowlist (`mail.manage`). Email is the unique key;
+// `active` lets a sender be disabled without deletion. Maintained = audited.
+model AuthorizedSender {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email       String   @unique @db.Citext
+  name        String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  createdBy User? @relation("AuthorizedSenderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([active])
+  @@map("authorized_sender")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M3 (club/council pages + memberships)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Club / society / student-chapter MEMBERSHIP (M3, DL-075) — a STANDALONE
+// many-to-many between an account (`app_user`) and a LOGICAL org unit
+// (`org_unit_lineage`, NOT a per-year `org_unit`), so a membership is durable
+// across academic years and one user can belong to many clubs/societies/chapters.
+// It is operational relational data with its own lifecycle (the DL-038 "own table"
+// rule), NOT CMS content. Coordinators submit member email lists; an admin/dev bulk-
+// uploads the mapping (CSV) to SYNC, idempotent by (user, lineage) (DL-031). Managed
+// via `membership.manage`, SCOPED to the unit's lineage (requireScopedPermission,
+// DL-066). `status` is CHECK-guarded (active|inactive) for soft removal; `role` is a
+// free-text membership label. Audited SEMANTICALLY by lib/memberships/service.mjs (in
+// AUTO_AUDIT_SKIP), mirroring the other member-platform standalone tables.
+model ClubMembership {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  orgUnitLineageKey String   @map("org_unit_lineage_key") @db.Uuid
+  role              String? // free-text membership label (e.g. "Member", "Volunteer")
+  status            String   @default("active") // active | inactive (CHECK in raw SQL)
+  joinedAt          DateTime @default(now()) @map("joined_at") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  user           User           @relation("ClubMembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  createdBy      User?          @relation("ClubMembershipCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, orgUnitLineageKey]) // one membership per (account, logical unit) — the importer's idempotency key
+  @@index([orgUnitLineageKey, status])
+  @@index([userId])
+  @@map("club_membership")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M4 (Wall of Fame / student achievements)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Typed 1:1 payload for the NEW content_type='achievement' (M4, DL-080) — a
+// year-scoped, NOT-org-bound CMS content item (a central Wall-of-Fame entry). It
+// follows the DL-037 rule (a new module is a content_type via the CMS spine, with
+// its OWN payload table like event/announcement/resource). Typed scalars live in
+// columns; the HYBRID ORDERED BLOCKS (markdown / markdown+image / banner / link /
+// gallery) live in the `blocks` JSONB (DL-016) — validated + normalized by the pure
+// lib/achievements/blocks.mjs (mirrored client+server, DL-051) and rendered SAFELY
+// via lib/markdown/render.mjs (escape-first, DL-077). Media are referenced by id
+// (media_asset) and delivered through resolveDeliveryUrl / cloudinaryAutoUrl (DL-053).
+model AchievementPayload {
+  revisionId      String    @id @map("revision_id") @db.Uuid
+  category        String? // free-text facet (e.g. "Sports", "Academic", "Hackathon")
+  achievementDate DateTime? @map("achievement_date") @db.Timestamptz
+  heroMediaId     String?   @map("hero_media_id") @db.Uuid
+  blocks          Json?     @db.JsonB
+
+  revision ContentRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  hero     MediaAsset?     @relation("AchievementHero", fields: [heroMediaId], references: [id], onDelete: SetNull)
+
+  @@index([heroMediaId])
+  @@map("achievement_payload")
+}
+
+// The achievement contribution mapping (M4, DL-081) — a STANDALONE many-to-many
+// crediting one achievement to a USER *or* a CLUB (org_unit_lineage), so a member's
+// and a club's contributions are trackable within/across a year (feeds M6 profiles).
+// It is operational relational data (DL-038 "own table" rule), NOT CMS content. Each
+// row credits EXACTLY ONE of {user, club} (a raw-SQL CHECK enforces it); `role` is a
+// free-text label (e.g. "Winner", "Organizing club"). Managed by the achievement's
+// content.update authority, SCOPED to its year (lib/achievements/credits.mjs); audited
+// SEMANTICALLY there (in AUTO_AUDIT_SKIP). userId + orgUnitLineageKey are DURABLE ids,
+// so credits survive an academic-year rollover even though the achievement item is
+// year-scoped (M6 reads across years by user / lineage).
+model AchievementCredit {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  achievementItemId String   @map("achievement_item_id") @db.Uuid
+  userId            String?  @map("user_id") @db.Uuid
+  orgUnitLineageKey String?  @map("org_unit_lineage_key") @db.Uuid
+  role              String?
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  achievement    ContentItem     @relation("AchievementCreditItem", fields: [achievementItemId], references: [id], onDelete: Cascade)
+  user           User?           @relation("AchievementCreditUser", fields: [userId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  createdBy      User?           @relation("AchievementCreditCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([achievementItemId, userId]) // one credit per (achievement, member)
+  @@unique([achievementItemId, orgUnitLineageKey]) // one credit per (achievement, club)
+  @@index([userId])
+  @@index([orgUnitLineageKey])
+  @@index([achievementItemId])
+  @@map("achievement_credit")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 11 / M5 (Centralized Event Playground)
+// ──────────────────────────────────────────────────────────────────────────
+// The event stays a versioned content_type='event' content_item (DL-037); these
+// STANDALONE operational tables (the DL-038 "own table" rule) key on the DURABLE
+// event content_item id and are audited SEMANTICALLY by their services (all in
+// AUTO_AUDIT_SKIP; member self-registration is the durable row and is not audited).
+// Authorization is the `event.manage` seam (DL-086): GLOBAL (staff/admin/dev) OR
+// SCOPED to a tagged organizing club's lineage (a coordinator runs their event).
+
+// A custom organizing stakeholder admin/dev define (a syndicate / external partner /
+// ad-hoc committee) — anything that is not a registered org_unit (DL-085). Durable,
+// reusable across events + years so M6 can aggregate an entity's events.
+model EventEntity {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  kind        String? // free-text (e.g. "syndicate", "committee", "external")
+  description String?
+  status      String   @default("active") // active | archived (CHECK in raw SQL)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  createdBy  User?             @relation("EventEntityCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  organizers EventOrganizer[]
+
+  @@index([status])
+  @@map("event_entity")
+}
+
+// Organizer / collaborator TAGGING (DL-085). Each row credits an event to EXACTLY
+// ONE of {a club (org_unit_lineage), a custom entity (event_entity), a member
+// (app_user)} — a raw-SQL CHECK enforces it. `kind` distinguishes an organizer from
+// a contributing collaborator. A tagged CLUB lineage is also the SCOPE at which a
+// coordinator gains `event.manage` on the event (DL-086). Durable ids feed M6.
+model EventOrganizer {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId       String   @map("event_item_id") @db.Uuid
+  kind              String   @default("organizer") // organizer | collaborator (CHECK)
+  orgUnitLineageKey String?  @map("org_unit_lineage_key") @db.Uuid
+  entityId          String?  @map("entity_id") @db.Uuid
+  userId            String?  @map("user_id") @db.Uuid
+  role              String? // free-text tag (e.g. "Organizing club", "Sponsor", "Lead")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdById       String?  @map("created_by") @db.Uuid
+
+  event          ContentItem     @relation("EventOrganizerItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  orgUnitLineage OrgUnitLineage? @relation(fields: [orgUnitLineageKey], references: [lineageKey], onDelete: Restrict)
+  entity         EventEntity?    @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  user           User?           @relation("EventOrganizerUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy      User?           @relation("EventOrganizerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([eventItemId, orgUnitLineageKey])
+  @@unique([eventItemId, entityId])
+  @@unique([eventItemId, userId])
+  @@index([eventItemId])
+  @@index([orgUnitLineageKey])
+  @@index([entityId])
+  @@index([userId])
+  @@map("event_organizer")
+}
+
+// 1:1 operational config for an event (DL-084/087) — capacity + registration window.
+// Kept OUT of the versioned event_payload: capacity drives the waitlist backstop and
+// must be a single stable value, not a per-revision one.
+model EventSettings {
+  eventItemId          String    @id @map("event_item_id") @db.Uuid
+  capacity             Int? // null = unlimited (CHECK >= 0)
+  registrationOpensAt  DateTime? @map("registration_opens_at") @db.Timestamptz
+  registrationClosesAt DateTime? @map("registration_closes_at") @db.Timestamptz
+  registrationClosed   Boolean   @default(false) @map("registration_closed")
+  // Session 14 (DL-097): which stakeholder ROLE types may self-register. Empty array =
+  // open to every logged-in ACTIVE member (the prior behaviour, unchanged). A non-empty
+  // set restricts self-registration to members holding ANY of these Role.keys (resolved
+  // from active role_assignment). Organizer manual-add (assertEventManage) is NOT gated by
+  // this — it is the escape hatch. Operational config, kept OUT of the versioned payload,
+  // like capacity. Column is NOT NULL DEFAULT '{}' so existing rows read as "open to all".
+  allowedRegistrantRoles String[] @default([]) @map("allowed_registrant_roles")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  updatedById          String?   @map("updated_by") @db.Uuid
+
+  event     ContentItem @relation("EventSettingsItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  updatedBy User?       @relation("EventSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("event_settings")
+}
+
+// Event stages (DL-087). Scores + attendance can be per-round (round_id set) or
+// overall (round_id NULL). round_no is unique per event.
+model EventRound {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId String    @map("event_item_id") @db.Uuid
+  roundNo     Int       @map("round_no")
+  name        String
+  description String?
+  startsAt    DateTime? @map("starts_at") @db.Timestamptz
+  endsAt      DateTime? @map("ends_at") @db.Timestamptz
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?   @map("created_by") @db.Uuid
+
+  event       ContentItem       @relation("EventRoundItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation("EventRoundCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  scores      EventScore[]
+  attendances EventAttendance[]
+
+  @@unique([eventItemId, roundNo])
+  @@index([eventItemId])
+  @@map("event_round")
+}
+
+// Per-user registration (DL-087). A PARTIAL UNIQUE (event, user) WHERE status<>'cancelled'
+// dedups active registrations; a cancelled row is history + allows re-registration. The
+// waitlist is a service decision (confirmed vs waitlisted by capacity) with a DEFERRED
+// cardinality trigger backstop against event_settings.capacity (DL-009/021 reuse).
+model EventRegistration {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId  String    @map("event_item_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  status       String    @default("confirmed") // confirmed | waitlisted | cancelled (CHECK)
+  teamName     String?   @map("team_name")
+  note         String?
+  registeredAt DateTime  @default(now()) @map("registered_at") @db.Timestamptz
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdById  String?   @map("created_by") @db.Uuid
+
+  event     ContentItem @relation("EventRegistrationItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  user      User        @relation("EventRegistrationUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation("EventRegistrationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventItemId, status])
+  @@index([userId])
+  @@map("event_registration")
+}
+
+// Round-wise (round_id set) + overall (round_id NULL) scores (DL-087). Overall RANKING
+// is computed in the read layer as the sum of a user's round scores (+ any explicit
+// overall row); per-round ranking orders by that round's points.
+model EventScore {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId String   @map("event_item_id") @db.Uuid
+  roundId     String?  @map("round_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  points      Float    @default(0)
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  event     ContentItem @relation("EventScoreItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  round     EventRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user      User        @relation("EventScoreUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation("EventScoreCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventItemId, roundId, userId])
+  @@index([userId])
+  @@map("event_score")
+}
+
+// Round-wise + overall attendance (DL-087), manually marked by organizers.
+model EventAttendance {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId String   @map("event_item_id") @db.Uuid
+  roundId     String?  @map("round_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  present     Boolean  @default(true)
+  note        String?
+  markedAt    DateTime @default(now()) @map("marked_at") @db.Timestamptz
+  createdById String?  @map("created_by") @db.Uuid
+
+  event     ContentItem @relation("EventAttendanceItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  round     EventRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user      User        @relation("EventAttendanceUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User?       @relation("EventAttendanceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([eventItemId, roundId, userId])
+  @@index([userId])
+  @@map("event_attendance")
+}
+
+// The OPTIONAL markdown closure report per (event, submitting stakeholder) (DL-088):
+// role + contribution + a self-reported budget; a central admin reviews → comment +
+// corrected budget. Data-issue feedback reuses the M7 `feedback` table (no new table).
+model EventClosureReport {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId      String    @map("event_item_id") @db.Uuid
+  submittedById    String    @map("submitted_by") @db.Uuid
+  roleContribution String    @map("role_contribution") // markdown
+  reportedBudget   Decimal?  @map("reported_budget") @db.Decimal(14, 2)
+  status           String    @default("submitted") // submitted | reviewed (CHECK)
+  reviewComment    String?   @map("review_comment")
+  correctedBudget  Decimal?  @map("corrected_budget") @db.Decimal(14, 2)
+  reviewedById     String?   @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime? @map("reviewed_at") @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  event       ContentItem @relation("EventClosureReportItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  submittedBy User        @relation("EventClosureSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewedBy  User?       @relation("EventClosureReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([eventItemId, submittedById])
+  @@index([eventItemId])
+  @@map("event_closure_report")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// MEMBER PLATFORM — Session 16 (Live Quizzes & Live Leaderboards, Tier B)
+// ──────────────────────────────────────────────────────────────────────────
+// The LIVE-QUIZ subsystem is part of an event's OPERATIONAL subsystem (like
+// rounds/scores, DL-087): STANDALONE tables keyed on the DURABLE event
+// content_item id, gated by the SAME `event.manage` seam (DL-086) — so NO new
+// permission and NO new content type (DL-104). Organizer authoring/control is
+// authorized by assertEventManage; member play is login-only via
+// assertCanParticipate (like registration, DL-086). All four tables are in
+// AUTO_AUDIT_SKIP: organizer question/session mutations write ONE semantic audit
+// row via their services; member joins/answers are durable rows (NOT audited) —
+// the M5 registration/score pattern. The server-authoritative timer (DL-106)
+// lives on quiz_session.question_started_at. Real-time fan-out is an in-process
+// broadcaster with OPTIONAL Redis pub/sub (DL-107) — no schema coupling.
+
+// An event's question bank (authored ahead of time; reusable across sessions).
+model QuizQuestion {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId      String   @map("event_item_id") @db.Uuid
+  prompt           String
+  // Ordered answer options [{ id, text }, ...] (JSONB), validated + normalized by
+  // the PURE lib/quiz/forms.mjs#normalizeQuestion (mirrored server-side, DL-051).
+  options          Json     @db.JsonB
+  // Which option id(s) are correct — a text[] so single- OR multi-select works.
+  correctOptionIds String[] @map("correct_option_ids")
+  points           Int      @default(1000)
+  timeLimitSeconds Int      @default(20) @map("time_limit_seconds")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdById      String?  @map("created_by") @db.Uuid
+
+  event           ContentItem   @relation("QuizQuestionItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  createdBy       User?         @relation("QuizQuestionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  sessionsCurrent QuizSession[] @relation("QuizSessionCurrentQuestion")
+  answers         QuizAnswer[]  @relation("QuizAnswerQuestion")
+
+  @@index([eventItemId])
+  @@map("quiz_question")
+}
+
+// One LIVE run of an event's quiz. A partial-unique (raw SQL) allows at most one
+// non-ended session per event. pending=lobby; active=a question is open + timing;
+// reveal=answers closed (correct answer + leaderboard shown); ended.
+model QuizSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventItemId       String    @map("event_item_id") @db.Uuid
+  status            String    @default("pending") // pending | active | reveal | ended (CHECK)
+  currentQuestionId String?   @map("current_question_id") @db.Uuid
+  // SERVER-AUTHORITATIVE timer (DL-106): stamped when a question opens; an answer is
+  // accepted only within time_limit_seconds of it. NEVER client-supplied.
+  questionStartedAt DateTime? @map("question_started_at") @db.Timestamptz
+  startedAt         DateTime? @map("started_at") @db.Timestamptz
+  endedAt           DateTime? @map("ended_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  createdById       String?   @map("created_by") @db.Uuid
+
+  event           ContentItem       @relation("QuizSessionItem", fields: [eventItemId], references: [id], onDelete: Cascade)
+  currentQuestion QuizQuestion?     @relation("QuizSessionCurrentQuestion", fields: [currentQuestionId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("QuizSessionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  participants    QuizParticipant[] @relation("QuizParticipantSession")
+  answers         QuizAnswer[]      @relation("QuizAnswerSession")
+
+  @@index([eventItemId])
+  @@map("quiz_session")
+}
+
+// Lobby membership — one row per (session, member); upserted when a member joins the
+// live stream. Durable row, NOT audited. Feeds the "N players" count + leaderboard set.
+model QuizParticipant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+  session QuizSession @relation("QuizParticipantSession", fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation("QuizParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@map("quiz_participant")
+}
+
+// One answer per (session, question, member) — the UNIQUE makes each answer one-shot
+// (a second/late submission is rejected). Server-scored (is_correct, points_awarded,
+// response_ms). Durable row, NOT audited (the member is the actor; the row is the record).
+model QuizAnswer {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId         String   @map("session_id") @db.Uuid
+  questionId        String   @map("question_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  selectedOptionIds String[] @map("selected_option_ids")
+  isCorrect         Boolean  @default(false) @map("is_correct")
+  pointsAwarded     Float    @default(0) @map("points_awarded")
+  responseMs        Int?     @map("response_ms")
+  answeredAt        DateTime @default(now()) @map("answered_at") @db.Timestamptz
+
+  session  QuizSession  @relation("QuizAnswerSession", fields: [sessionId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation("QuizAnswerQuestion", fields: [questionId], references: [id], onDelete: Cascade)
+  user     User         @relation("QuizAnswerUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId, userId])
+  @@index([sessionId, userId])
+  @@map("quiz_answer")
 }
