@@ -58,6 +58,7 @@ and **milestone plan** for Portal V2.0.
 |---|---|
 | [SESSION_PROTOCOL.md](SESSION_PROTOCOL.md) | **The 10-session model + start/end-of-session checklists (read first)** |
 | [OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md) | **Operator runbook — deploy, env, setup, imports, admins, recover (Session 10)** |
+| [VM_DEPLOYMENT.md](VM_DEPLOYMENT.md) | **As-deployed VM record — local Docker Postgres + PM2 + nginx, executed step by step (2026-07-25)** |
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | How to set up, run, and extend the project |
 | [ADMIN_PANEL_GUIDE.md](ADMIN_PANEL_GUIDE.md) | Admin panel login / roles / per-module URLs (Session 9) |
 | [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | How administrators will manage the portal (early notes) |
