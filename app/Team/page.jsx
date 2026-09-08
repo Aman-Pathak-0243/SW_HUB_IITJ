@@ -122,12 +122,16 @@ export default function TeamPage() {
             {[
             { name: "Mr.Raj Srivastava", role: "Assistant Sports Officer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774935146/WhatsApp_Image_2026-03-30_at_16.44.00_colwrf.jpg" },
 { name: "Mr. Himanshu Kumar", role: "Administrative Assistant", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_17.07.43_s60df9.jpg" },
-{ name: "Mr. Vishal Bagnehal", role: "Administrative Assistant", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768643274/WhatsApp_Image_2026-01-17_at_15.13.52_mtjplz.jpg" },
+{ name: "Mr. Gaurav Chalotra", role: "Administrative Assistant" }, // no photo yet — falls back to monogram; update when supplied
 { name: "Mr. Rohit Dogra", role: "Administrative Assistant", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_16.44.00_1_qiqsft.jpg" }
             ].map((m, i) => (
               <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden">
-                <div className="relative w-full aspect-[4/5]">
-                  <Image src={m.img} alt={m.name} fill className="object-cover" />
+                <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
+                  {m.img ? (
+                    <Image src={m.img} alt={m.name} fill className="object-cover" />
+                  ) : (
+                    <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{m.name.trim().charAt(0)}</span>
+                  )}
                 </div>
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{m.role}</h3>
@@ -191,6 +195,10 @@ export default function TeamPage() {
               { role: "Wellness Secretary", name: "Gaddam Moukthika Naidu" },
               { role: "Hostel Secretary (Fulgar)", name: "Yash Kumar" },
               { role: "Hostel Secretary (Canary & Braeg)", name: "Sawan Puri" },
+              // No girls' hostel secretary was named in the 2026-27 notification — carrying
+              // Mishthi Agarwal (the outgoing V1 holder) forward as an interim placeholder
+              // until a new appointment is announced (see lib/org/data/hostels.mjs).
+              { role: "Hostel Secretary (Egret & Dedhar)", name: "Mishthi Agarwal", img: "/hostel secretary girls.jpg" },
               { role: "Mess Secretary (Annapurna — 1C)", name: "Sunil Kumar" },
               { role: "Mess Secretary (Canary, Dedhar & Egret — 1A & 1B)", name: "Shwet Baliyan" },
             ].map((member, i) => (
