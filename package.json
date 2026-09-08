@@ -15,6 +15,7 @@
     "db:migrate:dev": "dotenv -e .env.local -- prisma migrate dev",
     "db:seed": "dotenv -e .env.local -- node prisma/seed.mjs",
     "db:import:org": "dotenv -e .env.local -- node scripts/import-org.mjs",
+    "db:sync:roster": "dotenv -e .env.local -- node scripts/sync-roster.mjs",
     "db:import:events": "dotenv -e .env.local -- node scripts/import-events.mjs",
     "db:import:resources": "dotenv -e .env.local -- node scripts/import-resources.mjs",
     "db:seed:flagship": "dotenv -e .env.local -- node scripts/seed-flagship.mjs",

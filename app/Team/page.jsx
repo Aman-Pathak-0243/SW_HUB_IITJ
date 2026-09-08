@@ -177,20 +177,30 @@ export default function TeamPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
+            {/* AY 2026-27 Student Affairs Council. Posts that map to a council/hostel/mess
+                unit are also in lib/org/data/*; the PG Academic and Wellness secretaries have
+                no such unit, so this page is their only home. Photos exist only for the two
+                who filled the intake form — the rest fall back to a monogram until supplied. */}
             {[
-              { role: "General Secretary", name: "Ayush Sharma", img: "/general secretary.jpeg" },
-              { role: "Academic Secretary", name: "Aman Pathak", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641536/WhatsApp_Image_2026-01-17_at_14.12.59_2_jcbwsp.jpg" },
-              { role: "PG Academic Secretary", name: "Chirag Prajapati", img: "/pg academic secretary.jpg" },
-              { role: "Cultural Secretary", name: "Saumya Gupta", img: "/cultural secretary.jpeg" },
-              { role: "Hostel Affairs Secretary (Girls)", name: "Mishthi Agarwal", img: "/hostel secretary girls.jpg" },
-              { role: "Hostel Affairs Secretary (Boys)", name: "Mehul Gupta", img: "/hostel secretary boys.jpeg" },
-              { role: "Sports Secretary", name: "Sandeep Moond", img: "/sports secretary.png" },
-              { role: "Wellness Secretary", name: "Owais Ansar", img: "/wellness secretary.png" },
-              { role: "Mess Secretary", name: "Ujjwal Gupta", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771747073/Ujjwal_Gupta_Mess_secretary_mpxpzz.jpg" }
+              { role: "General Secretary", name: "Aditya Pratap Singh" },
+              { role: "Academic Secretary (UG)", name: "Aradhya Sharma", img: "/images-2026-27-v1/Aradhya Sharma.jpg" },
+              { role: "Academic Secretary (PG)", name: "Kushagra Acharya" },
+              { role: "Technical Secretary", name: "Hriday Rana", img: "/images-2026-27-v1/Hriday Rana.jpg" },
+              { role: "Cultural Secretary", name: "Induj Tyagi" },
+              { role: "Sports Secretary", name: "Shreysa" },
+              { role: "Wellness Secretary", name: "Gaddam Moukthika Naidu" },
+              { role: "Hostel Secretary (Fulgar)", name: "Yash Kumar" },
+              { role: "Hostel Secretary (Canary & Braeg)", name: "Sawan Puri" },
+              { role: "Mess Secretary (Annapurna — 1C)", name: "Sunil Kumar" },
+              { role: "Mess Secretary (Canary, Dedhar & Egret — 1A & 1B)", name: "Shwet Baliyan" },
             ].map((member, i) => (
               <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02]">
-                <div className="relative w-full aspect-[4/5]">
-                  <Image src={member.img} alt={member.role} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
+                  {member.img ? (
+                    <Image src={member.img} alt={member.role} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
+                  ) : (
+                    <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{member.name.trim().charAt(0)}</span>
+                  )}
                 </div>
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{member.role}</h3>
