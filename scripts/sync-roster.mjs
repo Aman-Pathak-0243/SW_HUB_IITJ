@@ -12,16 +12,20 @@
 // appointments the dataset no longer names and creates the ones it now does.
 //
 // SCOPE — deliberately narrow. It touches ONLY these positions:
-//   council_secretary · pg_representative · pic · coordinator · co_coordinator ·
-//   club_associate · hostel_secretary · mess_secretary
+//   council_secretary · pg_representative · associate_dean · pic · coordinator ·
+//   co_coordinator · club_associate · hostel_secretary · mess_secretary
 // on the council / club / hostel / mess units of the CURRENT academic year, PLUS each
 // club's parent council (so a club the dataset has moved between councils follows it —
 // 2026-27 moves the five technical clubs from the Academic Council to the Technical
-// Council). It never creates, renames or archives a unit, and Associate Deans, wardens,
-// caretakers, attendants, mess committee members and all profile content (vision /
-// mission / logo / Instagram / meal timings) are left completely alone. A unit in the
-// dataset with no match for the year is REPORTED and skipped — run db:import:org first
-// to stand up a new club (2026-27 adds Sangam (Media), Hockey and Squash).
+// Council). It never creates, renames or archives a unit, and wardens, caretakers,
+// attendants, mess committee members and all profile content (vision / mission / logo /
+// Instagram / meal timings) are left completely alone. A unit in the dataset with no
+// match for the year is REPORTED and skipped — run db:import:org first to stand up a
+// new club (2026-27 adds Sangam (Media), Hockey and Squash).
+//
+// `associate_dean` is reconciled on COUNCIL units ONLY. The hostel and mess datasets
+// also carry an AD, but this script deliberately leaves those alone — it reconciles a
+// hostel/mess only down to its student secretary.
 //
 // SAFETY: archive-before-create, because `pic` and `council_secretary` are singletons
 // (position.max_holders = 1) — creating the new holder before freeing the slot trips
@@ -38,7 +42,7 @@ import { createAppointment, findAppointment, publishAppointment, archiveAppointm
 
 // The only positions this script reconciles.
 const ROSTER_POSITIONS = [
-  "council_secretary", "pg_representative",
+  "council_secretary", "pg_representative", "associate_dean",
   "pic", "coordinator", "co_coordinator", "club_associate",
   "hostel_secretary", "mess_secretary",
 ];
@@ -207,6 +211,9 @@ async function main() {
     console.log(`\n== ${council.name}`);
     if (council.secretary) await reconcile(councilUnit, "council_secretary", [council.secretary], "secretary");
     await reconcile(councilUnit, "pg_representative", council.representatives ?? [], "PG rep");
+    // Councils only (see the SCOPE note): 2026-27 gives the Academic Council its own AD
+    // instead of the shared AD (Student Affairs), and nothing else moved that appointment.
+    await reconcile(councilUnit, "associate_dean", council.associateDean ? [council.associateDean] : [], "associate dean");
 
     for (const club of council.clubs) {
       const clubUnit = await findOrgUnitBySlug(yearId, club.slug);
