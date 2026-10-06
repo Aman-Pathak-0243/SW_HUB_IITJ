@@ -44,6 +44,11 @@ const WavingFlag = () => {
   );
 };
 
+// Temporarily hides the "Login" CTA from signed-OUT visitors (nav only — /login itself
+// still works for anyone who goes there directly). Signed-in users keep their Profile
+// link regardless. Flip back to true to restore the button.
+const SHOW_LOGIN = false;
+
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -465,9 +470,9 @@ const Header = () => {
               <Link href="/profile" className="nav-login-btn">
                 {firstName ? `Hi, ${firstName}` : "Profile"}
               </Link>
-            ) : (
+            ) : SHOW_LOGIN ? (
               <Link href="/login" className="nav-login-btn">Login</Link>
-            )}
+            ) : null}
           </nav>
         </div>
 
@@ -498,9 +503,9 @@ const Header = () => {
                 <Link href="/profile" onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link login">
                   {firstName ? `Hi, ${firstName} — My Profile` : "My Profile"}
                 </Link>
-              ) : (
+              ) : SHOW_LOGIN ? (
                 <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="mobile-nav-link login">Login</Link>
-              )}
+              ) : null}
             </div>
           </div>
         )}

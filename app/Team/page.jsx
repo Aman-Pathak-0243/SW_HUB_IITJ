@@ -122,8 +122,8 @@ export default function TeamPage() {
             {[
             { name: "Mr.Raj Srivastava", role: "Assistant Sports Officer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774935146/WhatsApp_Image_2026-03-30_at_16.44.00_colwrf.jpg" },
 { name: "Mr. Himanshu Kumar", role: "Administrative Assistant", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_17.07.43_s60df9.jpg" },
-{ name: "Mr. Gaurav Chalotra", role: "Administrative Assistant" }, // no photo yet — falls back to monogram; update when supplied
-{ name: "Mr. Rohit Dogra", role: "Administrative Assistant", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_16.44.00_1_qiqsft.jpg" }
+{ name: "Mr. Gaurav Chalotra", role: "Administrative Assistant", img: "/images-2026-27-v1/Mr Gaurav Chalotra.jpg" },
+{ name: "Mr. Anmol Sharma", role: "Administrative Assistant", img: "/images-2026-27-v1/Mr Anmol Sharma.jpg" }
             ].map((m, i) => (
               <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden">
                 <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
