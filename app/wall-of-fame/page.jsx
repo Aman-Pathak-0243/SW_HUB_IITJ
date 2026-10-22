@@ -9,7 +9,6 @@ import Footer from "../components/Footer";
 import AchievementCard from "../components/AchievementCard";
 import InlineEditor from "../components/InlineEditor";
 import { listWallOfFame } from "../../lib/achievements/public.mjs";
-import { isMemberPlatformEnabled } from "../../lib/platform/flags.mjs";
 import { resolveInlineEditCapability } from "../../lib/cms/content.mjs";
 import { getCurrentYearId } from "../../lib/year/context.mjs";
 import { getServerAuthSession } from "../../lib/auth/session.mjs";
@@ -25,11 +24,10 @@ export default async function WallOfFamePage() {
   let achievements = [];
   let errored = false;
   try {
-    // The Wall of Fame is a member-platform surface; when the plugin is off it shows
-    // the empty state rather than reading achievement content (fail-closed, DL-058).
-    if (await isMemberPlatformEnabled()) {
-      achievements = await listWallOfFame();
-    }
+    // Wall of Fame is a standalone content surface, like /announcements — it does
+    // NOT depend on the member_platform plugin (which only gates the login-only
+    // Event Playground's hosting/registration features).
+    achievements = await listWallOfFame();
   } catch {
     errored = true;
   }

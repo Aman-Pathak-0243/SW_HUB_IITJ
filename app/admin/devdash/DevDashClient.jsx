@@ -41,6 +41,12 @@ export default function DevDashClient({ storage, thresholds, usage, actionLog, e
       if (res?.content) download(res.filename, res.content, res.contentType);
     } catch { /* toast */ }
   };
+  const backupAll = async () => {
+    try {
+      const res = await run("backup.exportAll", {}, { success: "Full backup exported" });
+      if (res?.content) download(res.filename, res.content, res.contentType);
+    } catch { /* toast */ }
+  };
   const exportTable = async (tableName, format) => {
     try {
       const res = await run("storage.export", { tableName, format }, { success: `Exported ${tableName}` });
@@ -64,6 +70,24 @@ export default function DevDashClient({ storage, thresholds, usage, actionLog, e
           monitoring with developer-set thresholds. Threshold flags are non-blocking — the site and
           every feature keep working past a warning.</p>
       </div>
+
+      {/* Full backup — one click, every table, one JSON file. The Docker/redeploy
+          safety net: Postgres data lives only in the DB volume, so this is the
+          thing to run before a rebuild or a host move. Images themselves stay on
+          Cloudinary (durable already) — only their URLs/metadata are included. */}
+      {canStorage && (
+        <section className="adm-card">
+          <div className="adm-toolbar" style={{ alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>Full Backup</h3>
+            <div style={{ marginLeft: "auto" }}>
+              <button className="adm-btn primary sm" disabled={busy} onClick={backupAll}>Download Full Backup (JSON)</button>
+            </div>
+          </div>
+          <p style={{ color: "var(--adm-muted)", fontSize: "0.85rem" }}>
+            Every table in one JSON file, one click. Run this before a Docker rebuild, redeploy, or host move so nothing in Postgres is lost.
+          </p>
+        </section>
+      )}
 
       {/* Action Log / Change History */}
       {actionLog && (
