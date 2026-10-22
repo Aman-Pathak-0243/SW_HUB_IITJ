@@ -16,6 +16,7 @@ import { formatTime } from "../../lib/org/normalize.mjs";
 import { renderMarkdown } from "../../lib/markdown/render.mjs";
 import ResourcesSection from "./ResourcesSection";
 import AchievementCard from "./AchievementCard";
+import PersonPhoto from "./PersonPhoto";
 
 function mediaUrl(view, id) {
   return id ? view.media?.[id]?.url ?? null : null;
@@ -37,15 +38,18 @@ function Empty({ children }) {
 function PersonCard({ member }) {
   const inner = (
     <div className="flex items-center gap-5 bg-blue-50 rounded-xl p-5">
-      {member.person.photoUrl ? (
-        <div className="relative w-20 h-20 rounded-full overflow-hidden shrink-0 bg-gray-100">
-          <Image src={member.person.photoUrl} alt={member.person.name ?? ""} fill sizes="80px" className="object-cover" />
-        </div>
-      ) : (
-        <div className="w-20 h-20 rounded-full shrink-0 bg-[#003f87]/10 flex items-center justify-center text-2xl text-[#003f87] font-bold">
-          {(member.person.name ?? "?").trim().charAt(0)}
-        </div>
-      )}
+      <PersonPhoto
+        src={member.person.photoUrl}
+        name={member.person.name}
+        role={member.title}
+        sizes="80px"
+        className="relative w-20 h-20 rounded-full overflow-hidden shrink-0 bg-gray-100"
+        fallback={
+          <div className="w-20 h-20 rounded-full shrink-0 bg-[#003f87]/10 flex items-center justify-center text-2xl text-[#003f87] font-bold">
+            {(member.person.name ?? "?").trim().charAt(0)}
+          </div>
+        }
+      />
       <div>
         {member.title && <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full inline-block mb-1">{member.title}</span>}
         <p className="text-lg font-semibold text-[#003f87]">{member.person.name}</p>

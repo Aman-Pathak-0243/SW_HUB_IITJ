@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import PersonPhoto from "../components/PersonPhoto";
 
 export default function TeamPage() {
   return (
@@ -26,14 +26,13 @@ export default function TeamPage() {
             rel="noopener noreferrer"
             className="group max-w-sm mx-auto bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer"
           >
-            <div className="relative w-full aspect-[4/5]">
-              <Image
-                src="https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641536/WhatsApp_Image_2026-01-17_at_14.12.59_1_bselui.jpg"
-                alt="Dean Student Affairs"
-                fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </div>
+            <PersonPhoto
+              src="https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641536/WhatsApp_Image_2026-01-17_at_14.12.59_1_bselui.jpg"
+              name="Dr. Anup Shukla"
+              role="Dean Student Affairs"
+              className="relative w-full aspect-[4/5]"
+              imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
             <div className="p-6">
               <p className="text-2xl font-bold text-[#003f87] group-hover:underline group-hover:text-[#003f87] transition">
                 Dr. Anup Shukla
@@ -57,9 +56,13 @@ export default function TeamPage() {
             ].map((member, i) => (
               <a key={i} href={member.profile} target="_blank" rel="noopener noreferrer"
                 className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
-                <div className="relative w-full aspect-[4/5]">
-                  <Image src={member.img} alt={member.role} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
-                </div>
+                <PersonPhoto
+                  src={member.img}
+                  name={member.name}
+                  role={member.role}
+                  className="relative w-full aspect-[4/5]"
+                  imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{member.role}</h3>
                   <p className="text-2xl font-bold text-[#003f87] group-hover:underline group-hover:text-[#003f87] transition">
@@ -87,9 +90,13 @@ export default function TeamPage() {
             ].map((member, i) => (
               <a key={i} href={member.profile} target="_blank" rel="noopener noreferrer"
                 className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
-                <div className="relative w-full aspect-[4/5.5]">
-                  <Image src={member.img} alt={member.name} fill className="object-cover object-top transition-transform duration-300 group-hover:scale-105" />
-                </div>
+                <PersonPhoto
+                  src={member.img}
+                  name={member.name}
+                  role={member.hostel}
+                  className="relative w-full aspect-[4/5.5]"
+                  imgClassName="object-cover object-top transition-transform duration-300 group-hover:scale-105"
+                />
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{member.hostel}</h3>
                   <p className="text-2xl font-bold text-[#003f87] group-hover:underline group-hover:text-[#003f87] transition">
@@ -108,9 +115,12 @@ export default function TeamPage() {
 
           {/* AR */}
           <div className="max-w-sm mx-auto mb-16 bg-white rounded-2xl shadow-md overflow-hidden">
-            <div className="relative w-full aspect-[4/5]">
-              <Image src="/images/people/r-p-prajapat.png" alt="AR" fill className="object-cover" />
-            </div>
+            <PersonPhoto
+              src="/images/people/r-p-prajapat.png"
+              name="Dr. R P Prajapat"
+              role="Assistant Registrar"
+              className="relative w-full aspect-[4/5]"
+            />
             <div className="p-5 text-center">
               <h3 className="font-semibold text-[#0b3c7d]">Assistant Registrar</h3>
               <p className="text-2xl font-bold text-[#003f87]">Dr. R P Prajapat</p>
@@ -126,13 +136,17 @@ export default function TeamPage() {
 { name: "Mr. Anmol Sharma", role: "Administrative Assistant", img: "/images/people/anmol-sharma.jpg" }
             ].map((m, i) => (
               <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden">
-                <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
-                  {m.img ? (
-                    <Image src={m.img} alt={m.name} fill className="object-cover" />
-                  ) : (
-                    <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{m.name.trim().charAt(0)}</span>
-                  )}
-                </div>
+                <PersonPhoto
+                  src={m.img}
+                  name={m.name}
+                  role={m.role}
+                  className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center"
+                  fallback={
+                    <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
+                      <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{m.name.trim().charAt(0)}</span>
+                    </div>
+                  }
+                />
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{m.role}</h3>
 <p className="text-lg font-bold text-[#0b3c7d]">{m.name}</p>
@@ -161,9 +175,7 @@ export default function TeamPage() {
               
             ].map((member, i) => (
               <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden">
-                <div className="relative w-full aspect-[4/5]">
-                  <Image src={member.img} alt={member.name} fill className="object-cover" />
-                </div>
+                <PersonPhoto src={member.img} name={member.name} role={member.hostel} className="relative w-full aspect-[4/5]" />
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{member.hostel}</h3>
                   <p className="text-lg font-bold text-[#0b3c7d]">{member.name}</p>
@@ -199,13 +211,18 @@ export default function TeamPage() {
               { role: "Mess Secretary (Canary, Dedhar & Egret — 1A & 1B)", name: "Shwet Baliyan" },
             ].map((member, i) => (
               <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02]">
-                <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
-                  {member.img ? (
-                    <Image src={member.img} alt={member.role} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
-                  ) : (
-                    <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{member.name.trim().charAt(0)}</span>
-                  )}
-                </div>
+                <PersonPhoto
+                  src={member.img}
+                  name={member.name}
+                  role={member.role}
+                  className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center"
+                  imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
+                  fallback={
+                    <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
+                      <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{member.name.trim().charAt(0)}</span>
+                    </div>
+                  }
+                />
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{member.role}</h3>
                   <p className="text-lg font-bold text-[#0b3c7d] mt-1">{member.name}</p>
@@ -233,9 +250,13 @@ export default function TeamPage() {
             ].map((member, i) => {
               const card = (
                 <div className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] h-full">
-                  <div className="relative w-full aspect-[4/5]">
-                    <Image src={member.img} alt={member.name} fill className="object-cover transition-transform duration-300 group-hover:scale-105" />
-                  </div>
+                  <PersonPhoto
+                    src={member.img}
+                    name={member.name}
+                    role={member.role}
+                    className="relative w-full aspect-[4/5]"
+                    imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
                   <div className="p-5 text-center">
                     <p className="text-lg font-bold text-[#0b3c7d] mt-1">{member.name}</p>
                     {member.role && <p className="text-sm text-gray-600 mt-1">{member.role}</p>}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import PdfSlideshow from "../components/PdfSlideshow";
+import PersonPhoto from "../components/PersonPhoto";
 
 /* ================= DATA ================= */
 
@@ -72,9 +73,7 @@ const committee = [
 
 const Card = ({ title, name, img }) => (
   <div className="bg-blue-50 rounded-xl shadow-md overflow-hidden text-center hover:shadow-xl transition">
-    <div className="relative w-full aspect-[3/4] bg-gray-100">
-      <Image src={img} alt={name} fill className="object-contain p-2" />
-    </div>
+    <PersonPhoto src={img} name={name} role={title} className="relative w-full aspect-[3/4] bg-gray-100" imgClassName="object-contain p-2" />
     <div className="p-4">
       <h3 className="text-sm font-bold text-[#003f87]">{title}</h3>
       <p className="text-gray-700 text-sm">{name}</p>

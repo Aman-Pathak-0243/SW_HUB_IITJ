@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import PersonPhoto from "../components/PersonPhoto";
 import { FaLinkedin, FaTwitter, FaInstagram } from "react-icons/fa";
 
 export default function ContactUsTeam() {
@@ -18,15 +18,13 @@ export default function ContactUsTeam() {
         {/* ================= CONTACT CARD ================= */}
         <div className="max-w-md mx-auto mb-16">
           <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition overflow-hidden">
-            <div className="relative w-full h-72">
-              <Image
-                src="/images/people/r-p-prajapat.png"
-                alt="Dr. R. P. Prajapat"
-                fill
-                sizes="(max-width: 768px) 100vw, 400px"
-                className="object-cover"
-              />
-            </div>
+            <PersonPhoto
+              src="/images/people/r-p-prajapat.png"
+              name="Dr. R. P. Prajapat"
+              role="Assistant Registrar, Student Affairs"
+              className="relative w-full h-72"
+              sizes="(max-width: 768px) 100vw, 400px"
+            />
 
             <div className="p-6 text-center space-y-3">
               <h3 className="text-lg font-bold text-[#0b3c7d]">

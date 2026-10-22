@@ -6,6 +6,7 @@ import Link from "next/link";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import PdfSlideshow from "../components/PdfSlideshow";
+import PersonPhoto from "../components/PersonPhoto";
 
 /* ================= DATA ================= */
 
@@ -218,14 +219,13 @@ export default function Page() {
 
               <div className="relative z-10">
                 {/* Photo with scale-on-hover */}
-                <div className="relative w-40 h-40 mx-auto rounded-full overflow-hidden mb-4 transition-transform duration-300 group-hover:scale-110">
-                  <Image
-                    src="/images/people/prasant-singh.jpeg"
-                    alt="Dr. Prasant Singh"
-                    fill
-                    className="object-cover object-top"
-                  />
-                </div>
+                <PersonPhoto
+                  src="/images/people/prasant-singh.jpeg"
+                  name="Dr. Prasant Singh"
+                  role="Associate Dean (Hostel Affairs)"
+                  className="relative w-40 h-40 mx-auto rounded-full overflow-hidden mb-4 transition-transform duration-300 group-hover:scale-110"
+                  imgClassName="object-cover object-top"
+                />
 
                 {/* Name with underline on hover */}
                 <h2 className="text-2xl font-bold text-[#003f87] inline-block border-b-2 border-transparent group-hover:border-[#003f87] transition-all duration-300">
@@ -269,9 +269,17 @@ export default function Page() {
                   .filter(item => item.data)
                   .map((item, i) => (
                     <div key={i} className="flex gap-4 bg-blue-50 rounded-xl p-4 text-left">
-                      <div className="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0">
-                        <Image src={item.data.photo} alt={item.data.name} fill className="object-cover" />
-                      </div>
+                      <PersonPhoto
+                        src={item.data.photo}
+                        name={item.data.name}
+                        role={item.role}
+                        className="relative w-14 h-14 rounded-full overflow-hidden flex-shrink-0"
+                        fallback={
+                          <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 bg-[#003f87]/10 flex items-center justify-center text-xl text-[#003f87] font-bold">
+                            {(item.data.name ?? "?").trim().charAt(0)}
+                          </div>
+                        }
+                      />
                       <div>
                         <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full mb-1 inline-block">
                           {item.role}
