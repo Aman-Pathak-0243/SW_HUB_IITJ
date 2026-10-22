@@ -38,9 +38,15 @@ function initialValue(descriptor, payload) {
   }
 }
 
+// Which disk-upload folder an image for this content type should land in (see
+// lib/media/local-disk.mjs#UPLOAD_FOLDERS). Any other content type keeps uploading
+// to Cloudinary (MediaPicker's default when no folder is passed).
+const UPLOAD_FOLDER_BY_TYPE = { event: "events", announcement: "announcements", achievement: "wall-of-fame" };
+
 export default function ContentItemClient({ data, fieldSpec, editorSpec, mediaAssets = {}, perms, achievement = null }) {
   const { item, contentType } = data;
   const { run, busy } = useAdminAction();
+  const uploadFolder = UPLOAD_FOLDER_BY_TYPE[contentType] ?? null;
 
   // Every payload field, primary + advanced, in one flat list (the form state and
   // the save patch both cover all of them - "advanced" is a layout choice only).
@@ -139,10 +145,10 @@ export default function ContentItemClient({ data, fieldSpec, editorSpec, mediaAs
           </Field>
         );
       case "date":
-        control = <input type="date" {...common} />;
+        control = <input type="date" placeholder="YYYY-MM-DD" {...common} />;
         break;
       case "datetime":
-        control = <input type="datetime-local" {...common} />;
+        control = <input type="datetime-local" placeholder="YYYY-MM-DD HH:MM" {...common} />;
         break;
       case "media":
         control = (
@@ -150,6 +156,7 @@ export default function ContentItemClient({ data, fieldSpec, editorSpec, mediaAs
             value={value || null}
             asset={mediaAssets[d.field] ?? null}
             onChange={(id) => setPayloadField(d.field, id ?? "")}
+            folder={uploadFolder}
           />
         );
         break;
@@ -157,9 +164,16 @@ export default function ContentItemClient({ data, fieldSpec, editorSpec, mediaAs
         control = <input {...common} />;
     }
 
+    // A browser's native date/datetime-local picker UI varies and often ignores
+    // `placeholder`, so the format is also spelled out as a visible hint — the
+    // "prescribed format for reference" the editor asked for.
+    const formatHint =
+      d.widget === "date" ? "Format: YYYY-MM-DD (e.g. 2026-03-15)" : d.widget === "datetime" ? "Format: YYYY-MM-DD HH:MM, 24-hour (e.g. 2026-03-15 18:30)" : null;
+
     return (
       <Field key={d.field} label={label} error={fieldErrors[d.field]}>
         {control}
+        {formatHint && <span className="adm-field-help">{formatHint}</span>}
         {d.help && <span className="adm-field-help">{d.help}</span>}
       </Field>
     );

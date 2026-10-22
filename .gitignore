@@ -44,3 +44,8 @@ next-env.d.ts
 # A local artifact: images intended to become static are downloaded straight into
 # public/ with --into, and those ARE committed.
 exports/
+
+# Local-disk uploads (lib/media/local-disk.mjs) default fallback when UPLOADS_DIR
+# is unset — a dev-only stand-in for the real outside-the-repo folder production
+# points UPLOADS_DIR at (e.g. /home/ubuntu/sw_uploads).
+.local-uploads/

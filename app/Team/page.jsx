@@ -195,10 +195,6 @@ export default function TeamPage() {
               { role: "Wellness Secretary", name: "Gaddam Moukthika Naidu", img: "/images/people/moukthika-naidu.jpeg" },
               { role: "Hostel Secretary (Fulgar)", name: "Yash Kumar" },
               { role: "Hostel Secretary (Canary & Braeg)", name: "Sawan Puri" },
-              // No girls' hostel secretary was named in the 2026-27 notification — carrying
-              // Mishthi Agarwal (the outgoing V1 holder) forward as an interim placeholder
-              // until a new appointment is announced (see lib/org/data/hostels.mjs).
-              { role: "Hostel Secretary (Egret & Dedhar)", name: "Mishthi Agarwal", img: "/images/people/mishthi-agarwal.jpg" },
               { role: "Mess Secretary (Annapurna — 1C)", name: "Sunil Kumar" },
               { role: "Mess Secretary (Canary, Dedhar & Egret — 1A & 1B)", name: "Shwet Baliyan" },
             ].map((member, i) => (

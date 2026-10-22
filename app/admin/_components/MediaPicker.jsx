@@ -29,7 +29,7 @@ function humanKb(bytes) {
   return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function MediaPicker({ value, asset: initialAsset = null, onChange, disabled = false }) {
+export default function MediaPicker({ value, asset: initialAsset = null, onChange, disabled = false, folder = null }) {
   const toast = useToast();
   // The asset currently attached, for the preview. Starts from what the server
   // rendered (if the draft already had one) and updates as the editor picks.
@@ -97,11 +97,12 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
     try {
       const body = new FormData();
       body.append("file", file);
+      if (folder) body.append("folder", folder);
       const res = await fetch("/api/admin/media/upload", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Upload failed.");
       attach(data.asset);
-      toast("Uploaded to Cloudinary and attached.", "success");
+      toast(folder ? "Uploaded and attached." : "Uploaded to Cloudinary and attached.", "success");
     } catch (e) {
       toast(e.message || "Upload failed.", "error");
     } finally {
@@ -111,7 +112,8 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
   };
 
   const previewUrl = asset?.deliveryUrl || asset?.url || null;
-  const isStatic = asset?.storageProvider === "local";
+  const isStatic = asset?.storageProvider === "local" && !String(asset?.originalPath ?? "").startsWith("/uploads/");
+  const isLocalDiskUpload = asset?.storageProvider === "local" && String(asset?.originalPath ?? "").startsWith("/uploads/");
 
   return (
     <div className="adm-mediapicker">
@@ -131,7 +133,7 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
           <div className="adm-mediapicker-meta">
             <code className="adm-code">{asset?.originalPath || asset?.cloudinaryPublicId || value}</code>
             <span className="adm-muted">
-              {isStatic ? "in public/ — no Cloudinary credit" : "on Cloudinary"}
+              {isStatic ? "in public/ — no Cloudinary credit" : isLocalDiskUpload ? "on this server's uploads folder" : "on Cloudinary"}
               {asset?.bytes ? ` · ${humanKb(asset.bytes)}` : ""}
             </span>
           </div>
@@ -196,9 +198,15 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
             onChange={(e) => upload(e.target.files?.[0])}
           />
           <p className="adm-muted" style={{ marginTop: 8 }}>
-            Goes to Cloudinary (10MB max). Prefer “from the site” when the image is already there — Cloudinary storage is a limited budget, and
-            <code className="adm-code" style={{ margin: "0 4px" }}>npm run media:export</code>
-            downloads the pile later so it can be moved into the public folder.
+            {folder ? (
+              <>Saved to this server's uploads folder (10MB max) — survives a redeploy/Docker rebuild.</>
+            ) : (
+              <>
+                Goes to Cloudinary (10MB max). Prefer “from the site” when the image is already there — Cloudinary storage is a limited budget, and
+                <code className="adm-code" style={{ margin: "0 4px" }}>npm run media:export</code>
+                downloads the pile later so it can be moved into the public folder.
+              </>
+            )}
           </p>
           {busy && <p className="adm-muted">Uploading…</p>}
         </div>
