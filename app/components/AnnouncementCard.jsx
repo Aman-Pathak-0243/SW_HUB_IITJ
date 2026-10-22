@@ -1,8 +1,11 @@
 // Presentational announcement card (Session 6). Renders one shaped announcement
-// (lib/events/public.mjs): pinned badge, title, publish date, body, and a
-// non-public audience tag. Pure — no DB, no client state. Announcements are
-// ordered pinned-first by the read layer (DL-010); the pinned badge makes that
-// visible.
+// (lib/events/public.mjs): pinned badge, title, publish date, body, cover image
+// (if one is attached), and a non-public audience tag. Pure — no DB, no client
+// state. Announcements are ordered pinned-first by the read layer (DL-010); the
+// pinned badge makes that visible.
+import Image from "next/image";
+import { isLocalUploadUrl } from "../../lib/media/local-url.mjs";
+
 const AUDIENCE_LABEL = {
   students: "Students",
   faculty: "Faculty",
@@ -24,10 +27,16 @@ export default function AnnouncementCard({ announcement }) {
 
   return (
     <article
-      className={`relative bg-white rounded-2xl border p-6 shadow-sm transition hover:shadow-md ${
+      className={`relative bg-white rounded-2xl border overflow-hidden shadow-sm transition hover:shadow-md ${
         a.pinned ? "border-[#FF6B00]/40 ring-1 ring-[#FF6B00]/20" : "border-[#003f87]/10"
       }`}
     >
+      {a.coverUrl && (
+        <div className="relative w-full h-48 bg-gray-100">
+          <Image src={a.coverUrl} alt={a.title ?? ""} fill unoptimized={isLocalUploadUrl(a.coverUrl)} sizes="(max-width:768px) 100vw, 640px" className="object-cover" />
+        </div>
+      )}
+      <div className="p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {a.pinned && (
@@ -46,6 +55,7 @@ export default function AnnouncementCard({ announcement }) {
 
       <h3 className="mt-3 text-lg sm:text-xl font-bold text-[#003f87] break-words">{a.title}</h3>
       {a.body && <p className="mt-2 text-gray-600 leading-relaxed whitespace-pre-line break-words">{a.body}</p>}
+      </div>
     </article>
   );
 }

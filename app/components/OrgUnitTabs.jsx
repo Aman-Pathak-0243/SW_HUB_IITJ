@@ -17,6 +17,7 @@ import { renderMarkdown } from "../../lib/markdown/render.mjs";
 import ResourcesSection from "./ResourcesSection";
 import AchievementCard from "./AchievementCard";
 import PersonPhoto from "./PersonPhoto";
+import { isLocalUploadUrl } from "../../lib/media/local-url.mjs";
 
 function mediaUrl(view, id) {
   return id ? view.media?.[id]?.url ?? null : null;
@@ -186,7 +187,7 @@ function EventCardLite({ ev }) {
     <div className="bg-white rounded-xl shadow p-5">
       {ev.coverUrl && (
         <div className="relative w-full h-40 rounded-lg overflow-hidden mb-3 bg-gray-100">
-          <Image src={ev.coverUrl} alt={ev.title ?? ""} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover" />
+          <Image src={ev.coverUrl} alt={ev.title ?? ""} fill unoptimized={isLocalUploadUrl(ev.coverUrl)} sizes="(max-width:768px) 100vw, 33vw" className="object-cover" />
         </div>
       )}
       <h3 className="text-lg font-bold text-[#003f87]">{ev.title}</h3>
@@ -223,13 +224,20 @@ function EventsTab({ list, kind }) {
 
 function AnnouncementCardLite({ a }) {
   return (
-    <div className="bg-white rounded-xl shadow p-5">
+    <div className="bg-white rounded-xl shadow overflow-hidden">
+      {a.coverUrl && (
+        <div className="relative w-full h-40 bg-gray-100">
+          <Image src={a.coverUrl} alt={a.title ?? ""} fill unoptimized={isLocalUploadUrl(a.coverUrl)} sizes="(max-width:768px) 100vw, 400px" className="object-cover" />
+        </div>
+      )}
+      <div className="p-5">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg font-bold text-[#003f87]">{a.title}</h3>
         {a.syncToCentral && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full shrink-0">On central board</span>}
       </div>
       {fmtDate(a.publishedAt) && <p className="text-xs text-gray-500 mt-1">{fmtDate(a.publishedAt)}</p>}
       {a.body && <p className="text-gray-700 mt-2 whitespace-pre-wrap">{a.body}</p>}
+      </div>
     </div>
   );
 }

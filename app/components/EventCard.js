@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { isLocalUploadUrl } from "../../lib/media/local-url.mjs";
 
 const EventCard = ({ event }) => {
   const { title, description, date, image } = event;
@@ -190,6 +191,7 @@ const EventCard = ({ event }) => {
               src={image}
               alt={title}
               fill
+              unoptimized={isLocalUploadUrl(image)}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               className="object-cover"
             />
