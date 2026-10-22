@@ -3,15 +3,51 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Field, useAdminAction } from "../../_components/ui";
+import MediaPicker from "../../_components/MediaPicker";
 import { hasPerm } from "../../../../lib/admin/nav.mjs";
 import { statusTone, diffViews, buildDiffRows } from "../../../../lib/admin/view-models.mjs";
+import { buildPayloadPatch, labelize } from "../../../../lib/cms/field-widgets.mjs";
 
-// Pretty field label: camelCase → "Camel case".
-const labelize = (f) => f.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+// Format a stored timestamp for a date / datetime-local input, in LOCAL time.
+// Slicing the ISO string instead would render UTC, which in IST (+5:30) shows the
+// previous day for anything before 05:30 - the wrong day on an announcement window.
+function toInputValue(widget, raw) {
+  if (raw === null || raw === undefined || raw === "") return "";
+  if (widget !== "date" && widget !== "datetime") return raw;
+  const d = raw instanceof Date ? raw : new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return widget === "date" ? day : `${day}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-export default function ContentItemClient({ data, fieldSpec, perms, achievement = null }) {
+// Initial form value for one field, per widget.
+function initialValue(descriptor, payload) {
+  const raw = payload?.[descriptor.field];
+  switch (descriptor.widget) {
+    case "checkbox":
+      return !!raw;
+    case "json":
+      // Pretty-printed so the advanced JSON box is readable rather than one long line.
+      return raw == null ? "" : typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
+    case "date":
+    case "datetime":
+      return toInputValue(descriptor.widget, raw);
+    default:
+      return raw ?? "";
+  }
+}
+
+export default function ContentItemClient({ data, fieldSpec, editorSpec, mediaAssets = {}, perms, achievement = null }) {
   const { item, contentType } = data;
   const { run, busy } = useAdminAction();
+
+  // Every payload field, primary + advanced, in one flat list (the form state and
+  // the save patch both cover all of them - "advanced" is a layout choice only).
+  const descriptors = useMemo(
+    () => [...(editorSpec?.primary ?? []), ...(editorSpec?.advanced ?? [])],
+    [editorSpec]
+  );
 
   // The editable draft view (draft if open, else the published one as a starting point).
   const base = data.draft ?? data.published ?? null;
@@ -20,8 +56,15 @@ export default function ContentItemClient({ data, fieldSpec, perms, achievement 
     summary: base?.summary ?? "",
     slug: item.slug ?? "",
     pinned: !!item.pinned,
-    payload: Object.fromEntries((fieldSpec?.scalarFields ?? []).map((f) => [f, base?.payload?.[f] ?? ""])),
+    payload: Object.fromEntries(descriptors.map((d) => [d.field, initialValue(d, base?.payload)])),
   }));
+  // Per-field inline errors (currently only a json widget that does not parse).
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const setPayloadField = (field, value) => {
+    setForm((f) => ({ ...f, payload: { ...f.payload, [field]: value } }));
+    setFieldErrors((e) => (e[field] ? { ...e, [field]: undefined } : e));
+  };
 
   const canEdit = hasPerm(perms, "content.update");
   const canPublish = hasPerm(perms, "content.publish");
@@ -30,16 +73,96 @@ export default function ContentItemClient({ data, fieldSpec, perms, achievement 
   const canRestore = hasPerm(perms, "content.restore");
 
   const saveDraft = () => {
-    const payload = {};
-    for (const f of fieldSpec?.scalarFields ?? []) {
-      const v = form.payload[f];
-      if (v !== "" && v !== undefined) payload[f] = v;
+    // Date / datetime inputs give local wall-clock strings; the columns are
+    // Timestamptz, so convert to a real instant before sending. An emptied field
+    // becomes null (buildPayloadPatch) so a cleared value actually clears the column
+    // - the old form dropped empty strings from the patch, which made a field that
+    // had been set impossible to unset through the UI.
+    const values = { ...form.payload };
+    for (const d of descriptors) {
+      if (d.widget !== "date" && d.widget !== "datetime") continue;
+      const v = values[d.field];
+      if (!v) continue;
+      const parsed = new Date(v);
+      values[d.field] = Number.isNaN(parsed.getTime()) ? v : parsed.toISOString();
     }
+
+    let payload;
+    try {
+      payload = buildPayloadPatch(descriptors, values);
+    } catch (e) {
+      // A json widget that does not parse - show it inline instead of posting
+      // malformed JSON and getting a 422 back.
+      setFieldErrors((prev) => ({ ...prev, [e.field]: e.message }));
+      return Promise.resolve();
+    }
+
     return run(
       "content.edit",
       { itemId: item.id, patch: { title: form.title, summary: form.summary, slug: form.slug || null, pinned: form.pinned, payload } },
       { success: "Draft saved" }
     ).catch(() => {});
+  };
+
+  // One payload field, rendered as the widget its spec asks for.
+  const renderWidget = (d) => {
+    const value = form.payload[d.field];
+    const label = (d.label ?? labelize(d.field)) + (d.required ? " *" : "");
+    const common = { className: "adm-input", value: value ?? "", onChange: (e) => setPayloadField(d.field, e.target.value) };
+
+    let control;
+    switch (d.widget) {
+      case "textarea":
+        control = <textarea className="adm-textarea" rows={d.rows ?? 5} value={value ?? ""} onChange={(e) => setPayloadField(d.field, e.target.value)} />;
+        break;
+      case "json":
+        control = <textarea className="adm-textarea" rows={8} spellCheck={false} style={{ fontFamily: "ui-monospace, monospace", fontSize: "0.78rem" }} value={value ?? ""} onChange={(e) => setPayloadField(d.field, e.target.value)} />;
+        break;
+      case "select":
+        control = (
+          <select className="adm-select" value={value ?? ""} onChange={(e) => setPayloadField(d.field, e.target.value)}>
+            {/* No blank option for a NOT NULL column (with or without a default) —
+                there is no value the form could send for it. */}
+            {!(d.required || d.notNull) && <option value="">-</option>}
+            {(d.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        );
+        break;
+      case "checkbox":
+        // The label sits beside the box for a checkbox, so Field gets no label.
+        return (
+          <Field key={d.field} error={fieldErrors[d.field]}>
+            <label className="adm-check">
+              <input type="checkbox" checked={!!value} onChange={(e) => setPayloadField(d.field, e.target.checked)} /> {d.label ?? labelize(d.field)}
+            </label>
+            {d.help && <span className="adm-field-help">{d.help}</span>}
+          </Field>
+        );
+      case "date":
+        control = <input type="date" {...common} />;
+        break;
+      case "datetime":
+        control = <input type="datetime-local" {...common} />;
+        break;
+      case "media":
+        control = (
+          <MediaPicker
+            value={value || null}
+            asset={mediaAssets[d.field] ?? null}
+            onChange={(id) => setPayloadField(d.field, id ?? "")}
+          />
+        );
+        break;
+      default:
+        control = <input {...common} />;
+    }
+
+    return (
+      <Field key={d.field} label={label} error={fieldErrors[d.field]}>
+        {control}
+        {d.help && <span className="adm-field-help">{d.help}</span>}
+      </Field>
+    );
   };
 
   return (
@@ -81,13 +204,17 @@ export default function ContentItemClient({ data, fieldSpec, perms, achievement 
                 <input type="checkbox" checked={form.pinned} onChange={(e) => setForm({ ...form, pinned: e.target.checked })} /> Pinned
               </label>
             </div>
-            {(fieldSpec?.scalarFields ?? []).map((f) => (
-              <Field key={f} label={labelize(f) + (fieldSpec.requiredFields.includes(f) ? " *" : "")}>
-                <input className="adm-input" value={form.payload[f] ?? ""} onChange={(e) => setForm({ ...form, payload: { ...form.payload, [f]: e.target.value } })} />
-              </Field>
-            ))}
+            {(editorSpec?.primary ?? []).map(renderWidget)}
             {(fieldSpec?.lists ?? []).length > 0 && (
               <p className="adm-banner info">List fields ({fieldSpec.lists.map((l) => l.key).join(", ")}) are edited via the importer / API in this version.</p>
+            )}
+            {/* Fields an editor rarely touches - schedule windows, raw JSON blocks.
+                Hidden, never removed: the data stays reachable through the UI. */}
+            {(editorSpec?.advanced ?? []).length > 0 && (
+              <details className="adm-advanced">
+                <summary>Advanced ({editorSpec.advanced.length})</summary>
+                {editorSpec.advanced.map(renderWidget)}
+              </details>
             )}
           </div>
         )}

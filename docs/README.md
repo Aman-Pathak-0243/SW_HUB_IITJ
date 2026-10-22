@@ -61,6 +61,7 @@ and **milestone plan** for Portal V2.0.
 | [VM_DEPLOYMENT.md](VM_DEPLOYMENT.md) | **As-deployed VM record — local Docker Postgres + PM2 + nginx, executed step by step (2026-07-25)** |
 | [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | How to set up, run, and extend the project |
 | [ADMIN_PANEL_GUIDE.md](ADMIN_PANEL_GUIDE.md) | Admin panel login / roles / per-module URLs (Session 9) |
+| [MEDIA.md](MEDIA.md) | **Images & media — the admin image picker (static vs Cloudinary), where static images live, and how to drain Cloudinary (Session 15)** |
 | [ADMIN_GUIDE.md](ADMIN_GUIDE.md) | How administrators will manage the portal (early notes) |
 | [DECISION_LOG.md](DECISION_LOG.md) | **Detailed decision log (Decision/Alternatives/Why/Trade-offs/Future impact)** |
 | [ARCHITECTURAL_DECISIONS.md](ARCHITECTURAL_DECISIONS.md) | Lightweight ADR index (see DECISION_LOG for detail) |

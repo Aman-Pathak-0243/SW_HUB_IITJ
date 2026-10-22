@@ -174,3 +174,38 @@
   .adm-mobile-toggle { display: inline-flex; align-items: center; justify-content: center; }
   .adm-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,31,92,0.4); z-index: 40; }
 }
+
+/* ── image picker (Session 15) ──────────────────────────────────────────────
+   The control that replaced the media-UUID text box in the content editor:
+   a preview of what is attached, then either a debounced search over the files
+   in public/ or an upload to Cloudinary. See app/admin/_components/MediaPicker. */
+.adm-mediapicker { border: 1px solid var(--adm-border); border-radius: 10px; padding: 12px; background: #fcfdff; }
+.adm-mediapicker-none { font-size: 0.8rem; margin: 0 0 10px; }
+.adm-mediapicker-current { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.adm-mediapicker-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--adm-border); background: #fff; flex: 0 0 auto; }
+.adm-mediapicker-thumb-empty { display: flex; align-items: center; justify-content: center; color: var(--adm-faint); font-size: 1.4rem; }
+.adm-mediapicker-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.adm-mediapicker-meta .adm-code { overflow-wrap: anywhere; font-size: 0.74rem; }
+.adm-mediapicker-meta .adm-muted { font-size: 0.72rem; color: var(--adm-muted); }
+.adm-mediapicker-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.adm-mediapicker-tabs .adm-btn.active { background: var(--adm-info-bg); border-color: var(--adm-info); }
+.adm-mediapicker-panel { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--adm-border); }
+.adm-mediapicker-panel .adm-muted { font-size: 0.74rem; color: var(--adm-muted); }
+/* auto-fill (not auto-fit) keeps the tiles a stable size when only one matches,
+   so the grid doesn't stretch a single result across the whole row. */
+.adm-mediapicker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; max-height: 320px; overflow-y: auto; }
+.adm-mediapicker-grid .adm-empty { grid-column: 1 / -1; padding: 20px; }
+.adm-mediapicker-result { display: flex; flex-direction: column; gap: 3px; padding: 6px; background: #fff; border: 1px solid var(--adm-border); border-radius: 8px; cursor: pointer; text-align: left; font: inherit; }
+.adm-mediapicker-result:hover:not(:disabled) { border-color: var(--adm-info); background: var(--adm-info-bg); }
+.adm-mediapicker-result:disabled { opacity: 0.55; cursor: default; }
+.adm-mediapicker-result img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 5px; background: #f3f4f6; }
+.adm-mediapicker-result span { font-size: 0.68rem; line-height: 1.25; overflow-wrap: anywhere; }
+.adm-mediapicker-result span.adm-muted { color: var(--adm-faint); }
+
+/* The content editor's "Advanced" disclosure — the fields an editor rarely needs
+   (schedule windows, raw JSON blocks) are kept reachable but out of the way. */
+.adm-advanced { margin-top: 18px; border-top: 1px solid var(--adm-border); padding-top: 14px; }
+.adm-advanced > summary { cursor: pointer; font-size: 0.76rem; font-weight: 600; color: var(--adm-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.adm-advanced > summary:hover { color: var(--adm-blue); }
+.adm-advanced[open] > summary { margin-bottom: 14px; }
+.adm-field-help { font-size: 0.72rem; color: var(--adm-muted); margin-top: 4px; display: block; line-height: 1.4; }

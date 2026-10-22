@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scripts/export-cloudinary.mjs output (downloaded Cloudinary assets + manifests).
+# A local artifact: images intended to become static are downloaded straight into
+# public/ with --into, and those ARE committed.
+exports/
