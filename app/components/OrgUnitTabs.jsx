@@ -17,6 +17,7 @@ import { renderMarkdown } from "../../lib/markdown/render.mjs";
 import ResourcesSection from "./ResourcesSection";
 import AchievementCard from "./AchievementCard";
 import PersonPhoto from "./PersonPhoto";
+import PdfAttachment from "./PdfAttachment";
 
 function mediaUrl(view, id) {
   return id ? view.media?.[id]?.url ?? null : null;
@@ -184,10 +185,14 @@ function OverviewTab({ view }) {
 function EventCardLite({ ev }) {
   return (
     <div className="bg-white rounded-xl shadow p-5">
-      {ev.coverUrl && (
-        <div className="relative w-full h-40 rounded-lg overflow-hidden mb-3 bg-gray-100">
-          <Image src={ev.coverUrl} alt={ev.title ?? ""} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover" />
-        </div>
+      {ev.coverUrl && ev.coverKind === "pdf" ? (
+        <div className="mb-3"><PdfAttachment url={ev.coverUrl} /></div>
+      ) : (
+        ev.coverUrl && (
+          <div className="relative w-full h-40 rounded-lg overflow-hidden mb-3 bg-gray-100">
+            <Image src={ev.coverUrl} alt={ev.title ?? ""} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover" />
+          </div>
+        )
       )}
       <h3 className="text-lg font-bold text-[#003f87]">{ev.title}</h3>
       <div className="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-3">
@@ -224,10 +229,14 @@ function EventsTab({ list, kind }) {
 function AnnouncementCardLite({ a }) {
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
-      {a.coverUrl && (
-        <div className="relative w-full h-40 bg-gray-100">
-          <Image src={a.coverUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 400px" className="object-cover" />
-        </div>
+      {a.coverUrl && a.coverKind === "pdf" ? (
+        <div className="p-5 pb-0"><PdfAttachment url={a.coverUrl} /></div>
+      ) : (
+        a.coverUrl && (
+          <div className="relative w-full h-40 bg-gray-100">
+            <Image src={a.coverUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 400px" className="object-cover" />
+          </div>
+        )
       )}
       <div className="p-5">
       <div className="flex items-center justify-between gap-3">

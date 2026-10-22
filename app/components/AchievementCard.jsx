@@ -8,6 +8,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { renderMarkdown } from "../../lib/markdown/render.mjs";
+import PdfAttachment from "./PdfAttachment";
 
 function fmtDate(d) {
   if (!d) return null;
@@ -117,10 +118,16 @@ export default function AchievementCard({ achievement, compact = false }) {
   if (!a) return null;
   return (
     <article className="bg-white rounded-xl shadow overflow-hidden">
-      {a.heroUrl && (
-        <div className="relative w-full h-48 bg-gray-100">
-          <Image src={a.heroUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 50vw" className="object-cover" />
+      {a.heroUrl && a.heroKind === "pdf" ? (
+        <div className="p-6 pb-0">
+          <PdfAttachment url={a.heroUrl} />
         </div>
+      ) : (
+        a.heroUrl && (
+          <div className="relative w-full h-48 bg-gray-100">
+            <Image src={a.heroUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 50vw" className="object-cover" />
+          </div>
+        )
       )}
       <div className="p-6">
         <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-1">

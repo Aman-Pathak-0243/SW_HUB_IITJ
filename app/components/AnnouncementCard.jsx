@@ -4,6 +4,7 @@
 // state. Announcements are ordered pinned-first by the read layer (DL-010); the
 // pinned badge makes that visible.
 import Image from "next/image";
+import PdfAttachment from "./PdfAttachment";
 
 const AUDIENCE_LABEL = {
   students: "Students",
@@ -30,10 +31,16 @@ export default function AnnouncementCard({ announcement }) {
         a.pinned ? "border-[#FF6B00]/40 ring-1 ring-[#FF6B00]/20" : "border-[#003f87]/10"
       }`}
     >
-      {a.coverUrl && (
-        <div className="relative w-full h-48 bg-gray-100">
-          <Image src={a.coverUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 640px" className="object-cover" />
+      {a.coverUrl && a.coverKind === "pdf" ? (
+        <div className="px-6 pt-6">
+          <PdfAttachment url={a.coverUrl} />
         </div>
+      ) : (
+        a.coverUrl && (
+          <div className="relative w-full h-48 bg-gray-100">
+            <Image src={a.coverUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 640px" className="object-cover" />
+          </div>
+        )
       )}
       <div className="p-6">
       <div className="flex items-start justify-between gap-3">

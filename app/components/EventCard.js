@@ -1,7 +1,8 @@
 import Image from "next/image";
+import PdfAttachment from "./PdfAttachment";
 
 const EventCard = ({ event }) => {
-  const { title, description, date, image } = event;
+  const { title, description, date, image, imageKind } = event;
 
   // Tolerate a missing/invalid date: `new Date(null)` is the 1970 epoch (not
   // "Invalid Date"), so guard explicitly and hide the date badge when absent.
@@ -183,8 +184,12 @@ const EventCard = ({ event }) => {
         {/* Top accent stripe */}
         <div className="event-card-accent" />
 
-        {/* Image or placeholder */}
-        {image ? (
+        {/* Image, PDF attachment, or placeholder */}
+        {image && imageKind === "pdf" ? (
+          <div style={{ padding: "16px 16px 0" }}>
+            <PdfAttachment url={image} />
+          </div>
+        ) : image ? (
           <div className="event-card-img">
             <Image
               src={image}

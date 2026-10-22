@@ -27,7 +27,10 @@ function safeCoverSrc(url) {
 
 // Map a shaped public event → EventCard's V1 props.
 function toCard(e) {
-  return { _id: e.id, title: e.title, description: e.body ?? e.summary ?? "", date: e.eventDate, image: safeCoverSrc(e.coverUrl) };
+  // A PDF cover isn't a /public or res.cloudinary.com image host check — pass it
+  // through regardless (EventCard renders it as a view/download link, not <Image>).
+  const image = e.coverKind === "pdf" ? e.coverUrl : safeCoverSrc(e.coverUrl);
+  return { _id: e.id, title: e.title, description: e.body ?? e.summary ?? "", date: e.eventDate, image, imageKind: e.coverKind };
 }
 
 export default function EventsBoard({ sections = [] }) {
