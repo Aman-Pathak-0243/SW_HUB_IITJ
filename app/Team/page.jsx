@@ -15,7 +15,7 @@ export default function TeamPage() {
         </h1>
 
         {/* ================= DEAN ================= */}
-         <section className="max-w-7xl mx-auto mb-24 text-center">
+        <section className="max-w-7xl mx-auto mb-24 text-center">
           <h2 className="text-3xl font-extrabold text-[#0b3c7d] mb-10">
             Dean Student Affairs
           </h2>
@@ -42,20 +42,47 @@ export default function TeamPage() {
         </section>
 
         {/* ================= ASSOCIATE DEANS ================= */}
-         <section className="max-w-7xl mx-auto mb-24">
+        <section className="max-w-7xl mx-auto mb-24">
           <h2 className="text-3xl font-extrabold text-center text-[#0b3c7d] mb-12">
             Associate Deans
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
             {[
-              { role: "Associate Dean (Student Affairs)", name: "Dr. Devi Lal", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641537/WhatsApp_Image_2026-01-17_at_14.12.59_ap6x4e.jpg", profile: "https://iitjammu.ac.in/materials-engineering/faculty-list/~devilal" },
-              { role: "Associate Dean (Hostel)", name: "Dr. Prasant Singh", img: "/images/people/prasant-singh.jpeg", profile: "https://www.iitjammu.ac.in/faculty/~prasantsingh" },
-              { role: "Associate Dean (Mess)", name: "Dr. Arvind Kumar", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771747106/arvind_kumar_gsgvrr.jpg", profile: "https://iitjammu.ac.in/mathematics/faculty-list/~arvindkumar" },
-              { role: "Associate Dean (Sports)", name: "Dr. Nitin Joshi", img: "/images/people/nitin-joshi.jpeg", profile: "https://www.iitjammu.ac.in/faculty/~nitinjoshi" }
+              {
+                role: "Associate Dean (Student Affairs)",
+                name: "Dr. Devi Lal",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641537/WhatsApp_Image_2026-01-17_at_14.12.59_ap6x4e.jpg",
+                profile:
+                  "https://iitjammu.ac.in/materials-engineering/faculty-list/~devilal",
+              },
+              {
+                role: "Associate Dean (Hostel)",
+                name: "Dr. Prasant Singh",
+                img: "/images/people/prasant-singh.jpeg",
+                profile: "https://www.iitjammu.ac.in/faculty/~prasantsingh",
+              },
+              {
+                role: "Associate Dean (Mess)",
+                name: "Dr. Arvind Kumar",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771747106/arvind_kumar_gsgvrr.jpg",
+                profile:
+                  "https://iitjammu.ac.in/mathematics/faculty-list/~arvindkumar",
+              },
+              {
+                role: "Associate Dean (Sports)",
+                name: "Dr. Nitin Joshi",
+                img: "/images/people/nitin-joshi.jpeg",
+                profile: "https://www.iitjammu.ac.in/faculty/~nitinjoshi",
+              },
             ].map((member, i) => (
-              <a key={i} href={member.profile} target="_blank" rel="noopener noreferrer"
-                className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
+              <a
+                key={i}
+                href={member.profile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer"
+              >
                 <PersonPhoto
                   src={member.img}
                   name={member.name}
@@ -64,7 +91,9 @@ export default function TeamPage() {
                   imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
                 <div className="p-5 text-center">
-                  <h3 className="font-semibold text-[#0b3c7d]">{member.role}</h3>
+                  <h3 className="font-semibold text-[#0b3c7d]">
+                    {member.role}
+                  </h3>
                   <p className="text-2xl font-bold text-[#003f87] group-hover:underline group-hover:text-[#003f87] transition">
                     {member.name}
                   </p>
@@ -82,14 +111,47 @@ export default function TeamPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
             {[
-              { name: "Dr.Krishna mohan gupta", hostel: "Fulgar Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709289/krishna_gmox4k.jpg", profile: "https://www.iitjammu.ac.in/faculty/~krishnamohangupta" },
-              { name: "Dr.Ved Prakash Ranjan", hostel: "Braeg Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709254/ved_ib7qob.png", profile: "https://iitjammu.ac.in/faculty/~vedprakashranjan" },
-              { name: "Dr. Garima Singh", hostel: "Dedhar Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709322/warden_dedhar_f7n6dg.jpg", profile: "https://iitjammu.ac.in/faculty/~garimasingh" },
-              { name: "Dr. Riya Bhowmik", hostel: "Egret Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709311/warden_egret_kbovjx.jpg", profile: "https://iitjammu.ac.in/civil_engineering/faculty-list/~riyabhowmik" },
-              { name: "Dr. Akash awale", hostel: "Canary Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709263/akash_a5ntu2.jpg", profile: "https://iitjammu.ac.in/mechanical_engineering/faculty.html?faculty=~akashsubhashawale" }
+              {
+                name: "Dr.Krishna mohan gupta",
+                hostel: "Fulgar Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709289/krishna_gmox4k.jpg",
+                profile:
+                  "https://www.iitjammu.ac.in/faculty/~krishnamohangupta",
+              },
+              {
+                name: "Dr.Ved Prakash Ranjan",
+                hostel: "Braeg Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709254/ved_ib7qob.png",
+                profile: "https://iitjammu.ac.in/faculty/~vedprakashranjan",
+              },
+              {
+                name: "Dr. Garima Singh",
+                hostel: "Dedhar Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709322/warden_dedhar_f7n6dg.jpg",
+                profile: "https://iitjammu.ac.in/faculty/~garimasingh",
+              },
+              {
+                name: "Dr. Riya Bhowmik",
+                hostel: "Egret Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709311/warden_egret_kbovjx.jpg",
+                profile:
+                  "https://iitjammu.ac.in/civil_engineering/faculty-list/~riyabhowmik",
+              },
+              {
+                name: "Dr. Akash awale",
+                hostel: "Canary Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709263/akash_a5ntu2.jpg",
+                profile:
+                  "https://iitjammu.ac.in/mechanical_engineering/faculty.html?faculty=~akashsubhashawale",
+              },
             ].map((member, i) => (
-              <a key={i} href={member.profile} target="_blank" rel="noopener noreferrer"
-                className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
+              <a
+                key={i}
+                href={member.profile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer"
+              >
                 <PersonPhoto
                   src={member.img}
                   name={member.name}
@@ -98,7 +160,9 @@ export default function TeamPage() {
                   imgClassName="object-cover object-top transition-transform duration-300 group-hover:scale-105"
                 />
                 <div className="p-5 text-center">
-                  <h3 className="font-semibold text-[#0b3c7d]">{member.hostel}</h3>
+                  <h3 className="font-semibold text-[#0b3c7d]">
+                    {member.hostel}
+                  </h3>
                   <p className="text-2xl font-bold text-[#003f87] group-hover:underline group-hover:text-[#003f87] transition">
                     {member.name}
                   </p>
@@ -122,20 +186,43 @@ export default function TeamPage() {
               className="relative w-full aspect-[4/5]"
             />
             <div className="p-5 text-center">
-              <h3 className="font-semibold text-[#0b3c7d]">Assistant Registrar</h3>
-              <p className="text-2xl font-bold text-[#003f87]">Dr. R P Prajapat</p>
+              <h3 className="font-semibold text-[#0b3c7d]">
+                Assistant Registrar
+              </h3>
+              <p className="text-2xl font-bold text-[#003f87]">
+                Dr. R P Prajapat
+              </p>
             </div>
           </div>
 
           {/* 4 PEOPLE BELOW AR */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 mb-16">
             {[
-            { name: "Mr.Raj Srivastava", role: "Assistant Sports Officer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774935146/WhatsApp_Image_2026-03-30_at_16.44.00_colwrf.jpg" },
-{ name: "Mr. Himanshu Kumar", role: "Administrative Assistant", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_17.07.43_s60df9.jpg" },
-{ name: "Mr. Gaurav Chalotra", role: "Administrative Assistant", img: "/images/people/gaurav-chalotra.jpg" },
-{ name: "Mr. Anmol Sharma", role: "Administrative Assistant", img: "/images/people/anmol-sharma.jpg" }
+              {
+                name: "Mr.Raj Srivastava",
+                role: "Assistant Sports Officer",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774935146/WhatsApp_Image_2026-03-30_at_16.44.00_colwrf.jpg",
+              },
+              {
+                name: "Mr. Himanshu Kumar",
+                role: "Administrative Assistant",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_17.07.43_s60df9.jpg",
+              },
+              {
+                name: "Mr. Gaurav Chalotra",
+                role: "Administrative Assistant",
+                img: "/images/people/gaurav-chalotra.jpg",
+              },
+              {
+                name: "Mr. Anmol Sharma",
+                role: "Administrative Assistant",
+                img: "/images/people/anmol-sharma.jpg",
+              },
             ].map((m, i) => (
-              <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden">
+              <div
+                key={i}
+                className="group bg-white rounded-2xl shadow-md overflow-hidden"
+              >
                 <PersonPhoto
                   src={m.img}
                   name={m.name}
@@ -143,42 +230,81 @@ export default function TeamPage() {
                   className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center"
                   fallback={
                     <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
-                      <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{m.name.trim().charAt(0)}</span>
+                      <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">
+                        {m.name.trim().charAt(0)}
+                      </span>
                     </div>
                   }
                 />
                 <div className="p-5 text-center">
                   <h3 className="font-semibold text-[#0b3c7d]">{m.role}</h3>
-<p className="text-lg font-bold text-[#0b3c7d]">{m.name}</p>
+                  <p className="text-lg font-bold text-[#0b3c7d]">{m.name}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {/* CARETAKERS */}
-         
+
           <h2 className="text-3xl font-extrabold text-center text-[#0b3c7d] mb-12">
             Caretakers
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
             {[
-              { name: "Ankush Chaudhary", hostel: "Anz Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_17.13.02_jf2j8k.jpg" },
-              { name: "Mr. Md. Tabrej", hostel: "Braeg Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_16.44.01_vboecb.jpg" },
-               { name: "Irfan Ahmad Teli", hostel: "Canary Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709277/irfan_plq41j.jpg" },
-              { name: "Tasaduq Gul", hostel: "Dedhar Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709332/caretaker_dedhar_nb0d5l.jpg" },
-              { name: "Ms. Pooja Devi", hostel: "Egret Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933802/WhatsApp_Image_2026-03-30_at_16.44.01_1_rvolqn.jpg" },
-              { name: "Majid Bashir", hostel: "Fulgar Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709377/majid_jvbkdo.jpg" },
-              { name: "Anish Koul", hostel: "Fulgar Hostel", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709299/anish_jfjwap.jpg" }
-              
-             
-              
+              {
+                name: "Ankush Chaudhary",
+                hostel: "Anz Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_17.13.02_jf2j8k.jpg",
+              },
+              {
+                name: "Mr. Md. Tabrej",
+                hostel: "Braeg Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933803/WhatsApp_Image_2026-03-30_at_16.44.01_vboecb.jpg",
+              },
+              {
+                name: "Irfan Ahmad Teli",
+                hostel: "Canary Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709277/irfan_plq41j.jpg",
+              },
+              {
+                name: "Tasaduq Gul",
+                hostel: "Dedhar Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709332/caretaker_dedhar_nb0d5l.jpg",
+              },
+              {
+                name: "Ms. Pooja Devi",
+                hostel: "Egret Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774933802/WhatsApp_Image_2026-03-30_at_16.44.01_1_rvolqn.jpg",
+              },
+              {
+                name: "Majid Bashir",
+                hostel: "Fulgar Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709377/majid_jvbkdo.jpg",
+              },
+              {
+                name: "Anish Koul",
+                hostel: "Fulgar Hostel",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771709299/anish_jfjwap.jpg",
+              },
             ].map((member, i) => (
-              <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden">
-                <PersonPhoto src={member.img} name={member.name} role={member.hostel} className="relative w-full aspect-[4/5]" />
+              <div
+                key={i}
+                className="group bg-white rounded-2xl shadow-md overflow-hidden"
+              >
+                <PersonPhoto
+                  src={member.img}
+                  name={member.name}
+                  role={member.hostel}
+                  className="relative w-full aspect-[4/5]"
+                />
                 <div className="p-5 text-center">
-                  <h3 className="font-semibold text-[#0b3c7d]">{member.hostel}</h3>
-                  <p className="text-lg font-bold text-[#0b3c7d]">{member.name}</p>
+                  <h3 className="font-semibold text-[#0b3c7d]">
+                    {member.hostel}
+                  </h3>
+                  <p className="text-lg font-bold text-[#0b3c7d]">
+                    {member.name}
+                  </p>
                 </div>
               </div>
             ))}
@@ -188,7 +314,9 @@ export default function TeamPage() {
         {/* ================= STUDENT AFFAIRS COUNCIL ================= */}
         <section className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-extrabold text-[#0b3c7d]">Student Affairs Council</h2>
+            <h2 className="text-3xl font-extrabold text-[#0b3c7d]">
+              Student Affairs Council
+            </h2>
             <div className="w-32 h-1 bg-[#0b3c7d] mx-auto mt-3 rounded-full"></div>
           </div>
 
@@ -198,19 +326,41 @@ export default function TeamPage() {
                 so this page is its only home (the Wellness Secretary now leads the Wellness
                 Council). Photos fall back to a monogram initial until one is supplied. */}
             {[
-              { role: "General Secretary", name: "Aditya Pratap Singh" },
-              { role: "Academic Secretary (UG)", name: "Aradhya Sharma", img: "/images/people/aradhya-sharma.jpg" },
+              {
+                role: "General Secretary",
+                name: "Aditya Pratap Singh",
+                img: "/images/people/aditya.jpg",
+              },
+              {
+                role: "Academic Secretary (UG)",
+                name: "Aradhya Sharma",
+                img: "/images/people/aradhya-sharma.jpg",
+              },
               { role: "Academic Secretary (PG)", name: "Kushagra Acharya" },
-              { role: "Technical Secretary", name: "Hriday Rana", img: "/images/people/hriday-rana.jpg" },
+              {
+                role: "Technical Secretary",
+                name: "Hriday Rana",
+                img: "/images/people/hriday-rana.jpg",
+              },
               { role: "Cultural Secretary", name: "Induj Tyagi" },
               { role: "Sports Secretary", name: "Shreysa" },
-              { role: "Wellness Secretary", name: "Gaddam Moukthika Naidu", img: "/images/people/moukthika-naidu.jpeg" },
+              {
+                role: "Wellness Secretary",
+                name: "Gaddam Moukthika Naidu",
+                img: "/images/people/moukthika-naidu.jpeg",
+              },
               { role: "Hostel Secretary (Fulgar)", name: "Yash Kumar" },
               { role: "Hostel Secretary (Canary & Braeg)", name: "Sawan Puri" },
               { role: "Mess Secretary (Annapurna — 1C)", name: "Sunil Kumar" },
-              { role: "Mess Secretary (Canary, Dedhar & Egret — 1A & 1B)", name: "Shwet Baliyan" },
+              {
+                role: "Mess Secretary (Canary, Dedhar & Egret — 1A & 1B)",
+                name: "Shwet Baliyan",
+              },
             ].map((member, i) => (
-              <div key={i} className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02]">
+              <div
+                key={i}
+                className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02]"
+              >
                 <PersonPhoto
                   src={member.img}
                   name={member.name}
@@ -219,23 +369,32 @@ export default function TeamPage() {
                   imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
                   fallback={
                     <div className="relative w-full aspect-[4/5] bg-[#eaf1fb] flex items-center justify-center">
-                      <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">{member.name.trim().charAt(0)}</span>
+                      <span className="text-6xl font-black text-[#0b3c7d]/25 select-none">
+                        {member.name.trim().charAt(0)}
+                      </span>
                     </div>
                   }
                 />
                 <div className="p-5 text-center">
-                  <h3 className="font-semibold text-[#0b3c7d]">{member.role}</h3>
-                  <p className="text-lg font-bold text-[#0b3c7d] mt-1">{member.name}</p>
+                  <h3 className="font-semibold text-[#0b3c7d]">
+                    {member.role}
+                  </h3>
+                  <p className="text-lg font-bold text-[#0b3c7d] mt-1">
+                    {member.name}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="text-center mb-12 mt-16">
-            <h2 className="text-3xl font-extrabold text-[#0b3c7d]">Portal Developed by:</h2>
+            <h2 className="text-3xl font-extrabold text-[#0b3c7d]">
+              Portal Developed by:
+            </h2>
             <div className="w-32 h-1 bg-[#0b3c7d] mx-auto mt-3 rounded-full"></div>
             <p className="text-gray-600 mt-4 max-w-2xl mx-auto text-sm">
-              The team changes each year — the developers stay credited here, and this list grows with the portal.
+              The team changes each year — the developers stay credited here,
+              and this list grows with the portal.
             </p>
           </div>
 
@@ -244,9 +403,22 @@ export default function TeamPage() {
               website under his supervision. Append new contributors + roles as it grows. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 max-w-4xl mx-auto">
             {[
-              { name: "Aman Pathak", role: "Portal Architect & Lead Developer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641536/WhatsApp_Image_2026-01-17_at_14.12.59_2_jcbwsp.jpg", link: "https://amanpathak.dev" },
-              { name: "Tushar Singh", role: "Developer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774116594/WhatsApp_Image_2026-03-21_at_23.39.07_uvmbgk.jpg" },
-              { name: "Apaar Gupta", role: "Developer", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774010364/WhatsApp_Image_2026-03-20_at_18.07.00_ac4bpk.jpg" },
+              {
+                name: "Aman Pathak",
+                role: "Portal Architect & Lead Developer",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641536/WhatsApp_Image_2026-01-17_at_14.12.59_2_jcbwsp.jpg",
+                link: "https://amanpathak.dev",
+              },
+              {
+                name: "Tushar Singh",
+                role: "Developer",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774116594/WhatsApp_Image_2026-03-21_at_23.39.07_uvmbgk.jpg",
+              },
+              {
+                name: "Apaar Gupta",
+                role: "Developer",
+                img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1774010364/WhatsApp_Image_2026-03-20_at_18.07.00_ac4bpk.jpg",
+              },
             ].map((member, i) => {
               const card = (
                 <div className="group bg-white rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] h-full">
@@ -258,21 +430,40 @@ export default function TeamPage() {
                     imgClassName="object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                   <div className="p-5 text-center">
-                    <p className="text-lg font-bold text-[#0b3c7d] mt-1">{member.name}</p>
-                    {member.role && <p className="text-sm text-gray-600 mt-1">{member.role}</p>}
-                    {member.link && <span className="inline-block mt-2 text-sm font-semibold text-[#e57b00]">amanpathak.dev ↗</span>}
+                    <p className="text-lg font-bold text-[#0b3c7d] mt-1">
+                      {member.name}
+                    </p>
+                    {member.role && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {member.role}
+                      </p>
+                    )}
+                    {member.link && (
+                      <span className="inline-block mt-2 text-sm font-semibold text-[#e57b00]">
+                        amanpathak.dev ↗
+                      </span>
+                    )}
                   </div>
                 </div>
               );
               return member.link ? (
-                <a key={i} href={member.link} target="_blank" rel="noopener noreferrer" className="block h-full">{card}</a>
+                <a
+                  key={i}
+                  href={member.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block h-full"
+                >
+                  {card}
+                </a>
               ) : (
-                <div key={i} className="h-full">{card}</div>
+                <div key={i} className="h-full">
+                  {card}
+                </div>
               );
             })}
           </div>
         </section>
-
       </div>
 
       <Footer />
