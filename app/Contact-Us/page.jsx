@@ -20,7 +20,7 @@ export default function ContactUsTeam() {
           <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition overflow-hidden">
             <div className="relative w-full h-72">
               <Image
-                src="/assistant registrar final.png"
+                src="/images/people/r-p-prajapat.png"
                 alt="Dr. R. P. Prajapat"
                 fill
                 sizes="(max-width: 768px) 100vw, 400px"

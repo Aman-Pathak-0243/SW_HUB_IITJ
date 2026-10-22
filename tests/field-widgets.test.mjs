@@ -220,10 +220,10 @@ describe("static image index: ranking", () => {
   });
 
   it("treats spaces, hyphens, underscores and dots as the same separator", () => {
-    // public/ mixes all of these: "PIC coding.JPG" vs "priyanka-nac.jpeg" vs
-    // "Prasant_Singh.jpeg", so a human query must not have to guess which.
-    expect(scoreStaticPath("/images-2026-27-v1/Prasant_Singh.jpeg", "prasant singh")).toBeGreaterThan(0);
-    expect(scoreStaticPath("/images-2026-27-v1/priyanka-nac.jpeg", "priyanka nac")).toBeGreaterThan(0);
+    // public/ mixes all of these: "PIC coding.JPG" vs "priyanka-ramchandani.jpeg" vs
+    // "prasant-singh.jpeg", so a human query must not have to guess which.
+    expect(scoreStaticPath("/images/people/prasant-singh.jpeg", "prasant singh")).toBeGreaterThan(0);
+    expect(scoreStaticPath("/images/people/priyanka-ramchandani.jpeg", "priyanka ramchandani")).toBeGreaterThan(0);
     expect(scoreStaticPath("/PIC coding.JPG", "pic-coding")).toBeGreaterThan(0);
   });
 

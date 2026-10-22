@@ -220,7 +220,7 @@ export default function Page() {
                 {/* Photo with scale-on-hover */}
                 <div className="relative w-40 h-40 mx-auto rounded-full overflow-hidden mb-4 transition-transform duration-300 group-hover:scale-110">
                   <Image
-                    src="/images-2026-27-v1/Prasant_Singh.jpeg"
+                    src="/images/people/prasant-singh.jpeg"
                     alt="Dr. Prasant Singh"
                     fill
                     className="object-cover object-top"
