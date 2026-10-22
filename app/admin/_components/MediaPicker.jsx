@@ -91,18 +91,6 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
     }
   };
 
-  const sync = async () => {
-    setBusy(true);
-    try {
-      const result = await callAdmin("media.uploads.sync", {});
-      toast(`Synced ${result.synced} file(s) (${result.skipped} already there, ${result.failed} failed).`, result.failed ? "error" : "success");
-    } catch (e) {
-      toast(e.message || "Sync failed.", "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const upload = async (file) => {
     if (!file) return;
     setBusy(true);
@@ -114,7 +102,7 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Upload failed.");
       attach(data.asset);
-      toast(folder ? "Uploaded and attached." : "Uploaded to Cloudinary and attached.", "success");
+      toast(folder ? "Saved to the database and attached." : "Uploaded to Cloudinary and attached.", "success");
     } catch (e) {
       toast(e.message || "Upload failed.", "error");
     } finally {
@@ -124,8 +112,8 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
   };
 
   const previewUrl = asset?.deliveryUrl || asset?.url || null;
-  const isStatic = asset?.storageProvider === "local" && !String(asset?.originalPath ?? "").startsWith("/uploads/");
-  const isLocalDiskUpload = asset?.storageProvider === "local" && String(asset?.originalPath ?? "").startsWith("/uploads/");
+  const isStatic = asset?.storageProvider === "local";
+  const isDbStored = asset?.storageProvider === "db";
 
   return (
     <div className="adm-mediapicker">
@@ -147,7 +135,7 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
           <div className="adm-mediapicker-meta">
             <code className="adm-code">{asset?.originalPath || asset?.cloudinaryPublicId || value}</code>
             <span className="adm-muted">
-              {isStatic ? "in public/ — no Cloudinary credit" : isLocalDiskUpload ? "on this server's uploads folder" : "on Cloudinary"}
+              {isStatic ? "in public/ — no Cloudinary credit" : isDbStored ? "in the database" : "on Cloudinary"}
               {asset?.bytes ? ` · ${humanKb(asset.bytes)}` : ""}
             </span>
           </div>
@@ -170,11 +158,6 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
           <button type="button" className={`adm-btn ghost sm ${mode === "upload" ? "active" : ""}`} disabled={busy} onClick={() => setMode(mode === "upload" ? null : "upload")}>
             Upload new
           </button>
-          {folder && (
-            <button type="button" className="adm-btn ghost sm" disabled={busy} onClick={sync} title="Re-copy this folder's uploads from the server's uploads directory into public/uploads, in case one isn't rendering">
-              Sync
-            </button>
-          )}
         </div>
       )}
 
@@ -218,7 +201,7 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
           />
           <p className="adm-muted" style={{ marginTop: 8 }}>
             {folder ? (
-              <>Images or PDFs (10MB max) — saved to this server's uploads folder, synced into public/uploads/ automatically. Survives a redeploy. If one doesn't show up, use Sync.</>
+              <>Images or PDFs (10MB max) — saved straight into the database. Survives any redeploy, no filesystem involved.</>
             ) : (
               <>
                 Goes to Cloudinary (10MB max). Prefer “from the site” when the image is already there — Cloudinary storage is a limited budget, and

@@ -111,6 +111,7 @@ enum StorageProvider {
   cloudinary
   local
   external
+  db
 
   @@map("storage_provider")
 }
@@ -896,6 +897,13 @@ model MediaAsset {
   width              Int?
   height             Int?
   bytes              BigInt?
+  // The actual file bytes, for storageProvider='db' assets (Events/Announcements/
+  // Wall of Fame uploads — see lib/media/service.mjs#uploadDbAsset). Postgres is
+  // already the durable source of truth this app relies on everywhere else, so
+  // storing these here sidesteps every filesystem-persistence question entirely
+  // (no UPLOADS_DIR, no public/ mirroring, nothing to sync after a redeploy).
+  // NULL for every other storageProvider.
+  fileData           Bytes?          @map("file_data")
   altText            String?         @map("alt_text")
   checksum           String?
   uploadedById       String?         @map("uploaded_by") @db.Uuid

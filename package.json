@@ -21,7 +21,6 @@
     "db:seed:flagship": "dotenv -e .env.local -- node scripts/seed-flagship.mjs",
     "db:migrate:media": "dotenv -e .env.local -- node scripts/migrate-media.mjs",
     "media:export": "dotenv -e .env.local -- node scripts/export-cloudinary.mjs",
-    "uploads:sync": "node scripts/sync-uploads.mjs",
     "db:console": "dotenv -e .env.local -- node scripts/devconsole.mjs",
     "cli": "dotenv -e .env.local -- node scripts/dev-cli.mjs",
     "plugin:status": "dotenv -e .env.local -- node scripts/dev-cli.mjs plugin:status",

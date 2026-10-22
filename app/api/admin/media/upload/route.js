@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "../../../../../lib/auth/session.mjs";
 import { withAuditContext } from "../../../../../lib/cms/audit-context.mjs";
-import { uploadImageAsset, uploadLocalDiskAsset, shapeAsset, UPLOAD_MAX_BYTES } from "../../../../../lib/media/service.mjs";
-import { UPLOAD_FOLDERS } from "../../../../../lib/media/local-disk.mjs";
+import { uploadImageAsset, uploadDbAsset, shapeAsset, UPLOAD_MAX_BYTES, UPLOAD_FOLDERS } from "../../../../../lib/media/service.mjs";
 import { assertSameOrigin, assertWithinRateLimit, makeRateLimiter, rateLimitKey, clientIp } from "../../../../../lib/http/guard.mjs";
 import { mapDbError } from "../../../../../lib/cms/errors.mjs";
 
@@ -76,15 +75,15 @@ export async function POST(req) {
     const altTextRaw = form.get("altText");
     const altText = typeof altTextRaw === "string" && altTextRaw.trim() ? altTextRaw.trim() : null;
     // A caller-supplied `folder` (events / announcements / wall-of-fame) routes the
-    // upload to local disk (UPLOADS_DIR) instead of Cloudinary — see
-    // lib/media/local-disk.mjs. Anything else (no folder, or an unrecognized one)
-    // keeps the original Cloudinary behavior unchanged.
+    // upload straight into Postgres (lib/media/service.mjs#uploadDbAsset) instead
+    // of Cloudinary. Anything else (no folder, or an unrecognized one) keeps the
+    // original Cloudinary behavior unchanged.
     const folderRaw = form.get("folder");
     const folder = typeof folderRaw === "string" && UPLOAD_FOLDERS.includes(folderRaw) ? folderRaw : null;
     const input = { bytes, filename: file.name || "upload", mimeType: file.type || null, altText };
     const result = await withAuditContext(
       { actorUserId: user.id, ipAddress, userAgent: req.headers.get("user-agent") ?? null },
-      () => (folder ? uploadLocalDiskAsset({ ...input, folder }, { userId: user.id }) : uploadImageAsset(input, { userId: user.id }))
+      () => (folder ? uploadDbAsset({ ...input, folder }, { userId: user.id }) : uploadImageAsset(input, { userId: user.id }))
     );
     return NextResponse.json({ ok: true, asset: shapeAsset(result.asset) });
   } catch (e) {

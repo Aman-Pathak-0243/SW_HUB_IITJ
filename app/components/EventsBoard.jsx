@@ -30,7 +30,7 @@ function toCard(e) {
   // A PDF cover isn't a /public or res.cloudinary.com image host check — pass it
   // through regardless (EventCard renders it as a view/download link, not <Image>).
   const image = e.coverKind === "pdf" ? e.coverUrl : safeCoverSrc(e.coverUrl);
-  return { _id: e.id, title: e.title, description: e.body ?? e.summary ?? "", date: e.eventDate, image, imageKind: e.coverKind };
+  return { _id: e.id, title: e.title, description: e.body ?? e.summary ?? "", date: e.eventDate, image, imageKind: e.coverKind, location: e.location, audience: e.audience };
 }
 
 export default function EventsBoard({ sections = [] }) {

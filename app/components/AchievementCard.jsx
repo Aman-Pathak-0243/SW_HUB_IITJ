@@ -9,6 +9,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { renderMarkdown } from "../../lib/markdown/render.mjs";
 import PdfAttachment from "./PdfAttachment";
+import { isDbMediaUrl } from "../../lib/media/db-url.mjs";
 
 function fmtDate(d) {
   if (!d) return null;
@@ -32,7 +33,7 @@ function Block({ block }) {
       return (
         <div className={`flex flex-col md:items-start gap-4 ${block.imagePosition === "left" ? "md:flex-row" : "md:flex-row-reverse"}`}>
           <div className="relative w-full md:w-56 h-40 rounded-lg overflow-hidden bg-gray-100 shrink-0">
-            <Image src={block.imageUrl} alt="" fill sizes="(max-width:768px) 100vw, 224px" className="object-cover" />
+            <Image src={block.imageUrl} alt="" fill unoptimized={isDbMediaUrl(block.imageUrl)} sizes="(max-width:768px) 100vw, 224px" className="object-cover" />
           </div>
           <div className="flex-1"><MarkdownBody body={block.body} /></div>
         </div>
@@ -41,7 +42,7 @@ function Block({ block }) {
       return (
         <figure>
           <div className="relative w-full h-56 sm:h-72 rounded-lg overflow-hidden bg-gray-100">
-            <Image src={block.imageUrl} alt={block.caption ?? ""} fill sizes="(max-width:1024px) 100vw, 1024px" className="object-cover" />
+            <Image src={block.imageUrl} alt={block.caption ?? ""} fill unoptimized={isDbMediaUrl(block.imageUrl)} sizes="(max-width:1024px) 100vw, 1024px" className="object-cover" />
           </div>
           {block.caption && <figcaption className="text-sm text-gray-500 mt-1 text-center">{block.caption}</figcaption>}
         </figure>
@@ -58,7 +59,7 @@ function Block({ block }) {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {block.images.map((src, i) => (
               <div key={i} className="relative w-full h-32 rounded-lg overflow-hidden bg-gray-100">
-                <Image src={src} alt="" fill sizes="(max-width:640px) 50vw, 33vw" className="object-cover" />
+                <Image src={src} alt="" fill unoptimized={isDbMediaUrl(src)} sizes="(max-width:640px) 50vw, 33vw" className="object-cover" />
               </div>
             ))}
           </div>
@@ -125,7 +126,7 @@ export default function AchievementCard({ achievement, compact = false }) {
       ) : (
         a.heroUrl && (
           <div className="relative w-full h-48 bg-gray-100">
-            <Image src={a.heroUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 50vw" className="object-cover" />
+            <Image src={a.heroUrl} alt={a.title ?? ""} fill unoptimized={isDbMediaUrl(a.heroUrl)} sizes="(max-width:768px) 100vw, 50vw" className="object-cover" />
           </div>
         )
       )}

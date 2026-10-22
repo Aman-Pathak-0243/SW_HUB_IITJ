@@ -39,7 +39,7 @@ function initialValue(descriptor, payload) {
 }
 
 // Which disk-upload folder an image for this content type should land in (see
-// lib/media/local-disk.mjs#UPLOAD_FOLDERS). Any other content type keeps uploading
+// lib/media/service.mjs#UPLOAD_FOLDERS). Any other content type keeps uploading
 // to Cloudinary (MediaPicker's default when no folder is passed).
 const UPLOAD_FOLDER_BY_TYPE = { event: "events", announcement: "announcements", achievement: "wall-of-fame" };
 

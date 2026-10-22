@@ -18,6 +18,7 @@ import ResourcesSection from "./ResourcesSection";
 import AchievementCard from "./AchievementCard";
 import PersonPhoto from "./PersonPhoto";
 import PdfAttachment from "./PdfAttachment";
+import { isDbMediaUrl } from "../../lib/media/db-url.mjs";
 
 function mediaUrl(view, id) {
   return id ? view.media?.[id]?.url ?? null : null;
@@ -190,7 +191,7 @@ function EventCardLite({ ev }) {
       ) : (
         ev.coverUrl && (
           <div className="relative w-full h-40 rounded-lg overflow-hidden mb-3 bg-gray-100">
-            <Image src={ev.coverUrl} alt={ev.title ?? ""} fill sizes="(max-width:768px) 100vw, 33vw" className="object-cover" />
+            <Image src={ev.coverUrl} alt={ev.title ?? ""} fill unoptimized={isDbMediaUrl(ev.coverUrl)} sizes="(max-width:768px) 100vw, 33vw" className="object-cover" />
           </div>
         )
       )}
@@ -234,7 +235,7 @@ function AnnouncementCardLite({ a }) {
       ) : (
         a.coverUrl && (
           <div className="relative w-full h-40 bg-gray-100">
-            <Image src={a.coverUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 400px" className="object-cover" />
+            <Image src={a.coverUrl} alt={a.title ?? ""} fill unoptimized={isDbMediaUrl(a.coverUrl)} sizes="(max-width:768px) 100vw, 400px" className="object-cover" />
           </div>
         )
       )}

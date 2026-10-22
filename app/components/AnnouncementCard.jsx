@@ -5,6 +5,7 @@
 // pinned badge makes that visible.
 import Image from "next/image";
 import PdfAttachment from "./PdfAttachment";
+import { isDbMediaUrl } from "../../lib/media/db-url.mjs";
 
 const AUDIENCE_LABEL = {
   students: "Students",
@@ -38,7 +39,7 @@ export default function AnnouncementCard({ announcement }) {
       ) : (
         a.coverUrl && (
           <div className="relative w-full h-48 bg-gray-100">
-            <Image src={a.coverUrl} alt={a.title ?? ""} fill sizes="(max-width:768px) 100vw, 640px" className="object-cover" />
+            <Image src={a.coverUrl} alt={a.title ?? ""} fill unoptimized={isDbMediaUrl(a.coverUrl)} sizes="(max-width:768px) 100vw, 640px" className="object-cover" />
           </div>
         )
       )}

@@ -1,8 +1,12 @@
 import Image from "next/image";
 import PdfAttachment from "./PdfAttachment";
+import { isDbMediaUrl } from "../../lib/media/db-url.mjs";
+
+const AUDIENCE_LABEL = { students: "Students", faculty: "Faculty", staff: "Staff", internal: "Internal" };
 
 const EventCard = ({ event }) => {
-  const { title, description, date, image, imageKind } = event;
+  const { title, description, date, image, imageKind, location, audience } = event;
+  const audienceLabel = audience && audience !== "public" ? AUDIENCE_LABEL[audience] ?? audience : null;
 
   // Tolerate a missing/invalid date: `new Date(null)` is the 1970 epoch (not
   // "Invalid Date"), so guard explicitly and hide the date badge when absent.
@@ -156,6 +160,8 @@ const EventCard = ({ event }) => {
           display: flex;
           align-items: center;
           justify-content: flex-end;
+          flex-wrap: wrap;
+          gap: 10px;
           margin-top: auto;
           padding-top: 4px;
         }
@@ -195,6 +201,7 @@ const EventCard = ({ event }) => {
               src={image}
               alt={title}
               fill
+              unoptimized={isDbMediaUrl(image)}
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
               className="object-cover"
             />
@@ -228,9 +235,15 @@ const EventCard = ({ event }) => {
             <p className="event-card-desc">{description}</p>
           )}
 
+          {/* Location */}
+          {location && (
+            <p className="event-card-desc" style={{ marginTop: 4 }}>📍 {location}</p>
+          )}
+
           {/* Footer */}
           <div className="event-card-footer">
             <span className="event-card-tag">SAC · IIT Jammu</span>
+            {audienceLabel && <span className="event-card-tag">For {audienceLabel}</span>}
           </div>
 
         </div>
