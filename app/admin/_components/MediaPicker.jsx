@@ -91,6 +91,18 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
     }
   };
 
+  const sync = async () => {
+    setBusy(true);
+    try {
+      const result = await callAdmin("media.uploads.sync", {});
+      toast(`Synced ${result.synced} file(s) (${result.skipped} already there, ${result.failed} failed).`, result.failed ? "error" : "success");
+    } catch (e) {
+      toast(e.message || "Sync failed.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const upload = async (file) => {
     if (!file) return;
     setBusy(true);
@@ -120,7 +132,9 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
       {/* Current selection */}
       {value ? (
         <div className="adm-mediapicker-current">
-          {previewUrl ? (
+          {asset?.kind === "pdf" ? (
+            <div className="adm-mediapicker-thumb" style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📄</div>
+          ) : previewUrl ? (
             // A plain <img>, not next/image: the source is whatever an editor just
             // picked (a /public path or any Cloudinary URL), and the optimizer's
             // allowlist would reject anything unexpected. This is an admin preview,
@@ -156,6 +170,11 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
           <button type="button" className={`adm-btn ghost sm ${mode === "upload" ? "active" : ""}`} disabled={busy} onClick={() => setMode(mode === "upload" ? null : "upload")}>
             Upload new
           </button>
+          {folder && (
+            <button type="button" className="adm-btn ghost sm" disabled={busy} onClick={sync} title="Re-copy this folder's uploads from the server's uploads directory into public/uploads, in case one isn't rendering">
+              Sync
+            </button>
+          )}
         </div>
       )}
 
@@ -193,13 +212,13 @@ export default function MediaPicker({ value, asset: initialAsset = null, onChang
             ref={fileRef}
             className="adm-input"
             type="file"
-            accept="image/*"
+            accept={folder ? "image/*,application/pdf" : "image/*"}
             disabled={busy}
             onChange={(e) => upload(e.target.files?.[0])}
           />
           <p className="adm-muted" style={{ marginTop: 8 }}>
             {folder ? (
-              <>Saved to this server's uploads folder (10MB max) — survives a redeploy/Docker rebuild.</>
+              <>Images or PDFs (10MB max) — saved to this server's uploads folder, synced into public/uploads/ automatically. Survives a redeploy. If one doesn't show up, use Sync.</>
             ) : (
               <>
                 Goes to Cloudinary (10MB max). Prefer “from the site” when the image is already there — Cloudinary storage is a limited budget, and
