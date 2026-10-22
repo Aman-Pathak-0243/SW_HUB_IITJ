@@ -23,9 +23,9 @@
 // match for the year is REPORTED and skipped — run db:import:org first to stand up a
 // new club (2026-27 adds Sangam (Media), Hockey and Squash).
 //
-// `associate_dean` is reconciled on COUNCIL units ONLY. The hostel and mess datasets
-// also carry an AD, but this script deliberately leaves those alone — it reconciles a
-// hostel/mess only down to its student secretary.
+// `associate_dean` is reconciled on COUNCIL and HOSTEL units (2026-27 replaces both the
+// AD (Sports) and the AD (Hostel Affairs)). The mess dataset also carries an AD, but this
+// script leaves that alone — it reconciles a mess only down to its student secretary.
 //
 // SAFETY: archive-before-create, because `pic` and `council_secretary` are singletons
 // (position.max_holders = 1) — creating the new holder before freeing the slot trips
@@ -249,6 +249,9 @@ async function main() {
       continue;
     }
     console.log(`   ${hostel.name}`);
+    // The AD (Hostel Affairs) is one shared post appointed on every hostel unit, so it is
+    // reconciled per hostel — replacing the holder archives all six and re-seats the new one.
+    await reconcile(unit, "associate_dean", hostel.roles.filter((r) => r.positionKey === "associate_dean"), "associate dean");
     await reconcile(unit, "hostel_secretary", hostel.roles.filter((r) => r.positionKey === "hostel_secretary"), "hostel secretary");
   }
 

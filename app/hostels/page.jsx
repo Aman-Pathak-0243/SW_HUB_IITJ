@@ -209,7 +209,7 @@ export default function Page() {
 
             {/* Clickable AD Hostel card */}
             <Link
-              href="https://www.iitjammu.ac.in/faculty/details?id=yogesh.nimdeo"
+              href="https://www.iitjammu.ac.in/faculty/~prasantsingh"
               target="_blank"
               rel="noopener noreferrer"
               className="group relative bg-blue-50 rounded-xl p-8 text-center shadow transition-all duration-300 hover:scale-105 hover:shadow-2xl cursor-pointer no-underline"
@@ -220,8 +220,8 @@ export default function Page() {
                 {/* Photo with scale-on-hover */}
                 <div className="relative w-40 h-40 mx-auto rounded-full overflow-hidden mb-4 transition-transform duration-300 group-hover:scale-110">
                   <Image
-                    src="https://res.cloudinary.com/dveqd1vm1/image/upload/v1772463407/ad_hostel_lram8d.jpg"
-                    alt="Dr. Yogesh Madhukarrao Nimdeo"
+                    src="/images-2026-27-v1/Prasant_Singh.jpeg"
+                    alt="Dr. Prasant Singh"
                     fill
                     className="object-cover object-top"
                   />
@@ -229,7 +229,7 @@ export default function Page() {
 
                 {/* Name with underline on hover */}
                 <h2 className="text-2xl font-bold text-[#003f87] inline-block border-b-2 border-transparent group-hover:border-[#003f87] transition-all duration-300">
-                  Dr. Yogesh Madhukarrao Nimdeo
+                  Dr. Prasant Singh
                 </h2>
 
                 <p className="text-gray-700 mt-1">

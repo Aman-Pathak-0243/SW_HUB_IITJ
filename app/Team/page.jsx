@@ -51,9 +51,9 @@ export default function TeamPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
             {[
               { role: "Associate Dean (Student Affairs)", name: "Dr. Devi Lal", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1768641537/WhatsApp_Image_2026-01-17_at_14.12.59_ap6x4e.jpg", profile: "https://iitjammu.ac.in/materials-engineering/faculty-list/~devilal" },
-              { role: "Associate Dean (Hostel)", name: "Dr. Yogesh Madhukarrao Nimdeo", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1772463407/ad_hostel_lram8d.jpg", profile: "https://iitjammu.ac.in/chemical-engineering/faculty.html?faculty=~yogeshmadhukarraonimdeo" },
+              { role: "Associate Dean (Hostel)", name: "Dr. Prasant Singh", img: "/images-2026-27-v1/Prasant_Singh.jpeg", profile: "https://www.iitjammu.ac.in/faculty/~prasantsingh" },
               { role: "Associate Dean (Mess)", name: "Dr. Arvind Kumar", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1771747106/arvind_kumar_gsgvrr.jpg", profile: "https://iitjammu.ac.in/mathematics/faculty-list/~arvindkumar" },
-              { role: "Associate Dean (Sports)", name: "Dr. Shiva S", img: "https://res.cloudinary.com/dveqd1vm1/image/upload/v1772463418/ad_sports_m7hktw.jpg", profile: "https://iitjammu.ac.in/faculty/~shivas" }
+              { role: "Associate Dean (Sports)", name: "Dr. Nitin Joshi", img: "/images-2026-27-v1/Nitin_joshi.jpeg", profile: "https://www.iitjammu.ac.in/faculty/~nitinjoshi" }
             ].map((member, i) => (
               <a key={i} href={member.profile} target="_blank" rel="noopener noreferrer"
                 className="group bg-white rounded-2xl shadow-md overflow-hidden block transition-all duration-300 hover:shadow-xl hover:-translate-y-2 hover:scale-[1.02] cursor-pointer">
@@ -182,9 +182,9 @@ export default function TeamPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
             {/* AY 2026-27 Student Affairs Council. Posts that map to a council/hostel/mess
-                unit are also in lib/org/data/*; the PG Academic and Wellness secretaries have
-                no such unit, so this page is their only home. Photos exist only for the two
-                who filled the intake form — the rest fall back to a monogram until supplied. */}
+                unit are also in lib/org/data/*; the PG Academic secretary has no such unit,
+                so this page is its only home (the Wellness Secretary now leads the Wellness
+                Council). Photos fall back to a monogram initial until one is supplied. */}
             {[
               { role: "General Secretary", name: "Aditya Pratap Singh" },
               { role: "Academic Secretary (UG)", name: "Aradhya Sharma", img: "/images-2026-27-v1/Aradhya Sharma.jpg" },
@@ -192,7 +192,7 @@ export default function TeamPage() {
               { role: "Technical Secretary", name: "Hriday Rana", img: "/images-2026-27-v1/Hriday Rana.jpg" },
               { role: "Cultural Secretary", name: "Induj Tyagi" },
               { role: "Sports Secretary", name: "Shreysa" },
-              { role: "Wellness Secretary", name: "Gaddam Moukthika Naidu" },
+              { role: "Wellness Secretary", name: "Gaddam Moukthika Naidu", img: "/images-2026-27-v1/moukthika-wellness.jpeg" },
               { role: "Hostel Secretary (Fulgar)", name: "Yash Kumar" },
               { role: "Hostel Secretary (Canary & Braeg)", name: "Sawan Puri" },
               // No girls' hostel secretary was named in the 2026-27 notification — carrying

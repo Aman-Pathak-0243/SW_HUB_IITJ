@@ -130,10 +130,13 @@ describe("import plan: shape & integrity", () => {
   const plan = buildImportPlan();
   const allClubs = plan.councils.flatMap((c) => c.clubs);
 
-  it("has 5 councils and 33 clubs (6+0+9+13+5) — AY 2026-27 adds Sangam, Hockey and Squash", () => {
-    expect(plan.councils).toHaveLength(5);
+  it("has 6 councils and 33 clubs (5+0+9+13+5+1) — AY 2026-27 adds the Wellness Council", () => {
+    expect(plan.councils).toHaveLength(6);
     expect(allClubs).toHaveLength(33);
-    expect(plan.councils.map((c) => c.clubs.length)).toEqual([6, 0, 9, 13, 5]);
+    expect(plan.councils.map((c) => c.clubs.length)).toEqual([5, 0, 9, 13, 5, 1]);
+    // The Wellness Council is chartered for 2026-27 and runs the Wellbeing Club, which
+    // moved across from the General Affairs Council (6 clubs → 5).
+    expect(plan.councils.find((c) => c.key === "wellness").clubs.map((c) => c.name)).toEqual(["Wellbeing Club"]);
     // The Academic Council runs no clubs — its five technical clubs sit under the
     // Technical Council, with the Technical Secretary who is listed over them.
     expect(plan.councils.find((c) => c.key === "academic").clubs).toHaveLength(0);
